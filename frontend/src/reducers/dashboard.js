@@ -8,15 +8,12 @@ import {
 } from '../actions/types';
 
 const initialState = {
-  summary: null,
-  shipmentsByCustomer: [],
-  shipmentsByDate: [],
-  overdueNonInvoiced: [],
   loading: true,
-  error: {}
+  error: {},
+  data: null
 };
 
-export default function(state = initialState, action) {
+const dashboardReducer = (state = initialState, action) => {
   const { type, payload } = action;
 
   switch (type) {
@@ -28,7 +25,7 @@ export default function(state = initialState, action) {
     case GET_DASHBOARD_SUMMARY:
       return {
         ...state,
-        summary: payload,
+        data: payload,
         loading: false
       };
     case GET_SHIPMENTS_BY_CUSTOMER:
@@ -58,4 +55,6 @@ export default function(state = initialState, action) {
     default:
       return state;
   }
-} 
+};
+
+export default dashboardReducer; 
