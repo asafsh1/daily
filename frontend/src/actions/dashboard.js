@@ -14,6 +14,7 @@ export const getDashboardSummary = () => async dispatch => {
   
   try {
     const res = await axios.get('/api/dashboard/stats');
+    console.log('Dashboard summary data:', res.data);
 
     dispatch({
       type: GET_DASHBOARD_SUMMARY,
@@ -35,13 +36,17 @@ export const getDashboardSummary = () => async dispatch => {
 export const getShipmentsByCustomer = () => async dispatch => {
   try {
     // Get all shipments and group them by customer
-    const res = await axios.get('/api/shipments');
+    const res = await axios.get('/api/shipments?limit=100');
+    console.log('Shipments by customer data:', res.data);
     
     // Process the data to group by customer
     const shipmentsByCustomer = [];
     const customerCounts = {};
     
-    res.data.forEach(shipment => {
+    // Handle either the old data format or the new paginated format
+    const shipmentData = res.data.shipments || res.data;
+    
+    shipmentData.forEach(shipment => {
       if (shipment.customer) {
         if (customerCounts[shipment.customer]) {
           customerCounts[shipment.customer]++;
@@ -64,6 +69,7 @@ export const getShipmentsByCustomer = () => async dispatch => {
     
     // Take top 10
     const top10 = shipmentsByCustomer.slice(0, 10);
+    console.log('Processed customer data for chart:', top10);
 
     dispatch({
       type: GET_SHIPMENTS_BY_CUSTOMER,
@@ -85,6 +91,7 @@ export const getShipmentsByCustomer = () => async dispatch => {
 export const getShipmentsByDate = () => async dispatch => {
   try {
     const res = await axios.get('/api/dashboard/monthly-stats');
+    console.log('Monthly stats data:', res.data);
 
     dispatch({
       type: GET_SHIPMENTS_BY_DATE,
@@ -106,6 +113,7 @@ export const getShipmentsByDate = () => async dispatch => {
 export const getOverdueNonInvoiced = () => async dispatch => {
   try {
     const res = await axios.get('/api/dashboard/overdue-non-invoiced');
+    console.log('Overdue non-invoiced data:', res.data);
 
     dispatch({
       type: GET_OVERDUE_NON_INVOICED,

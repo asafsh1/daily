@@ -11,6 +11,11 @@ import {
 
 const initialState = {
   shipments: [],
+  pagination: {
+    total: 0,
+    page: 1,
+    pages: 1
+  },
   shipment: null,
   loading: true,
   error: {}
@@ -28,7 +33,8 @@ const shipmentReducer = (state = initialState, action) => {
     case GET_SHIPMENTS:
       return {
         ...state,
-        shipments: payload,
+        shipments: payload.shipments || payload, // Handle both new and old response format
+        pagination: payload.pagination || state.pagination,
         loading: false
       };
     case GET_SHIPMENT:

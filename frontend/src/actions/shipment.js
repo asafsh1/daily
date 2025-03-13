@@ -17,11 +17,11 @@ import store from '../store';
 const socket = io(process.env.REACT_APP_SOCKET_URL || 'http://localhost:5001');
 
 // Get all shipments
-export const getShipments = () => async dispatch => {
+export const getShipments = (page = 1, limit = 50) => async dispatch => {
   dispatch({ type: SHIPMENT_LOADING });
   
   try {
-    const res = await axios.get('/api/shipments');
+    const res = await axios.get(`/api/shipments?page=${page}&limit=${limit}`);
 
     dispatch({
       type: GET_SHIPMENTS,
@@ -30,7 +30,7 @@ export const getShipments = () => async dispatch => {
   } catch (err) {
     dispatch({
       type: SHIPMENT_ERROR,
-      payload: { msg: err.response.statusText, status: err.response.status }
+      payload: { msg: err.response?.statusText, status: err.response?.status }
     });
   }
 };
@@ -75,6 +75,8 @@ export const addShipment = (formData, navigate) => async dispatch => {
       }
     };
 
+    console.log('Sending request to:', `${axios.defaults.baseURL}/api/shipments`);
+    
     const res = await axios.post('/api/shipments', shipmentData, config);
     console.log('Shipment added successfully:', res.data);
 
@@ -92,15 +94,28 @@ export const addShipment = (formData, navigate) => async dispatch => {
   } catch (err) {
     console.error('Error adding shipment:', err);
     
+    // Log more details about the error
+    if (err.response) {
+      console.error('Server response:', {
+        status: err.response.status,
+        data: err.response.data,
+        headers: err.response.headers
+      });
+    } else if (err.request) {
+      console.error('Request was made but no response was received:', err.request);
+    } else {
+      console.error('Error setting up the request:', err.message);
+    }
+    
     if (err.response && err.response.data) {
-      console.error('Server response:', err.response.data);
+      console.error('Server response data:', err.response.data);
       
       const errors = err.response.data.errors;
       if (errors) {
         errors.forEach(error => dispatch(setAlert(error.msg, 'danger')));
       }
     } else {
-      dispatch(setAlert('Error adding shipment', 'danger'));
+      dispatch(setAlert('Error adding shipment: ' + (err.message || 'Unknown error'), 'danger'));
     }
 
     dispatch({

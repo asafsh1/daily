@@ -51,25 +51,45 @@ router.get('/stats', async (req, res) => {
 router.get('/monthly-stats', async (req, res) => {
   try {
     const currentYear = new Date().getFullYear();
-    const monthlyData = [];
     
-    // Get data for each month
-    for (let month = 0; month < 12; month++) {
-      const startDate = new Date(currentYear, month, 1);
-      const endDate = new Date(currentYear, month + 1, 0);
-      
-      const count = await Shipment.countDocuments({
-        dateAdded: {
-          $gte: startDate,
-          $lte: endDate
+    // Use aggregation to get monthly counts in a single query
+    const monthlyStats = await Shipment.aggregate([
+      {
+        $match: {
+          dateAdded: {
+            $gte: new Date(`${currentYear}-01-01`),
+            $lte: new Date(`${currentYear}-12-31`)
+          }
         }
-      });
-      
-      monthlyData.push({
-        month: month + 1,
-        count
-      });
-    }
+      },
+      {
+        $group: {
+          _id: { month: { $month: "$dateAdded" } },
+          count: { $sum: 1 }
+        }
+      },
+      {
+        $project: {
+          _id: 0,
+          month: "$_id.month",
+          count: 1
+        }
+      },
+      {
+        $sort: { month: 1 }
+      }
+    ]);
+    
+    // Fill in missing months with zero counts
+    const monthlyData = Array.from({ length: 12 }, (_, i) => ({
+      month: i + 1,
+      count: 0
+    }));
+    
+    // Update with actual data
+    monthlyStats.forEach(stat => {
+      monthlyData[stat.month - 1].count = stat.count;
+    });
     
     res.json(monthlyData);
   } catch (err) {

@@ -37,6 +37,13 @@ const Dashboard = ({
   });
 
   useEffect(() => {
+    console.log('Dashboard component state:', { 
+      summary, 
+      shipmentsByCustomer, 
+      shipmentsByDate, 
+      overdueNonInvoiced
+    });
+    
     getDashboardSummary();
     getShipmentsByCustomer();
     getShipmentsByDate();
@@ -50,24 +57,25 @@ const Dashboard = ({
       switch (sectionType) {
         case 'total-shipments':
           const res = await axios.get('/api/shipments');
-          data = res.data;
+          data = res.data.shipments || res.data;
           break;
         case 'shipment-status':
           const shipments = await axios.get('/api/shipments');
-          data = shipments.data;
+          data = shipments.data.shipments || shipments.data;
           break;
         case 'order-status':
           const orderShipments = await axios.get('/api/shipments');
-          data = orderShipments.data;
+          data = orderShipments.data.shipments || orderShipments.data;
           break;
         case 'invoicing':
           const invoiceShipments = await axios.get('/api/shipments');
-          data = invoiceShipments.data;
+          data = invoiceShipments.data.shipments || invoiceShipments.data;
           break;
         case 'total-cost':
           const costShipments = await axios.get('/api/shipments');
           // Filter to only show shipments with cost
-          data = costShipments.data.filter(shipment => shipment.cost);
+          const shipmentData = costShipments.data.shipments || costShipments.data;
+          data = shipmentData.filter(shipment => shipment.cost);
           break;
         default:
           data = [];
@@ -125,16 +133,17 @@ const Dashboard = ({
           </div>
         </div>
 
-        {overdueNonInvoiced && overdueNonInvoiced.length > 0 && (
-          <div className="overdue-shipments-container">
-            <OverdueShipments shipments={overdueNonInvoiced} />
-          </div>
-        )}
-
         {summary && summary.recentShipments && (
           <div className="recent-shipments-container">
             <h2 className="text-primary">Recent Shipments</h2>
             <RecentShipments shipments={summary.recentShipments} />
+          </div>
+        )}
+
+        {overdueNonInvoiced && overdueNonInvoiced.length > 0 && (
+          <div className="overdue-shipments-container">
+            <h2 className="text-primary">Overdue Non-Invoiced Shipments</h2>
+            <OverdueShipments shipments={overdueNonInvoiced} />
           </div>
         )}
       </div>

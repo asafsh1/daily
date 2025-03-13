@@ -9,8 +9,30 @@ const Shipment = require('../../models/Shipment');
 // @access  Public
 router.get('/', async (req, res) => {
   try {
-    const shipments = await Shipment.find().sort({ dateAdded: -1 });
-    res.json(shipments);
+    // Parse query parameters
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 50; // Default to 50 items per page
+    const skip = (page - 1) * limit;
+    
+    // Get total count for pagination info
+    const totalShipments = await Shipment.countDocuments();
+    
+    // Query with pagination
+    const shipments = await Shipment.find()
+      .sort({ dateAdded: -1 })
+      .skip(skip)
+      .limit(limit)
+      .lean(); // Use lean() for better performance
+    
+    // Return with pagination info
+    res.json({
+      shipments,
+      pagination: {
+        total: totalShipments,
+        page,
+        pages: Math.ceil(totalShipments / limit)
+      }
+    });
   } catch (err) {
     console.error(err.message);
     res.status(500).send('Server Error');
@@ -61,9 +83,32 @@ router.post(
     }
 
     try {
-      const newShipment = new Shipment({
-        ...req.body
-      });
+      // Ensure dates are properly formatted
+      let shipmentData = {...req.body};
+      
+      try {
+        // Format dateAdded if it exists
+        if (shipmentData.dateAdded) {
+          shipmentData.dateAdded = new Date(shipmentData.dateAdded);
+        }
+        
+        // Format scheduledArrival if it exists
+        if (shipmentData.scheduledArrival) {
+          shipmentData.scheduledArrival = new Date(shipmentData.scheduledArrival);
+        }
+        
+        // Format fileCreatedDate if it exists
+        if (shipmentData.fileCreatedDate) {
+          shipmentData.fileCreatedDate = new Date(shipmentData.fileCreatedDate);
+        }
+      } catch (dateErr) {
+        console.error('Error formatting dates:', dateErr.message);
+        return res.status(400).json({ 
+          errors: [{ msg: 'Invalid date format. Please use ISO format (YYYY-MM-DD)' }] 
+        });
+      }
+      
+      const newShipment = new Shipment(shipmentData);
 
       console.log('Created shipment object:', newShipment);
       
@@ -74,6 +119,15 @@ router.post(
       res.json(shipment);
     } catch (err) {
       console.error('Error saving shipment:', err.message);
+      
+      // Handle mongoose validation errors
+      if (err.name === 'ValidationError') {
+        const validationErrors = Object.values(err.errors).map(error => ({
+          msg: error.message
+        }));
+        return res.status(400).json({ errors: validationErrors });
+      }
+      
       res.status(500).send('Server Error');
     }
   }
