@@ -13,8 +13,8 @@ import {
 import io from 'socket.io-client';
 import store from '../store';
 
-// Initialize socket.io with the correct URL
-const socket = io('http://localhost:5001');
+// Initialize socket.io with the correct URL from environment variables
+const socket = io(process.env.REACT_APP_SOCKET_URL || 'http://localhost:5001');
 
 // Get all shipments
 export const getShipments = () => async dispatch => {

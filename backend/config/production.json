@@ -1,0 +1,4 @@
+{
+  "mongoURI": "mongodb+srv://<username>:<password>@cluster0.xxxxx.mongodb.net/shipment-reporting",
+  "jwtSecret": "mysecrettoken"
+} 

@@ -10,7 +10,7 @@ const app = express();
 const server = http.createServer(app);
 const io = socketIo(server, {
   cors: {
-    origin: ['http://localhost:3000'],
+    origin: ['http://localhost:3000', 'https://vocal-cheesecake-1379ed.netlify.app'],
     methods: ['GET', 'POST', 'PUT', 'DELETE'],
     credentials: true
   }
@@ -24,9 +24,9 @@ connectDB().then(connected => {
 });
 
 // Initialize Middleware
-app.use(express.json());
+app.use(express.json({ extended: false }));
 app.use(cors({
-  origin: 'http://localhost:3000',
+  origin: ['http://localhost:3000', 'https://vocal-cheesecake-1379ed.netlify.app'],
   credentials: true
 }));
 
