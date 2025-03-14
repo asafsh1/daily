@@ -5,6 +5,7 @@ import PropTypes from 'prop-types';
 import Moment from 'react-moment';
 import { getShipments, updateShipment } from '../../actions/shipment';
 import Spinner from '../layout/Spinner';
+import { convertToCSV, downloadCSV } from '../../utils/exportUtils';
 
 const Shipments = ({ getShipments, updateShipment, shipment: { shipments, loading } }) => {
   const [searchTerm, setSearchTerm] = useState('');
@@ -31,6 +32,36 @@ const Shipments = ({ getShipments, updateShipment, shipment: { shipments, loadin
              (filterStatus === '' || shipment.shipmentStatus === filterStatus);
     }
   );
+
+  // Handle export to CSV
+  const handleExportCSV = () => {
+    // Define the CSV headers (mapping from data keys to display names)
+    const headers = [
+      { key: 'dateAdded', display: 'Date Added', isDate: true },
+      { key: 'customer', display: 'Customer' },
+      { key: 'awbNumber1', display: 'AWB' },
+      { key: 'routing', display: 'Routing' },
+      { key: 'orderStatus', display: 'Order Status' },
+      { key: 'shipmentStatus', display: 'Shipment Status' },
+      { key: 'scheduledArrival', display: 'Scheduled Arrival', isDate: true },
+      { key: 'invoiced', display: 'Invoiced' },
+      { key: 'invoiceSent', display: 'Invoice Sent' },
+      { key: 'cost', display: 'Cost' },
+      { key: 'receivables', display: 'Receivables' },
+      { key: 'createdBy', display: 'Created By' },
+      { key: 'comments', display: 'Comments' }
+    ];
+
+    // Convert filtered shipments to CSV format
+    const csvContent = convertToCSV(filteredShipments, headers);
+    
+    // Generate file name with current date
+    const date = new Date().toISOString().split('T')[0];
+    const fileName = `shipments-export-${date}.csv`;
+    
+    // Download the CSV file
+    downloadCSV(csvContent, fileName);
+  };
 
   return loading ? (
     <Spinner />
@@ -60,9 +91,18 @@ const Shipments = ({ getShipments, updateShipment, shipment: { shipments, loadin
             <option value="Canceled">Canceled</option>
           </select>
         </div>
-        <Link to="/add-shipment" className="btn btn-primary">
-          Add Shipment
-        </Link>
+        <div className="action-buttons">
+          <button 
+            onClick={handleExportCSV} 
+            className="btn btn-success"
+            title="Export to CSV"
+          >
+            <i className="fas fa-file-csv"></i> Export CSV
+          </button>
+          <Link to="/add-shipment" className="btn btn-primary">
+            Add Shipment
+          </Link>
+        </div>
       </div>
 
       <div className="table-responsive">
