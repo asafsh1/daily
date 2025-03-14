@@ -10,7 +10,7 @@ import {
 const initialState = {
   loading: true,
   error: {},
-  data: null
+  summary: null
 };
 
 const dashboardReducer = (state = initialState, action) => {
@@ -25,7 +25,7 @@ const dashboardReducer = (state = initialState, action) => {
     case GET_DASHBOARD_SUMMARY:
       return {
         ...state,
-        data: payload,
+        summary: payload,
         loading: false
       };
     case GET_SHIPMENTS_BY_CUSTOMER:

@@ -35,6 +35,8 @@ const Dashboard = ({
     data: [],
     type: ''
   });
+  
+  const [debugMode, setDebugMode] = useState(false);
 
   useEffect(() => {
     console.log('Dashboard component state:', { 
@@ -109,6 +111,43 @@ const Dashboard = ({
       <p className="lead">
         <i className="fas fa-tachometer-alt"></i> Shipment Tracking Dashboard
       </p>
+      
+      <button 
+        onClick={() => setDebugMode(!debugMode)} 
+        className="btn btn-light my-1"
+        style={{ marginBottom: '20px' }}
+      >
+        {debugMode ? 'Hide Debug Info' : 'Show Debug Info'}
+      </button>
+      
+      {debugMode && (
+        <div className="dashboard-debug" style={{ 
+          backgroundColor: '#f8f9fa', 
+          padding: '15px', 
+          marginBottom: '20px',
+          borderRadius: '5px',
+          overflow: 'auto',
+          maxHeight: '300px'
+        }}>
+          <h3>Debug Information</h3>
+          <div>
+            <h4>Summary Data:</h4>
+            <pre>{summary ? JSON.stringify(summary, null, 2) : 'No summary data'}</pre>
+          </div>
+          <div>
+            <h4>Shipments by Customer:</h4>
+            <pre>{shipmentsByCustomer ? JSON.stringify(shipmentsByCustomer, null, 2) : 'No customer data'}</pre>
+          </div>
+          <div>
+            <h4>Shipments by Date:</h4>
+            <pre>{shipmentsByDate ? JSON.stringify(shipmentsByDate, null, 2) : 'No date data'}</pre>
+          </div>
+          <div>
+            <h4>Overdue Non-Invoiced:</h4>
+            <pre>{overdueNonInvoiced ? JSON.stringify(overdueNonInvoiced, null, 2) : 'No overdue data'}</pre>
+          </div>
+        </div>
+      )}
 
       <div className="dashboard-container">
         {summary && <DashboardSummary summary={summary} onSectionClick={handleSectionClick} />}
