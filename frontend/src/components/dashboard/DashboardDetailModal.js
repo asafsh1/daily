@@ -16,6 +16,12 @@ const DashboardDetailModal = ({ isOpen, onClose, title, data, type }) => {
         return renderOrderStatusTable();
       case 'invoicing':
         return renderInvoicingTable();
+      case 'total-cost':
+        return renderCostTable();
+      case 'total-receivables':
+        return renderReceivablesTable();
+      case 'total-profit':
+        return renderProfitTable();
       default:
         return <p>No data available</p>;
     }
@@ -180,6 +186,126 @@ const DashboardDetailModal = ({ isOpen, onClose, title, data, type }) => {
               </td>
             </tr>
           ))}
+        </tbody>
+      </table>
+    );
+  };
+
+  const renderCostTable = () => {
+    return (
+      <table className="table">
+        <thead>
+          <tr>
+            <th>Date Added</th>
+            <th>Customer</th>
+            <th>AWB</th>
+            <th>Cost</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {data.map(shipment => (
+            <tr key={shipment._id}>
+              <td>
+                <Moment format="DD/MM/YYYY">{shipment.dateAdded}</Moment>
+              </td>
+              <td>{shipment.customer}</td>
+              <td>{shipment.awbNumber1}</td>
+              <td className="number-cell">
+                ${shipment.cost ? parseFloat(shipment.cost).toFixed(2) : '0.00'}
+              </td>
+              <td>
+                <Link to={`/edit-shipment/${shipment._id}`} className="btn btn-sm btn-primary">
+                  Edit
+                </Link>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    );
+  };
+
+  const renderReceivablesTable = () => {
+    return (
+      <table className="table">
+        <thead>
+          <tr>
+            <th>Date Added</th>
+            <th>Customer</th>
+            <th>AWB</th>
+            <th>Receivables</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {data.map(shipment => (
+            <tr key={shipment._id}>
+              <td>
+                <Moment format="DD/MM/YYYY">{shipment.dateAdded}</Moment>
+              </td>
+              <td>{shipment.customer}</td>
+              <td>{shipment.awbNumber1}</td>
+              <td className="number-cell">
+                ${shipment.receivables ? parseFloat(shipment.receivables).toFixed(2) : '0.00'}
+              </td>
+              <td>
+                <Link to={`/edit-shipment/${shipment._id}`} className="btn btn-sm btn-primary">
+                  Edit
+                </Link>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    );
+  };
+
+  const renderProfitTable = () => {
+    return (
+      <table className="table">
+        <thead>
+          <tr>
+            <th>Date Added</th>
+            <th>Customer</th>
+            <th>AWB</th>
+            <th>Receivables</th>
+            <th>Cost</th>
+            <th>Profit</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {data.map(shipment => {
+            const receivables = shipment.receivables || 0;
+            const cost = shipment.cost || 0;
+            const profit = receivables - cost;
+            const isProfitable = profit >= 0;
+            
+            return (
+              <tr key={shipment._id}>
+                <td>
+                  <Moment format="DD/MM/YYYY">{shipment.dateAdded}</Moment>
+                </td>
+                <td>{shipment.customer}</td>
+                <td>{shipment.awbNumber1}</td>
+                <td className="number-cell">
+                  ${parseFloat(receivables).toFixed(2)}
+                </td>
+                <td className="number-cell">
+                  ${parseFloat(cost).toFixed(2)}
+                </td>
+                <td className={`number-cell ${isProfitable ? 'text-success' : 'text-danger'}`}>
+                  ${parseFloat(profit).toFixed(2)}
+                </td>
+                <td>
+                  <Link to={`/edit-shipment/${shipment._id}`} className="btn btn-sm btn-primary">
+                    Edit
+                  </Link>
+                </td>
+              </tr>
+            );
+          })}
         </tbody>
       </table>
     );

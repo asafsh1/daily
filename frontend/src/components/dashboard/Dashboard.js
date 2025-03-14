@@ -79,6 +79,23 @@ const Dashboard = ({
           const shipmentData = costShipments.data.shipments || costShipments.data;
           data = shipmentData.filter(shipment => shipment.cost);
           break;
+        case 'total-receivables':
+          const receivablesShipments = await axios.get('/api/shipments');
+          // Filter to only show shipments with receivables
+          const receivablesData = receivablesShipments.data.shipments || receivablesShipments.data;
+          data = receivablesData.filter(shipment => shipment.receivables);
+          break;
+        case 'total-profit':
+          const profitShipments = await axios.get('/api/shipments');
+          // Filter to show shipments with both cost and receivables for profit calculation
+          const profitData = profitShipments.data.shipments || profitShipments.data;
+          data = profitData.filter(shipment => shipment.cost || shipment.receivables);
+          // Add calculated profit field to each shipment
+          data = data.map(shipment => ({
+            ...shipment,
+            calculatedProfit: (shipment.receivables || 0) - (shipment.cost || 0)
+          }));
+          break;
         default:
           data = [];
       }

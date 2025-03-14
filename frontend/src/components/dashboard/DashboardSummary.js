@@ -14,6 +14,14 @@ const DashboardSummary = ({ summary, onSectionClick }) => {
     ? recentShipments.reduce((total, shipment) => total + (shipment.cost || 0), 0)
     : 0;
 
+  // Calculate total receivables from recent shipments
+  const totalReceivables = recentShipments
+    ? recentShipments.reduce((total, shipment) => total + (shipment.receivables || 0), 0)
+    : 0;
+
+  // Calculate profit (receivables minus cost)
+  const totalProfit = totalReceivables - totalCost;
+
   // Count order statuses from recent shipments
   const orderStatus = {
     done: 0,
@@ -117,6 +125,24 @@ const DashboardSummary = ({ summary, onSectionClick }) => {
       <div className="summary-card total-cost" onClick={() => onSectionClick('total-cost', 'Total Cost')}>
         <h3>Total Cost</h3>
         <div className="summary-value">${totalCost.toFixed(2)}</div>
+        <div className="card-overlay">
+          <i className="fas fa-search-plus"></i> Click to view details
+        </div>
+      </div>
+
+      <div className="summary-card total-receivables" onClick={() => onSectionClick('total-receivables', 'Total Receivables')}>
+        <h3>Total Receivables</h3>
+        <div className="summary-value">${totalReceivables.toFixed(2)}</div>
+        <div className="card-overlay">
+          <i className="fas fa-search-plus"></i> Click to view details
+        </div>
+      </div>
+
+      <div className="summary-card total-profit" onClick={() => onSectionClick('total-profit', 'Total Profit')}>
+        <h3>Total Profit</h3>
+        <div className={`summary-value ${totalProfit >= 0 ? 'text-success' : 'text-danger'}`}>
+          ${totalProfit.toFixed(2)}
+        </div>
         <div className="card-overlay">
           <i className="fas fa-search-plus"></i> Click to view details
         </div>
