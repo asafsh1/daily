@@ -73,10 +73,10 @@ const Shipments = ({ getShipments, updateShipment, shipment: { shipments, loadin
               <th>Customer</th>
               <th>AWB</th>
               <th>Routing</th>
-              <th>Status</th>
+              <th>Order Status</th>
+              <th>Shipment Status</th>
               <th>Scheduled Arrival</th>
               <th>Invoiced</th>
-              <th>Created By</th>
               <th>Actions</th>
             </tr>
           </thead>
@@ -90,6 +90,13 @@ const Shipments = ({ getShipments, updateShipment, shipment: { shipments, loadin
                   <td>{shipment.customer}</td>
                   <td>{shipment.awbNumber1}</td>
                   <td>{shipment.routing}</td>
+                  <td>
+                    <span 
+                      className={`status-badge order-status-${shipment.orderStatus ? shipment.orderStatus.replace(/\s+/g, '-').toLowerCase() : 'unknown'}`}
+                    >
+                      {shipment.orderStatus || 'Unknown'}
+                    </span>
+                  </td>
                   <td>
                     <select
                       className={`status-select status-${shipment.shipmentStatus.toLowerCase()}`}
@@ -108,7 +115,6 @@ const Shipments = ({ getShipments, updateShipment, shipment: { shipments, loadin
                     </Moment>
                   </td>
                   <td>{shipment.invoiced ? 'Yes' : 'No'}</td>
-                  <td>{shipment.createdBy || 'Not specified'}</td>
                   <td>
                     <Link
                       to={`/shipments/${shipment._id}`}

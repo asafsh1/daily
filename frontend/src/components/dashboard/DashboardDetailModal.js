@@ -8,6 +8,8 @@ const DashboardDetailModal = ({ isOpen, onClose, title, data, type }) => {
 
   const renderContent = () => {
     switch (type) {
+      case 'total-shipments':
+        return renderShipmentTable();
       case 'shipment-status':
         return renderShipmentStatusTable();
       case 'order-status':
@@ -17,6 +19,49 @@ const DashboardDetailModal = ({ isOpen, onClose, title, data, type }) => {
       default:
         return <p>No data available</p>;
     }
+  };
+
+  const renderShipmentTable = () => {
+    return (
+      <table className="table">
+        <thead>
+          <tr>
+            <th>Date Added</th>
+            <th>Customer</th>
+            <th>AWB</th>
+            <th>Order Status</th>
+            <th>Shipment Status</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {data.map(shipment => (
+            <tr key={shipment._id}>
+              <td>
+                <Moment format="DD/MM/YYYY">{shipment.dateAdded}</Moment>
+              </td>
+              <td>{shipment.customer}</td>
+              <td>{shipment.awbNumber1}</td>
+              <td>
+                <span className={`status-badge order-status-${shipment.orderStatus ? shipment.orderStatus.replace(/\s+/g, '-').toLowerCase() : 'unknown'}`}>
+                  {shipment.orderStatus || 'Unknown'}
+                </span>
+              </td>
+              <td>
+                <span className={`status-badge status-${shipment.shipmentStatus ? shipment.shipmentStatus.toLowerCase() : 'unknown'}`}>
+                  {shipment.shipmentStatus || 'Unknown'}
+                </span>
+              </td>
+              <td>
+                <Link to={`/shipments/${shipment._id}`} className="btn btn-sm btn-primary">
+                  View
+                </Link>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    );
   };
 
   const renderShipmentStatusTable = () => {
