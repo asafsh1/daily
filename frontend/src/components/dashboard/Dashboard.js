@@ -77,24 +77,42 @@ const Dashboard = ({
           const costShipments = await axios.get('/api/shipments');
           // Filter to only show shipments with cost
           const shipmentData = costShipments.data.shipments || costShipments.data;
-          data = shipmentData.filter(shipment => shipment.cost);
+          data = shipmentData.filter(shipment => {
+            const cost = shipment.cost ? parseFloat(shipment.cost) : 0;
+            return !isNaN(cost) && cost > 0;
+          });
           break;
         case 'total-receivables':
           const receivablesShipments = await axios.get('/api/shipments');
           // Filter to only show shipments with receivables
           const receivablesData = receivablesShipments.data.shipments || receivablesShipments.data;
-          data = receivablesData.filter(shipment => shipment.receivables);
+          data = receivablesData.filter(shipment => {
+            const receivables = shipment.receivables ? parseFloat(shipment.receivables) : 0;
+            return !isNaN(receivables) && receivables > 0;
+          });
           break;
         case 'total-profit':
           const profitShipments = await axios.get('/api/shipments');
           // Filter to show shipments with both cost and receivables for profit calculation
           const profitData = profitShipments.data.shipments || profitShipments.data;
-          data = profitData.filter(shipment => shipment.cost || shipment.receivables);
+          data = profitData.filter(shipment => {
+            const cost = shipment.cost ? parseFloat(shipment.cost) : 0;
+            const receivables = shipment.receivables ? parseFloat(shipment.receivables) : 0;
+            return !isNaN(cost) || !isNaN(receivables);
+          });
           // Add calculated profit field to each shipment
-          data = data.map(shipment => ({
-            ...shipment,
-            calculatedProfit: (shipment.receivables || 0) - (shipment.cost || 0)
-          }));
+          data = data.map(shipment => {
+            const cost = shipment.cost ? parseFloat(shipment.cost) : 0;
+            const receivables = shipment.receivables ? parseFloat(shipment.receivables) : 0;
+            const calculatedProfit = !isNaN(receivables) && !isNaN(cost) 
+              ? receivables - cost 
+              : 0;
+            
+            return {
+              ...shipment,
+              calculatedProfit
+            };
+          });
           break;
         default:
           data = [];

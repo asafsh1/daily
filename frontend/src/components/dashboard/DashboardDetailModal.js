@@ -204,23 +204,28 @@ const DashboardDetailModal = ({ isOpen, onClose, title, data, type }) => {
           </tr>
         </thead>
         <tbody>
-          {data.map(shipment => (
-            <tr key={shipment._id}>
-              <td>
-                <Moment format="DD/MM/YYYY">{shipment.dateAdded}</Moment>
-              </td>
-              <td>{shipment.customer}</td>
-              <td>{shipment.awbNumber1}</td>
-              <td className="number-cell">
-                ${shipment.cost ? parseFloat(shipment.cost).toFixed(2) : '0.00'}
-              </td>
-              <td>
-                <Link to={`/edit-shipment/${shipment._id}`} className="btn btn-sm btn-primary">
-                  Edit
-                </Link>
-              </td>
-            </tr>
-          ))}
+          {data.map(shipment => {
+            const cost = shipment.cost ? parseFloat(shipment.cost) : 0;
+            const displayCost = isNaN(cost) ? '0.00' : cost.toFixed(2);
+            
+            return (
+              <tr key={shipment._id}>
+                <td>
+                  <Moment format="DD/MM/YYYY">{shipment.dateAdded}</Moment>
+                </td>
+                <td>{shipment.customer}</td>
+                <td>{shipment.awbNumber1}</td>
+                <td className="number-cell">
+                  ${displayCost}
+                </td>
+                <td>
+                  <Link to={`/edit-shipment/${shipment._id}`} className="btn btn-sm btn-primary">
+                    Edit
+                  </Link>
+                </td>
+              </tr>
+            );
+          })}
         </tbody>
       </table>
     );
@@ -239,23 +244,28 @@ const DashboardDetailModal = ({ isOpen, onClose, title, data, type }) => {
           </tr>
         </thead>
         <tbody>
-          {data.map(shipment => (
-            <tr key={shipment._id}>
-              <td>
-                <Moment format="DD/MM/YYYY">{shipment.dateAdded}</Moment>
-              </td>
-              <td>{shipment.customer}</td>
-              <td>{shipment.awbNumber1}</td>
-              <td className="number-cell">
-                ${shipment.receivables ? parseFloat(shipment.receivables).toFixed(2) : '0.00'}
-              </td>
-              <td>
-                <Link to={`/edit-shipment/${shipment._id}`} className="btn btn-sm btn-primary">
-                  Edit
-                </Link>
-              </td>
-            </tr>
-          ))}
+          {data.map(shipment => {
+            const receivables = shipment.receivables ? parseFloat(shipment.receivables) : 0;
+            const displayReceivables = isNaN(receivables) ? '0.00' : receivables.toFixed(2);
+            
+            return (
+              <tr key={shipment._id}>
+                <td>
+                  <Moment format="DD/MM/YYYY">{shipment.dateAdded}</Moment>
+                </td>
+                <td>{shipment.customer}</td>
+                <td>{shipment.awbNumber1}</td>
+                <td className="number-cell">
+                  ${displayReceivables}
+                </td>
+                <td>
+                  <Link to={`/edit-shipment/${shipment._id}`} className="btn btn-sm btn-primary">
+                    Edit
+                  </Link>
+                </td>
+              </tr>
+            );
+          })}
         </tbody>
       </table>
     );
@@ -277,9 +287,13 @@ const DashboardDetailModal = ({ isOpen, onClose, title, data, type }) => {
         </thead>
         <tbody>
           {data.map(shipment => {
-            const receivables = shipment.receivables || 0;
-            const cost = shipment.cost || 0;
-            const profit = receivables - cost;
+            const receivables = shipment.receivables ? parseFloat(shipment.receivables) : 0;
+            const cost = shipment.cost ? parseFloat(shipment.cost) : 0;
+            
+            const displayReceivables = isNaN(receivables) ? '0.00' : receivables.toFixed(2);
+            const displayCost = isNaN(cost) ? '0.00' : cost.toFixed(2);
+            
+            const profit = (isNaN(receivables) ? 0 : receivables) - (isNaN(cost) ? 0 : cost);
             const isProfitable = profit >= 0;
             
             return (
@@ -290,13 +304,13 @@ const DashboardDetailModal = ({ isOpen, onClose, title, data, type }) => {
                 <td>{shipment.customer}</td>
                 <td>{shipment.awbNumber1}</td>
                 <td className="number-cell">
-                  ${parseFloat(receivables).toFixed(2)}
+                  ${displayReceivables}
                 </td>
                 <td className="number-cell">
-                  ${parseFloat(cost).toFixed(2)}
+                  ${displayCost}
                 </td>
                 <td className={`number-cell ${isProfitable ? 'text-success' : 'text-danger'}`}>
-                  ${parseFloat(profit).toFixed(2)}
+                  ${profit.toFixed(2)}
                 </td>
                 <td>
                   <Link to={`/edit-shipment/${shipment._id}`} className="btn btn-sm btn-primary">
