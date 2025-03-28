@@ -219,7 +219,6 @@ const ShipmentForm = ({
           >
             <option value="planned">Planned</option>
             <option value="confirmed">Confirmed</option>
-            <option value="in transit">In Transit</option>
             <option value="done">Done</option>
             <option value="canceled">Canceled</option>
           </select>
@@ -318,6 +317,7 @@ const ShipmentForm = ({
             className={errors.shipmentStatus ? 'form-control is-invalid' : 'form-control'}
           >
             <option value="Pending">Pending</option>
+            <option value="In Transit">In Transit</option>
             <option value="Arrived">Arrived</option>
             <option value="Delayed">Delayed</option>
             <option value="Canceled">Canceled</option>

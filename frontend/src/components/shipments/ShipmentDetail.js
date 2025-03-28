@@ -26,14 +26,18 @@ const ShipmentDetail = ({
     <Spinner />
   ) : (
     <section className="container">
-      <Link to="/shipments" className="btn btn-light">
-        Back to Shipments
-      </Link>
-      {user && (user.role === 'admin' || user.role === 'manager') && (
-        <Link to={`/edit-shipment/${shipment._id}`} className="btn btn-primary">
-          Edit Shipment
-        </Link>
-      )}
+      <div className="shipment-detail-header">
+        <div className="shipment-detail-actions">
+          <Link to="/shipments" className="btn btn-light">
+            <i className="fas fa-arrow-left"></i> Back to Shipments
+          </Link>
+          {user && (user.role === 'admin' || user.role === 'manager') && (
+            <Link to={`/edit-shipment/${shipment._id}`} className="btn btn-primary">
+              <i className="fas fa-edit"></i> Edit Shipment
+            </Link>
+          )}
+        </div>
+      </div>
 
       <div className="shipment-detail">
         <h1 className="large text-primary">Shipment Details</h1>
