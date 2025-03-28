@@ -86,6 +86,7 @@ const Shipments = ({ getShipments, updateShipment, shipment: { shipments, loadin
           >
             <option value="">All Statuses</option>
             <option value="Pending">Pending</option>
+            <option value="In Transit">In Transit</option>
             <option value="Arrived">Arrived</option>
             <option value="Delayed">Delayed</option>
             <option value="Canceled">Canceled</option>
@@ -112,10 +113,12 @@ const Shipments = ({ getShipments, updateShipment, shipment: { shipments, loadin
               <th>Date Added</th>
               <th>Customer</th>
               <th>AWB</th>
+              <th>Flight #</th>
               <th>Routing</th>
               <th>Order Status</th>
               <th>Shipment Status</th>
-              <th>Scheduled Arrival</th>
+              <th>Departure</th>
+              <th>Arrival</th>
               <th>Invoiced</th>
               <th>Actions</th>
             </tr>
@@ -129,6 +132,7 @@ const Shipments = ({ getShipments, updateShipment, shipment: { shipments, loadin
                   </td>
                   <td>{shipment.customer}</td>
                   <td>{shipment.awbNumber1}</td>
+                  <td>{shipment.flightNumber}</td>
                   <td>{shipment.routing}</td>
                   <td>
                     <span 
@@ -139,18 +143,24 @@ const Shipments = ({ getShipments, updateShipment, shipment: { shipments, loadin
                   </td>
                   <td>
                     <select
-                      className={`status-select status-${shipment.shipmentStatus.toLowerCase()}`}
+                      className={`status-select status-${shipment.shipmentStatus.toLowerCase().replace(/\s+/g, '-')}`}
                       value={shipment.shipmentStatus}
                       onChange={(e) => handleStatusChange(shipment._id, e.target.value)}
                     >
                       <option value="Pending">Pending</option>
+                      <option value="In Transit">In Transit</option>
                       <option value="Arrived">Arrived</option>
                       <option value="Delayed">Delayed</option>
                       <option value="Canceled">Canceled</option>
                     </select>
                   </td>
                   <td>
-                    <Moment format="DD/MM/YYYY">
+                    <Moment format="DD/MM/YYYY HH:mm">
+                      {shipment.scheduledDeparture}
+                    </Moment>
+                  </td>
+                  <td>
+                    <Moment format="DD/MM/YYYY HH:mm">
                       {shipment.scheduledArrival}
                     </Moment>
                   </td>

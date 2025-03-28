@@ -8,7 +8,7 @@ const ShipmentSchema = new mongoose.Schema({
   orderStatus: {
     type: String,
     required: true,
-    enum: ['done', 'confirmed', 'planned', 'canceled', 'in transit']
+    enum: ['done', 'confirmed', 'planned', 'canceled']
   },
   customer: {
     type: String,
@@ -25,6 +25,14 @@ const ShipmentSchema = new mongoose.Schema({
     type: String,
     required: true
   },
+  flightNumber: {
+    type: String,
+    required: true
+  },
+  scheduledDeparture: {
+    type: Date,
+    required: true
+  },
   scheduledArrival: {
     type: Date,
     required: true
@@ -32,7 +40,7 @@ const ShipmentSchema = new mongoose.Schema({
   shipmentStatus: {
     type: String,
     default: 'Pending',
-    enum: ['Pending', 'Arrived', 'Delayed', 'Canceled']
+    enum: ['Pending', 'Arrived', 'Delayed', 'Canceled', 'In Transit']
   },
   fileNumber: {
     type: String
@@ -65,7 +73,8 @@ const ShipmentSchema = new mongoose.Schema({
     enum: ['Confirmed', 'Pending', 'Paid']
   },
   createdBy: {
-    type: String
+    type: String,
+    required: true
   },
   updatedBy: {
     type: String

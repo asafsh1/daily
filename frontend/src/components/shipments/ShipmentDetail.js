@@ -77,11 +77,19 @@ const ShipmentDetail = ({
                 <span className="info-value">{shipment.routing}</span>
               </div>
               <div className="info-item">
+                <span className="info-label">Flight Number:</span>
+                <span className="info-value">{shipment.flightNumber}</span>
+              </div>
+              <div className="info-item">
+                <span className="info-label">Scheduled Departure:</span>
+                <span className="info-value">
+                  <Moment format="DD/MM/YYYY HH:mm">{shipment.scheduledDeparture}</Moment>
+                </span>
+              </div>
+              <div className="info-item">
                 <span className="info-label">Scheduled Arrival:</span>
                 <span className="info-value">
-                  <Moment format="DD/MM/YYYY">
-                    {shipment.scheduledArrival}
-                  </Moment>
+                  <Moment format="DD/MM/YYYY HH:mm">{shipment.scheduledArrival}</Moment>
                 </span>
               </div>
               <div className="info-item">
@@ -135,12 +143,14 @@ const ShipmentDetail = ({
               <div className="info-item">
                 <span className="info-label">Cost:</span>
                 <span className="info-value">
-                  ${shipment.cost ? shipment.cost.toFixed(2) : '0.00'}
+                  ${shipment.cost ? shipment.cost.toFixed(2) : '0.00'} USD
                 </span>
               </div>
               <div className="info-item">
                 <span className="info-label">Receivables:</span>
-                <span className="info-value">{shipment.receivables || 'N/A'}</span>
+                <span className="info-value">
+                  ${shipment.receivables ? parseFloat(shipment.receivables).toFixed(2) : '0.00'} USD
+                </span>
               </div>
               <div className="info-item">
                 <span className="info-label">Invoice Number:</span>

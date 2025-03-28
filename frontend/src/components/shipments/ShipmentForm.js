@@ -12,6 +12,8 @@ const initialState = {
   awbNumber1: '',
   awbNumber2: '',
   routing: '',
+  flightNumber: '',
+  scheduledDeparture: '',
   scheduledArrival: '',
   shipmentStatus: 'Pending',
   fileNumber: '',
@@ -92,6 +94,8 @@ const ShipmentForm = ({
     awbNumber1,
     awbNumber2,
     routing,
+    flightNumber,
+    scheduledDeparture,
     scheduledArrival,
     shipmentStatus,
     fileNumber,
@@ -111,16 +115,19 @@ const ShipmentForm = ({
     
     if (!dateAdded) newErrors.dateAdded = 'Date added is required';
     if (!orderStatus) newErrors.orderStatus = 'Order status is required';
-    if (!['done', 'confirmed', 'planned', 'canceled', 'in transit'].includes(orderStatus)) {
+    if (!['done', 'confirmed', 'planned', 'canceled'].includes(orderStatus)) {
       newErrors.orderStatus = 'Invalid order status';
     }
     if (!customer) newErrors.customer = 'Customer is required';
     if (!awbNumber1) newErrors.awbNumber1 = 'AWB number is required';
     if (!routing) newErrors.routing = 'Routing is required';
+    if (!flightNumber) newErrors.flightNumber = 'Flight number is required';
+    if (!scheduledDeparture) newErrors.scheduledDeparture = 'Scheduled departure is required';
     if (!scheduledArrival) newErrors.scheduledArrival = 'Scheduled arrival is required';
-    if (!['Pending', 'Arrived', 'Delayed', 'Canceled'].includes(shipmentStatus)) {
+    if (!['Pending', 'Arrived', 'Delayed', 'Canceled', 'In Transit'].includes(shipmentStatus)) {
       newErrors.shipmentStatus = 'Invalid shipment status';
     }
+    if (!createdBy) newErrors.createdBy = 'Created By is required';
     if (invoiceStatus && !['Confirmed', 'Pending', 'Paid'].includes(invoiceStatus)) {
       newErrors.invoiceStatus = 'Invalid invoice status';
     }
@@ -267,6 +274,30 @@ const ShipmentForm = ({
         </div>
 
         <div className="form-group">
+          <label>Flight Number*</label>
+          <input
+            type="text"
+            name="flightNumber"
+            value={flightNumber}
+            onChange={onChange}
+            className={errors.flightNumber ? 'form-control is-invalid' : 'form-control'}
+          />
+          {errors.flightNumber && <div className="invalid-feedback">{errors.flightNumber}</div>}
+        </div>
+
+        <div className="form-group">
+          <label>Scheduled Departure*</label>
+          <input
+            type="datetime-local"
+            name="scheduledDeparture"
+            value={scheduledDeparture}
+            onChange={onChange}
+            className={errors.scheduledDeparture ? 'form-control is-invalid' : 'form-control'}
+          />
+          {errors.scheduledDeparture && <div className="invalid-feedback">{errors.scheduledDeparture}</div>}
+        </div>
+
+        <div className="form-group">
           <label>Scheduled Arrival*</label>
           <input
             type="datetime-local"
@@ -317,27 +348,38 @@ const ShipmentForm = ({
         </div>
 
         <div className="form-group">
-          <label>Cost</label>
-          <input
-            type="number"
-            name="cost"
-            value={cost}
-            onChange={onChange}
-            className={errors.cost ? 'form-control is-invalid' : 'form-control'}
-            step="0.01"
-          />
+          <label>Cost (USD)</label>
+          <div className="input-group">
+            <div className="input-group-prepend">
+              <span className="input-group-text">$</span>
+            </div>
+            <input
+              type="number"
+              name="cost"
+              value={cost}
+              onChange={onChange}
+              className={errors.cost ? 'form-control is-invalid' : 'form-control'}
+              step="0.01"
+            />
+          </div>
           {errors.cost && <div className="invalid-feedback">{errors.cost}</div>}
         </div>
 
         <div className="form-group">
-          <label>Receivables</label>
-          <input
-            type="text"
-            name="receivables"
-            value={receivables}
-            onChange={onChange}
-            className="form-control"
-          />
+          <label>Receivables (USD)</label>
+          <div className="input-group">
+            <div className="input-group-prepend">
+              <span className="input-group-text">$</span>
+            </div>
+            <input
+              type="number"
+              name="receivables"
+              value={receivables}
+              onChange={onChange}
+              className="form-control"
+              step="0.01"
+            />
+          </div>
         </div>
 
         <div className="form-group">
@@ -403,15 +445,16 @@ const ShipmentForm = ({
         </div>
 
         <div className="form-group">
-          <label>Created By</label>
+          <label>Created By*</label>
           <input
             type="text"
             name="createdBy"
             value={createdBy}
             onChange={onChange}
-            className="form-control"
+            className={errors.createdBy ? 'form-control is-invalid' : 'form-control'}
             placeholder="Enter your name"
           />
+          {errors.createdBy && <div className="invalid-feedback">{errors.createdBy}</div>}
         </div>
 
         <div className="form-actions">
