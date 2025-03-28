@@ -13,18 +13,26 @@ import setAuthToken from '../utils/setAuthToken';
 
 // Load User
 export const loadUser = () => async dispatch => {
-  if (localStorage.token) {
-    setAuthToken(localStorage.token);
-  }
-
   try {
+    console.log('Loading user...'); // Debug log
+    if (localStorage.token) {
+      console.log('Token found in localStorage'); // Debug log
+      setAuthToken(localStorage.token);
+    } else {
+      console.log('No token found in localStorage'); // Debug log
+      dispatch({ type: AUTH_ERROR });
+      return;
+    }
+
     const res = await axios.get('/api/auth');
+    console.log('User loaded successfully:', res.data); // Debug log
 
     dispatch({
       type: USER_LOADED,
       payload: res.data
     });
   } catch (err) {
+    console.error('Error loading user:', err); // Debug log
     dispatch({
       type: AUTH_ERROR
     });
@@ -65,16 +73,17 @@ export const register = ({ name, email, password, role }) => async dispatch => {
 
 // Login User
 export const login = (email, password) => async dispatch => {
-  const config = {
-    headers: {
-      'Content-Type': 'application/json'
-    }
-  };
-
-  const body = JSON.stringify({ email, password });
-
   try {
+    console.log('Attempting login...'); // Debug log
+    const config = {
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    };
+
+    const body = JSON.stringify({ email, password });
     const res = await axios.post('/api/auth', body, config);
+    console.log('Login successful:', res.data); // Debug log
 
     dispatch({
       type: LOGIN_SUCCESS,
@@ -83,7 +92,8 @@ export const login = (email, password) => async dispatch => {
 
     dispatch(loadUser());
   } catch (err) {
-    const errors = err.response.data.errors;
+    console.error('Login error:', err); // Debug log
+    const errors = err.response?.data?.errors;
 
     if (errors) {
       errors.forEach(error => dispatch(setAlert(error.msg, 'danger')));

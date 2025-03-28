@@ -1,8 +1,11 @@
 import axios from 'axios';
 
 const setAuthToken = token => {
-  // Always bypass auth by not setting any token
-  delete axios.defaults.headers.common['x-auth-token'];
+  if (token) {
+    axios.defaults.headers.common['x-auth-token'] = token;
+  } else {
+    delete axios.defaults.headers.common['x-auth-token'];
+  }
 };
 
 export default setAuthToken; 
