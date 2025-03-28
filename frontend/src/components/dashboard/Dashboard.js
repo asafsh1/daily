@@ -35,17 +35,8 @@ const Dashboard = ({
     data: [],
     type: ''
   });
-  
-  const [debugMode, setDebugMode] = useState(false);
 
-  useEffect(() => {
-    console.log('Dashboard component state:', { 
-      summary, 
-      shipmentsByCustomer, 
-      shipmentsByDate, 
-      overdueNonInvoiced
-    });
-    
+  useEffect(() => {    
     getDashboardSummary();
     getShipmentsByCustomer();
     getShipmentsByDate();
@@ -93,31 +84,24 @@ const Dashboard = ({
           break;
         case 'total-profit':
           const profitShipments = await axios.get('/api/shipments');
-          // Filter to show shipments with both cost and receivables for profit calculation
+          // Calculate profit for each shipment
           const profitData = profitShipments.data.shipments || profitShipments.data;
-          data = profitData.filter(shipment => {
+          data = profitData.map(shipment => {
             const cost = shipment.cost ? parseFloat(shipment.cost) : 0;
             const receivables = shipment.receivables ? parseFloat(shipment.receivables) : 0;
-            return !isNaN(cost) || !isNaN(receivables);
-          });
-          // Add calculated profit field to each shipment
-          data = data.map(shipment => {
-            const cost = shipment.cost ? parseFloat(shipment.cost) : 0;
-            const receivables = shipment.receivables ? parseFloat(shipment.receivables) : 0;
-            const calculatedProfit = !isNaN(receivables) && !isNaN(cost) 
-              ? receivables - cost 
-              : 0;
-            
+            const profit = (!isNaN(receivables) ? receivables : 0) - (!isNaN(cost) ? cost : 0);
             return {
               ...shipment,
-              calculatedProfit
+              profit
             };
+          }).filter(shipment => {
+            return !isNaN(shipment.profit);
           });
           break;
         default:
           data = [];
       }
-      
+
       setModalData({
         isOpen: true,
         title,
@@ -125,7 +109,7 @@ const Dashboard = ({
         type: sectionType
       });
     } catch (err) {
-      console.error('Error fetching data for modal:', err);
+      console.error('Error fetching detail data:', err);
     }
   };
 
@@ -138,89 +122,70 @@ const Dashboard = ({
     });
   };
 
-  return loading ? (
-    <Spinner />
-  ) : (
+  return (
     <section className="container">
       <h1 className="large text-primary">Dashboard</h1>
       <p className="lead">
-        <i className="fas fa-tachometer-alt"></i> Shipment Tracking Dashboard
+        <i className="fas fa-tachometer-alt"></i> Welcome to the Dashboard
       </p>
-      
-      <button 
-        onClick={() => setDebugMode(!debugMode)} 
-        className="btn btn-light my-1"
-        style={{ marginBottom: '20px' }}
-      >
-        {debugMode ? 'Hide Debug Info' : 'Show Debug Info'}
-      </button>
-      
-      {debugMode && (
-        <div className="dashboard-debug" style={{ 
-          backgroundColor: '#f8f9fa', 
-          padding: '15px', 
-          marginBottom: '20px',
-          borderRadius: '5px',
-          overflow: 'auto',
-          maxHeight: '300px'
-        }}>
-          <h3>Debug Information</h3>
-          <div>
-            <h4>Summary Data:</h4>
-            <pre>{summary ? JSON.stringify(summary, null, 2) : 'No summary data'}</pre>
+
+      {loading ? (
+        <Spinner />
+      ) : (
+        <div className="dashboard-container">
+          {summary && <DashboardSummary summary={summary} onSectionClick={handleSectionClick} />}
+
+          {summary && summary.recentShipments && (
+            <div className="recent-shipments-container">
+              <h2 className="text-primary">Recent Shipments</h2>
+              <RecentShipments shipments={summary.recentShipments} />
+            </div>
+          )}
+
+          {overdueNonInvoiced && overdueNonInvoiced.length > 0 && (
+            <div className="overdue-shipments-container">
+              <h2 className="text-primary">Overdue Non-Invoiced Shipments</h2>
+              <OverdueShipments shipments={overdueNonInvoiced} />
+            </div>
+          )}
+
+          <div className="dashboard-charts">
+            <div className="chart-container">
+              <h2 className="text-primary">Shipments by Customer</h2>
+              {shipmentsByCustomer && shipmentsByCustomer.length > 0 ? (
+                <ShipmentsByCustomerChart data={shipmentsByCustomer} />
+              ) : (
+                <p>No data available</p>
+              )}
+            </div>
+
+            <div className="chart-container">
+              <h2 className="text-primary">Shipments by Date</h2>
+              {shipmentsByDate && shipmentsByDate.length > 0 ? (
+                <ShipmentsByDateChart data={shipmentsByDate} />
+              ) : (
+                <p>No data available</p>
+              )}
+            </div>
           </div>
-          <div>
-            <h4>Shipments by Customer:</h4>
-            <pre>{shipmentsByCustomer ? JSON.stringify(shipmentsByCustomer, null, 2) : 'No customer data'}</pre>
-          </div>
-          <div>
-            <h4>Shipments by Date:</h4>
-            <pre>{shipmentsByDate ? JSON.stringify(shipmentsByDate, null, 2) : 'No date data'}</pre>
-          </div>
-          <div>
-            <h4>Overdue Non-Invoiced:</h4>
-            <pre>{overdueNonInvoiced ? JSON.stringify(overdueNonInvoiced, null, 2) : 'No overdue data'}</pre>
+
+          {/* Shipment Movement Map */}
+          <div className="map-container">
+            <h2 className="text-primary">Shipment Movement Map</h2>
+            <div className="shipment-map">
+              <iframe 
+                src="https://www.google.com/maps/embed?pb=!1m14!1m12!1m3!1d4717349.033462952!2d-83.99559065!3d41.05350745!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!5e0!3m2!1sen!2sus!4v1711646528096!5m2!1sen!2sus" 
+                width="100%" 
+                height="450" 
+                style={{ border: 0 }} 
+                allowFullScreen="" 
+                loading="lazy" 
+                referrerPolicy="no-referrer-when-downgrade">
+              </iframe>
+            </div>
           </div>
         </div>
       )}
-
-      <div className="dashboard-container">
-        {summary && <DashboardSummary summary={summary} onSectionClick={handleSectionClick} />}
-
-        <div className="dashboard-charts">
-          <div className="chart-container">
-            <h2 className="text-primary">Shipments by Customer</h2>
-            {shipmentsByCustomer && shipmentsByCustomer.length > 0 ? (
-              <ShipmentsByCustomerChart data={shipmentsByCustomer} />
-            ) : (
-              <p>No data available</p>
-            )}
-          </div>
-
-          <div className="chart-container">
-            <h2 className="text-primary">Shipments by Date</h2>
-            {shipmentsByDate && shipmentsByDate.length > 0 ? (
-              <ShipmentsByDateChart data={shipmentsByDate} />
-            ) : (
-              <p>No data available</p>
-            )}
-          </div>
-        </div>
-
-        {summary && summary.recentShipments && (
-          <div className="recent-shipments-container">
-            <h2 className="text-primary">Recent Shipments</h2>
-            <RecentShipments shipments={summary.recentShipments} />
-          </div>
-        )}
-
-        {overdueNonInvoiced && overdueNonInvoiced.length > 0 && (
-          <div className="overdue-shipments-container">
-            <h2 className="text-primary">Overdue Non-Invoiced Shipments</h2>
-            <OverdueShipments shipments={overdueNonInvoiced} />
-          </div>
-        )}
-      </div>
 
       <DashboardDetailModal
         isOpen={modalData.isOpen}
@@ -245,9 +210,7 @@ const mapStateToProps = state => ({
   dashboard: state.dashboard
 });
 
-export default connect(mapStateToProps, {
-  getDashboardSummary,
-  getShipmentsByCustomer,
-  getShipmentsByDate,
-  getOverdueNonInvoiced
-})(Dashboard); 
+export default connect(
+  mapStateToProps,
+  { getDashboardSummary, getShipmentsByCustomer, getShipmentsByDate, getOverdueNonInvoiced }
+)(Dashboard); 
