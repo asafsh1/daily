@@ -349,37 +349,29 @@ const ShipmentForm = ({
 
         <div className="form-group">
           <label>Cost (USD)</label>
-          <div className="input-group">
-            <div className="input-group-prepend">
-              <span className="input-group-text">$</span>
-            </div>
-            <input
-              type="number"
-              name="cost"
-              value={cost}
-              onChange={onChange}
-              className={errors.cost ? 'form-control is-invalid' : 'form-control'}
-              step="0.01"
-            />
-          </div>
+          <input
+            type="number"
+            name="cost"
+            value={cost}
+            onChange={onChange}
+            className={errors.cost ? 'form-control is-invalid' : 'form-control'}
+            step="0.01"
+            min="0"
+          />
           {errors.cost && <div className="invalid-feedback">{errors.cost}</div>}
         </div>
 
         <div className="form-group">
           <label>Receivables (USD)</label>
-          <div className="input-group">
-            <div className="input-group-prepend">
-              <span className="input-group-text">$</span>
-            </div>
-            <input
-              type="number"
-              name="receivables"
-              value={receivables}
-              onChange={onChange}
-              className="form-control"
-              step="0.01"
-            />
-          </div>
+          <input
+            type="number"
+            name="receivables"
+            value={receivables}
+            onChange={onChange}
+            className="form-control"
+            step="0.01"
+            min="0"
+          />
         </div>
 
         <div className="form-group">

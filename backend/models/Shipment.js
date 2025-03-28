@@ -40,7 +40,7 @@ const ShipmentSchema = new mongoose.Schema({
   shipmentStatus: {
     type: String,
     default: 'Pending',
-    enum: ['Pending', 'Arrived', 'Delayed', 'Canceled', 'In Transit']
+    enum: ['Pending', 'In Transit', 'Arrived', 'Delayed', 'Canceled']
   },
   fileNumber: {
     type: String

@@ -143,13 +143,13 @@ const ShipmentDetail = ({
               <div className="info-item">
                 <span className="info-label">Cost:</span>
                 <span className="info-value">
-                  ${shipment.cost ? shipment.cost.toFixed(2) : '0.00'} USD
+                  {shipment.cost ? shipment.cost.toFixed(2) : '0.00'} USD
                 </span>
               </div>
               <div className="info-item">
                 <span className="info-label">Receivables:</span>
                 <span className="info-value">
-                  ${shipment.receivables ? parseFloat(shipment.receivables).toFixed(2) : '0.00'} USD
+                  {shipment.receivables ? parseFloat(shipment.receivables).toFixed(2) : '0.00'} USD
                 </span>
               </div>
               <div className="info-item">
