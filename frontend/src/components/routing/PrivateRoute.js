@@ -1,16 +1,26 @@
 import React from 'react';
-import PropTypes from 'prop-types';
+import { Navigate } from 'react-router-dom';
 import { connect } from 'react-redux';
+import PropTypes from 'prop-types';
+import Spinner from '../layout/Spinner';
 
 const PrivateRoute = ({
-  component: Component
+  component: Component,
+  auth: { isAuthenticated, loading }
 }) => {
-  // Always render the component without authentication check
+  if (loading) {
+    return <Spinner />;
+  }
+
+  if (!isAuthenticated && !loading) {
+    return <Navigate to="/login" />;
+  }
+
   return <Component />;
 };
 
 PrivateRoute.propTypes = {
-  auth: PropTypes.object
+  auth: PropTypes.object.isRequired
 };
 
 const mapStateToProps = state => ({
