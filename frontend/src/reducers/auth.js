@@ -9,49 +9,17 @@ import {
 } from '../actions/types';
 
 const initialState = {
-  token: localStorage.getItem('token'),
-  isAuthenticated: null,
-  loading: true,
-  user: null
-};
-
-const authReducer = (state = initialState, action) => {
-  const { type, payload } = action;
-
-  switch (type) {
-    case USER_LOADED:
-      return {
-        ...state,
-        isAuthenticated: true,
-        loading: false,
-        user: payload
-      };
-    case REGISTER_SUCCESS:
-    case LOGIN_SUCCESS:
-      if (payload.token) {
-        localStorage.setItem('token', payload.token);
-      }
-      return {
-        ...state,
-        token: payload.token,
-        isAuthenticated: true,
-        loading: false
-      };
-    case REGISTER_FAIL:
-    case AUTH_ERROR:
-    case LOGIN_FAIL:
-    case LOGOUT:
-      localStorage.removeItem('token');
-      return {
-        ...state,
-        token: null,
-        isAuthenticated: false,
-        loading: false,
-        user: null
-      };
-    default:
-      return state;
+  token: null,
+  isAuthenticated: true,
+  loading: false,
+  user: {
+    id: 'default-user',
+    name: 'User',
+    role: 'admin'
   }
 };
+
+// Always return authenticated state
+const authReducer = () => initialState;
 
 export default authReducer; 
