@@ -135,7 +135,7 @@ const ShipmentForm = ({
     
     if (!dateAdded) newErrors.dateAdded = 'Date added is required';
     if (!orderStatus) newErrors.orderStatus = 'Order status is required';
-    if (!['done', 'confirmed', 'planned', 'canceled', 'in transit'].includes(orderStatus)) {
+    if (!['done', 'confirmed', 'planned', 'canceled'].includes(orderStatus)) {
       newErrors.orderStatus = 'Invalid order status';
     }
     if (!customer) newErrors.customer = 'Customer is required';
@@ -191,17 +191,35 @@ const ShipmentForm = ({
         // For new shipment with legs, we'll need to associate the legs with the new shipment
         const newShipment = await addShipment(shipmentData);
         
-        // If we have a new shipment ID and temp legs, we need to update the legs
-        if (newShipment && newShipment._id && tempShipmentId) {
-          try {
-            // Update legs that were associated with the temp ID
-            await axios.put(`/api/shipmentLegs/reassign/${tempShipmentId}/${newShipment._id}`);
-          } catch (err) {
-            console.error('Error reassigning legs:', err);
+        // Only proceed if the shipment was created successfully
+        if (newShipment && newShipment._id) {
+          // If we have temp legs, we need to update the legs
+          if (tempShipmentId) {
+            try {
+              // Update legs that were associated with the temp ID
+              await axios.put(`/api/shipment-legs/reassign/${tempShipmentId}/${newShipment._id}`);
+              console.log('Successfully reassigned legs to new shipment');
+            } catch (err) {
+              console.error('Error reassigning legs:', err);
+              setErrors(prev => ({
+                ...prev,
+                submit: 'Shipment created but there was an error associating the legs. Please check the shipment details.'
+              }));
+              // Still navigate but after a delay so the user sees the error
+              setTimeout(() => navigate(`/shipments/${newShipment._id}`), 3000);
+              return;
+            }
           }
+          
+          // Only navigate if everything succeeded
+          navigate('/shipments');
+        } else {
+          // Don't navigate if there was an error creating the shipment
+          setErrors(prev => ({
+            ...prev,
+            submit: 'Failed to create shipment. Please check your form entries and try again.'
+          }));
         }
-        
-        navigate('/shipments');
       }
     } catch (err) {
       console.error('Error submitting form:', err);
