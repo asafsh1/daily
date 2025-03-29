@@ -4,22 +4,26 @@ import axios from '../../utils/axiosConfig';
 import { toast } from 'react-toastify';
 import Moment from 'react-moment';
 
+// Define initialState to fix the reference errors
+const initialState = {
+  legOrder: '',
+  origin: '',
+  destination: '',
+  flightNumber: '',
+  mawbNumber: '',
+  awbNumber: '',
+  departureTime: '',
+  arrivalTime: '',
+  status: 'Pending',
+  notes: ''
+};
+
 const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
   const [legs, setLegs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [editingLeg, setEditingLeg] = useState(null);
   const [showForm, setShowForm] = useState(false);
-  const [formData, setFormData] = useState({
-    legOrder: '',
-    origin: '',
-    destination: '',
-    flightNumber: '',
-    mawbNumber: '',
-    departureTime: '',
-    arrivalTime: '',
-    status: 'Pending',
-    notes: ''
-  });
+  const [formData, setFormData] = useState(initialState);
   const [error, setError] = useState(null);
   const [editMode, setEditMode] = useState(false);
   const [errors, setErrors] = useState({});
@@ -64,17 +68,7 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
 
   // Reset form to initial state
   const resetForm = () => {
-    setFormData({
-      legOrder: '',
-      origin: '',
-      destination: '',
-      flightNumber: '',
-      mawbNumber: '',
-      departureTime: '',
-      arrivalTime: '',
-      status: 'Pending',
-      notes: ''
-    });
+    setFormData(initialState);
     setEditingLeg(null);
   };
 
