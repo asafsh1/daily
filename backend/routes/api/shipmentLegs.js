@@ -234,6 +234,40 @@ router.delete('/:shipmentId/:legId', auth, async (req, res) => {
   }
 });
 
+// @route   PUT api/shipmentLegs/reassign/:tempId/:shipmentId
+// @desc    Reassign legs from temporary ID to real shipment ID
+// @access  Public
+router.put('/reassign/:tempId/:shipmentId', async (req, res) => {
+  try {
+    const { tempId, shipmentId } = req.params;
+    
+    // Find all legs with the temporary shipmentId
+    const legs = await ShipmentLeg.find({ shipmentId: tempId });
+    
+    if (legs.length === 0) {
+      return res.status(404).json({ msg: 'No legs found with temporary ID' });
+    }
+    
+    // Update all legs with the new shipmentId
+    await ShipmentLeg.updateMany(
+      { shipmentId: tempId },
+      { $set: { shipmentId: shipmentId } }
+    );
+    
+    // Update the shipment to include references to these legs
+    const legIds = legs.map(leg => leg._id);
+    await Shipment.findByIdAndUpdate(
+      shipmentId,
+      { $push: { legs: { $each: legIds } } }
+    );
+    
+    res.json({ msg: `${legs.length} legs reassigned to shipment ${shipmentId}` });
+  } catch (err) {
+    console.error(err.message);
+    res.status(500).send('Server Error');
+  }
+});
+
 // Helper function to update shipment routing based on legs
 async function updateShipmentRouting(shipmentId) {
   try {

@@ -21,14 +21,20 @@ const Shipments = ({ getShipments, updateShipment, shipment: { shipments, loadin
 
   const filteredShipments = shipments.filter(
     shipment => {
-      // Safely handle potentially null values
-      const customerLower = (shipment.customer || '').toLowerCase();
-      const awbLower = (shipment.awbNumber1 || '').toLowerCase();
-      const searchLower = searchTerm.toLowerCase();
+      // Get customer name safely
+      const customerName = shipment.customer?.name || '';
       
-      return (searchTerm === '' || 
-              customerLower.includes(searchLower) || 
-              awbLower.includes(searchLower)) &&
+      // Get AWB numbers from legs
+      const awbNumbers = shipment.legs && shipment.legs.length > 0 
+        ? shipment.legs.map(leg => leg.awbNumber || '').join(' ') 
+        : '';
+      
+      // Search in customer name and AWB numbers
+      const searchLower = searchTerm.toLowerCase();
+      const customerMatches = customerName.toLowerCase().includes(searchLower);
+      const awbMatches = awbNumbers.toLowerCase().includes(searchLower);
+      
+      return (searchTerm === '' || customerMatches || awbMatches) &&
              (filterStatus === '' || shipment.shipmentStatus === filterStatus);
     }
   );
@@ -38,12 +44,13 @@ const Shipments = ({ getShipments, updateShipment, shipment: { shipments, loadin
     // Define the CSV headers (mapping from data keys to display names)
     const headers = [
       { key: 'dateAdded', display: 'Date Added', isDate: true },
-      { key: 'customer', display: 'Customer' },
-      { key: 'awbNumber1', display: 'AWB' },
+      { key: 'customer.name', display: 'Customer' },
+      { key: 'legs[0].awbNumber', display: 'Primary AWB' },
       { key: 'routing', display: 'Routing' },
       { key: 'orderStatus', display: 'Order Status' },
       { key: 'shipmentStatus', display: 'Shipment Status' },
-      { key: 'scheduledArrival', display: 'Scheduled Arrival', isDate: true },
+      { key: 'legs[0].departureTime', display: 'Departure', isDate: true },
+      { key: 'legs[legs.length-1].arrivalTime', display: 'Arrival', isDate: true },
       { key: 'invoiced', display: 'Invoiced' },
       { key: 'invoiceSent', display: 'Invoice Sent' },
       { key: 'cost', display: 'Cost' },
@@ -52,8 +59,18 @@ const Shipments = ({ getShipments, updateShipment, shipment: { shipments, loadin
       { key: 'comments', display: 'Comments' }
     ];
 
+    // Process the data to handle nested properties
+    const processedData = filteredShipments.map(shipment => {
+      const processed = {...shipment};
+      processed['customer.name'] = shipment.customer?.name || 'Unknown';
+      processed['legs[0].awbNumber'] = shipment.legs && shipment.legs.length > 0 ? shipment.legs[0].awbNumber : '';
+      processed['legs[0].departureTime'] = shipment.legs && shipment.legs.length > 0 ? shipment.legs[0].departureTime : '';
+      processed['legs[legs.length-1].arrivalTime'] = shipment.legs && shipment.legs.length > 0 ? shipment.legs[shipment.legs.length - 1].arrivalTime : '';
+      return processed;
+    });
+
     // Convert filtered shipments to CSV format
-    const csvContent = convertToCSV(filteredShipments, headers);
+    const csvContent = convertToCSV(processedData, headers);
     
     // Generate file name with current date
     const date = new Date().toISOString().split('T')[0];

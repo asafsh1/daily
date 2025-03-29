@@ -37,9 +37,17 @@ const ShipmentForm = ({
   const [errors, setErrors] = useState({});
   const [customers, setCustomers] = useState([]);
   const [customersLoading, setCustomersLoading] = useState(true);
+  const [tempShipmentId, setTempShipmentId] = useState(null);
   const navigate = useNavigate();
   const { id } = useParams(); // Get the shipment ID from URL params
   const isEditMode = !!id;
+
+  // Render the leg section even in create mode with a temp ID
+  useEffect(() => {
+    if (!tempShipmentId && !isEditMode) {
+      setTempShipmentId('temp-' + Date.now());
+    }
+  }, [tempShipmentId, isEditMode]);
 
   // Load shipment data when in edit mode
   useEffect(() => {
@@ -180,7 +188,20 @@ const ShipmentForm = ({
       if (isEditMode) {
         await updateShipment(id, shipmentData, navigate);
       } else {
-        await addShipment(shipmentData, navigate);
+        // For new shipment with legs, we'll need to associate the legs with the new shipment
+        const newShipment = await addShipment(shipmentData);
+        
+        // If we have a new shipment ID and temp legs, we need to update the legs
+        if (newShipment && newShipment._id && tempShipmentId) {
+          try {
+            // Update legs that were associated with the temp ID
+            await axios.put(`/api/shipmentLegs/reassign/${tempShipmentId}/${newShipment._id}`);
+          } catch (err) {
+            console.error('Error reassigning legs:', err);
+          }
+        }
+        
+        navigate('/shipments');
       }
     } catch (err) {
       console.error('Error submitting form:', err);
@@ -316,12 +337,15 @@ const ShipmentForm = ({
           </div>
         </div>
         
-        {/* Shipment Legs section moved here */}
-        {isEditMode && (
-          <div className="shipment-legs-section">
-            <ShipmentLegs shipmentId={id} />
-          </div>
-        )}
+        {/* Shipment Legs section - allow in both create and edit modes */}
+        <div className="shipment-legs-section">
+          <ShipmentLegs shipmentId={isEditMode ? id : tempShipmentId} />
+          {!isEditMode && (
+            <div className="alert alert-warning">
+              <i className="fas fa-exclamation-triangle"></i> Legs added here will be associated with the shipment when saved.
+            </div>
+          )}
+        </div>
         
         <div className="form-row">
           <div className="form-group">
@@ -461,12 +485,6 @@ const ShipmentForm = ({
           </Link>
         </div>
       </form>
-
-      {!isEditMode && (
-        <div className="alert alert-info mt-4">
-          <i className="fas fa-info-circle"></i> You can add shipment legs after saving the shipment.
-        </div>
-      )}
     </section>
   );
 };

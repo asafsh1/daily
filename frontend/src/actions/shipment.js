@@ -55,76 +55,38 @@ export const getShipment = id => async dispatch => {
 };
 
 // Add shipment
-export const addShipment = (formData, navigate) => async dispatch => {
+export const addShipment = (formData, navigate) => async (dispatch) => {
   try {
-    // Get current user from state
-    const state = store.getState();
-    const user = state.auth.user;
-    
-    // Add createdBy field if user is available
-    const shipmentData = {
-      ...formData,
-      createdBy: user ? user.name : 'System User'
-    };
-    
-    console.log('Adding shipment with data:', shipmentData);
-    
-    const config = {
-      headers: {
-        'Content-Type': 'application/json'
-      }
-    };
-
-    console.log('Sending request to:', `${axios.defaults.baseURL}/api/shipments`);
-    
-    const res = await axios.post('/api/shipments', shipmentData, config);
-    console.log('Shipment added successfully:', res.data);
+    const res = await axios.post('/api/shipments', formData);
 
     dispatch({
       type: ADD_SHIPMENT,
       payload: res.data
     });
 
-    // Emit socket event
-    socket.emit('shipmentUpdated', res.data);
-
     dispatch(setAlert('Shipment Added', 'success'));
 
-    navigate('/shipments');
-  } catch (err) {
-    console.error('Error adding shipment:', err);
-    
-    // Log more details about the error
-    if (err.response) {
-      console.error('Server response:', {
-        status: err.response.status,
-        data: err.response.data,
-        headers: err.response.headers
-      });
-    } else if (err.request) {
-      console.error('Request was made but no response was received:', err.request);
-    } else {
-      console.error('Error setting up the request:', err.message);
+    // Only navigate if the navigate function is provided
+    if (navigate) {
+      navigate('/shipments');
     }
     
-    if (err.response && err.response.data) {
-      console.error('Server response data:', err.response.data);
-      
-      const errors = err.response.data.errors;
-      if (errors) {
-        errors.forEach(error => dispatch(setAlert(error.msg, 'danger')));
-      }
-    } else {
-      dispatch(setAlert('Error adding shipment: ' + (err.message || 'Unknown error'), 'danger'));
+    // Return the created shipment for further processing
+    return res.data;
+  } catch (err) {
+    const errors = err.response.data.errors;
+
+    if (errors) {
+      errors.forEach((error) => dispatch(setAlert(error.msg, 'danger')));
     }
 
     dispatch({
       type: SHIPMENT_ERROR,
-      payload: { 
-        msg: err.response ? err.response.statusText : 'Server Error', 
-        status: err.response ? err.response.status : 500 
-      }
+      payload: { msg: err.response.statusText, status: err.response.status }
     });
+    
+    // Return null to indicate failure
+    return null;
   }
 };
 
