@@ -119,4 +119,11 @@ router.get('/', auth, async (req, res) => {
   }
 });
 
+// @route   GET api/users
+// @desc    Test route
+// @access  Public
+router.get('/test', (req, res) => {
+  res.json({ msg: 'Users API Endpoint' });
+});
+
 module.exports = router; 

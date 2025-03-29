@@ -19,6 +19,20 @@ const DEFAULT_ADMIN = {
 };
 
 // @route   GET api/auth
+// @desc    Test auth route
+// @access  Public
+router.get('/', (req, res) => {
+  res.json({ msg: 'Auth API Endpoint' });
+});
+
+// @route   GET api/auth/user
+// @desc    Get user by token
+// @access  Private
+router.get('/user', auth, (req, res) => {
+  res.json({ userId: req.user.id });
+});
+
+// @route   GET api/auth
 // @desc    Get user by token
 // @access  Private
 router.get('/', auth, async (req, res) => {
