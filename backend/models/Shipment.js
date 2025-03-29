@@ -11,7 +11,7 @@ const ShipmentSchema = new Schema(
     orderStatus: {
       type: String,
       required: true,
-      enum: ['planned', 'confirmed', 'in transit', 'done', 'canceled'],
+      enum: ['planned', 'confirmed', 'done', 'canceled'],
       default: 'planned'
     },
     customer: {
@@ -22,7 +22,6 @@ const ShipmentSchema = new Schema(
     // AWB numbers and routing will be determined from legs
     shipmentStatus: {
       type: String,
-      enum: ['Pending', 'In Transit', 'Arrived', 'Delayed', 'Canceled'],
       default: 'Pending'
     },
     weight: {

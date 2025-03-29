@@ -199,6 +199,31 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
     }
   };
 
+  // Handle leg status change
+  const handleLegStatusChange = async (legId, newStatus) => {
+    try {
+      // For temporary legs, just update local state
+      if (shipmentId.toString().startsWith('temp-') || legId.toString().startsWith('temp-leg-')) {
+        setLegs(legs.map(leg => 
+          leg._id === legId ? { ...leg, status: newStatus } : leg
+        ));
+      } else {
+        // For real legs, update on the server
+        const res = await axios.put(`/api/shipmentLegs/${shipmentId}/${legId}`, { status: newStatus });
+        
+        // Update local state
+        setLegs(legs.map(leg => 
+          leg._id === legId ? { ...leg, status: newStatus } : leg
+        ));
+        
+        toast.success('Leg status updated');
+      }
+    } catch (err) {
+      console.error('Error updating leg status:', err);
+      setError('Failed to update leg status');
+    }
+  };
+
   // Cancel form editing
   const handleCancel = () => {
     setShowForm(false);
@@ -248,14 +273,6 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
       ) : legs.length === 0 ? (
         <div className="no-legs-message">
           <p>No legs have been added to this shipment yet.</p>
-          {!readOnly && (
-            <button 
-              onClick={() => setShowForm(true)} 
-              className="btn btn-primary"
-            >
-              <i className="fas fa-plus"></i> Add First Leg
-            </button>
-          )}
         </div>
       ) : (
         <div className="legs-list">
@@ -269,6 +286,7 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
                 <th>Flight #</th>
                 <th>Departure</th>
                 <th>Arrival</th>
+                <th>Status</th>
                 {!readOnly && <th>Actions</th>}
               </tr>
             </thead>
@@ -289,6 +307,25 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
                     <Moment format="DD/MM/YYYY HH:mm">
                       {leg.arrivalTime}
                     </Moment>
+                  </td>
+                  <td>
+                    {readOnly ? (
+                      <span className={`status-badge status-${leg.status.toLowerCase().replace(/\s+/g, '-')}`}>
+                        {leg.status}
+                      </span>
+                    ) : (
+                      <select
+                        className={`status-select status-${leg.status.toLowerCase().replace(/\s+/g, '-')}`}
+                        value={leg.status}
+                        onChange={(e) => handleLegStatusChange(leg._id, e.target.value)}
+                      >
+                        <option value="Pending">Pending</option>
+                        <option value="In Transit">In Transit</option>
+                        <option value="Arrived">Arrived</option>
+                        <option value="Delayed">Delayed</option>
+                        <option value="Canceled">Canceled</option>
+                      </select>
+                    )}
                   </td>
                   {!readOnly && (
                     <td>

@@ -117,6 +117,9 @@ router.post(
 
       // Update the shipment routing
       await updateShipmentRouting(req.params.shipmentId);
+      
+      // Update the shipment status based on legs
+      await updateShipmentStatus(req.params.shipmentId);
 
       res.json(shipmentLeg);
     } catch (err) {
@@ -192,6 +195,9 @@ router.put(
 
       // Update the shipment routing
       await updateShipmentRouting(req.params.shipmentId);
+      
+      // Update the shipment status based on legs
+      await updateShipmentStatus(req.params.shipmentId);
 
       res.json(shipmentLeg);
     } catch (err) {
@@ -223,6 +229,9 @@ router.delete('/:shipmentId/:legId', auth, async (req, res) => {
 
     // Update the shipment routing
     await updateShipmentRouting(req.params.shipmentId);
+    
+    // Update the shipment status based on legs
+    await updateShipmentStatus(req.params.shipmentId);
 
     res.json({ msg: 'Shipment leg removed' });
   } catch (err) {
@@ -288,6 +297,50 @@ async function updateShipmentRouting(shipmentId) {
     await Shipment.findByIdAndUpdate(shipmentId, { routing: routingString });
   } catch (err) {
     console.error('Error updating shipment routing:', err);
+  }
+}
+
+// Helper function to update shipment status based on leg statuses
+async function updateShipmentStatus(shipmentId) {
+  try {
+    // Get all legs for this shipment in order
+    const legs = await ShipmentLeg.find({ shipmentId }).sort({ legOrder: 1 });
+    
+    if (legs.length === 0) {
+      return;
+    }
+
+    // Determine the shipment status based on the legs
+    let shipmentStatus = 'Pending';
+    const lastLeg = legs[legs.length - 1];
+    const firstLeg = legs[0];
+    
+    // If the last leg is arrived, the whole shipment is arrived
+    if (lastLeg.status === 'Arrived') {
+      shipmentStatus = 'Arrived';
+    }
+    // If any leg is in transit, the shipment is in transit
+    else if (legs.some(leg => leg.status === 'In Transit')) {
+      // Check which leg is in transit to provide more specific status
+      const inTransitLeg = legs.find(leg => leg.status === 'In Transit');
+      shipmentStatus = `In Transit (Leg ${inTransitLeg.legOrder})`;
+    }
+    // If any leg is delayed, the shipment is delayed
+    else if (legs.some(leg => leg.status === 'Delayed')) {
+      const delayedLeg = legs.find(leg => leg.status === 'Delayed');
+      shipmentStatus = `Delayed (Leg ${delayedLeg.legOrder})`;
+    }
+    // If any leg is canceled, the shipment is canceled
+    else if (legs.some(leg => leg.status === 'Canceled')) {
+      shipmentStatus = 'Canceled';
+    }
+    
+    // Update the shipment status
+    await Shipment.findByIdAndUpdate(shipmentId, { shipmentStatus });
+    
+    console.log(`Updated shipment ${shipmentId} status to ${shipmentStatus}`);
+  } catch (err) {
+    console.error('Error updating shipment status:', err);
   }
 }
 

@@ -279,7 +279,6 @@ const ShipmentForm = ({
           >
             <option value="planned">Planned</option>
             <option value="confirmed">Confirmed</option>
-            <option value="in transit">In Transit</option>
             <option value="done">Done</option>
             <option value="canceled">Canceled</option>
           </select>
