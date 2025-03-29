@@ -28,7 +28,8 @@ const Dashboard = ({
     shipmentsByCustomer, 
     shipmentsByDate, 
     overdueNonInvoiced,
-    loading 
+    loading,
+    error
   }
 }) => {
   const [modalData, setModalData] = useState({
@@ -37,13 +38,26 @@ const Dashboard = ({
     data: [],
     type: ''
   });
+  const [errorMsg, setErrorMsg] = useState(null);
 
-  useEffect(() => {    
-    getDashboardSummary();
-    getShipmentsByCustomer();
-    getShipmentsByDate();
-    getOverdueNonInvoiced();
-  }, [getDashboardSummary, getShipmentsByCustomer, getShipmentsByDate, getOverdueNonInvoiced]);
+  useEffect(() => {
+    console.log('Dashboard component mounted, fetching summary...');
+    
+    getDashboardSummary()
+      .then(() => console.log('Dashboard summary fetched successfully'))
+      .catch(err => {
+        console.error('Error fetching dashboard data:', err);
+        setErrorMsg('Failed to load dashboard data. Please try again later.');
+      });
+  }, [getDashboardSummary]);
+
+  useEffect(() => {
+    console.log('Dashboard data state:', { summary, loading, error });
+    
+    if (error) {
+      setErrorMsg(`Error loading dashboard: ${error.msg || 'Unknown error'}`);
+    }
+  }, [summary, loading, error]);
 
   useEffect(() => {
     console.log('Dashboard data:', { 
@@ -134,133 +148,181 @@ const Dashboard = ({
     });
   };
 
-  return (
+  // Create default stats data if summary is not available
+  const statsData = summary?.statsData || [
+    {
+      title: 'Total Shipments',
+      value: summary?.totalShipments || 0,
+      footer: 'All time shipments',
+      icon: 'fa-shipping-fast',
+      path: '/shipments'
+    },
+    {
+      title: 'Pending',
+      value: summary?.shipmentsByStatus?.Pending || 0,
+      footer: 'Waiting to be shipped',
+      icon: 'fa-clock',
+      path: '/shipments?status=Pending'
+    },
+    {
+      title: 'In Transit',
+      value: summary?.shipmentsByStatus?.['In Transit'] || 0,
+      footer: 'Currently in transit',
+      icon: 'fa-plane',
+      path: '/shipments?status=In Transit'
+    },
+    {
+      title: 'Non-Invoiced',
+      value: summary?.totalNonInvoiced || 0,
+      footer: 'Shipments without invoice',
+      icon: 'fa-file-invoice-dollar',
+      path: '/shipments?invoiced=false'
+    }
+  ];
+
+  // Handle empty data safely
+  const recentShipments = summary?.recentShipments || [];
+  const shipmentsByStatus = summary?.shipmentsByStatus || {};
+
+  if (errorMsg) {
+    return (
+      <section className="container dashboard">
+        <h1 className="large text-primary">Dashboard</h1>
+        <div className="alert alert-danger">{errorMsg}</div>
+        <Link to="/shipments" className="btn btn-primary">
+          View Shipments
+        </Link>
+      </section>
+    );
+  }
+
+  return loading ? (
+    <Spinner />
+  ) : (
     <section className="container dashboard">
       <h1 className="large text-primary">Dashboard</h1>
       <p className="lead">
         <i className="fas fa-tachometer-alt"></i> Welcome to the Dashboard
       </p>
 
-      {loading ? (
-        <Spinner />
-      ) : (
-        <>
-          <div className="stats-row">
-            {summary && summary.statsData.map((stat, index) => (
-              <div key={index} className="stats-card" onClick={() => stat.onClick && stat.onClick()}>
-                <Link to={stat.path || '#'} className="stats-card-link">
-                  <div className="stats-header">
-                    <i className={`fas ${stat.icon}`}></i>
-                    <h3>{stat.title}</h3>
-                  </div>
-                  <div className="stats-value">{stat.value}</div>
-                  <div className="stats-footer">{stat.footer}</div>
-                </Link>
+      <div className="stats-row">
+        {statsData.map((stat, index) => (
+          <div key={index} className="stats-card" onClick={() => stat.onClick && stat.onClick()}>
+            <Link to={stat.path || '#'} className="stats-card-link">
+              <div className="stats-header">
+                <i className={`fas ${stat.icon}`}></i>
+                <h3>{stat.title}</h3>
               </div>
-            ))}
+              <div className="stats-value">{stat.value}</div>
+              <div className="stats-footer">{stat.footer}</div>
+            </Link>
           </div>
+        ))}
+      </div>
 
-          <div className="dashboard-row">
-            <div className="recent-shipments card">
-              <div className="card-header">
-                <h3>Recent Shipments</h3>
-                <Link to="/shipments" className="view-all">
-                  View All
-                </Link>
-              </div>
-              
-              <div className="card-body">
-                {summary && summary.recentShipments && summary.recentShipments.length > 0 ? (
-                  <div className="table-responsive">
-                    <table className="table">
-                      <thead>
-                        <tr>
-                          <th>Date</th>
-                          <th>Customer</th>
-                          <th>Status</th>
-                          <th>Actions</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {summary.recentShipments.map(shipment => (
-                          <tr key={shipment._id}>
-                            <td>
-                              <Moment format="DD/MM/YYYY">
-                                {shipment.dateAdded}
-                              </Moment>
-                            </td>
-                            <td>
-                              {typeof shipment.customer === 'object' 
-                                ? (shipment.customer?.name || 'Unknown') 
-                                : (shipment.customer || 'Unknown')}
-                            </td>
-                            <td>
-                              <span className={`status-badge status-${shipment.shipmentStatus.toLowerCase().replace(/\s+/g, '-')}`}>
-                                {shipment.shipmentStatus}
-                              </span>
-                            </td>
-                            <td>
-                              <Link to={`/shipments/${shipment._id}`} className="btn btn-sm">
-                                View
-                              </Link>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                ) : (
-                  <p>No recent shipments</p>
-                )}
-              </div>
-            </div>
-
-            <div className="shipment-status card">
-              <div className="card-header">
-                <h3>Shipment Status</h3>
-              </div>
-              <div className="card-body">
-                <div className="status-distribution">
-                  {Object.entries(summary.shipmentsByStatus).map(([status, count]) => (
-                    <Link to={`/shipments?status=${status}`} key={status} className="status-item">
-                      <div className={`status-color status-${status.toLowerCase().replace(/\s+/g, '-')}`}></div>
-                      <div className="status-label">{status}</div>
-                      <div className="status-count">{count}</div>
-                    </Link>
-                  ))}
-                </div>
-              </div>
-            </div>
+      <div className="dashboard-row">
+        <div className="recent-shipments card">
+          <div className="card-header">
+            <h3>Recent Shipments</h3>
+            <Link to="/shipments" className="view-all">
+              View All
+            </Link>
           </div>
+          
+          <div className="card-body">
+            {recentShipments.length > 0 ? (
+              <div className="table-responsive">
+                <table className="table">
+                  <thead>
+                    <tr>
+                      <th>Date</th>
+                      <th>Customer</th>
+                      <th>Status</th>
+                      <th>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {recentShipments.map(shipment => (
+                      <tr key={shipment._id}>
+                        <td>
+                          <Moment format="DD/MM/YYYY">
+                            {shipment.dateAdded}
+                          </Moment>
+                        </td>
+                        <td>
+                          {typeof shipment.customer === 'object' 
+                            ? (shipment.customer?.name || 'Unknown') 
+                            : (shipment.customer || 'Unknown')}
+                        </td>
+                        <td>
+                          <span className={`status-badge status-${shipment.shipmentStatus.toLowerCase().replace(/\s+/g, '-')}`}>
+                            {shipment.shipmentStatus}
+                          </span>
+                        </td>
+                        <td>
+                          <Link to={`/shipments/${shipment._id}`} className="btn btn-sm">
+                            View
+                          </Link>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <p>No recent shipments</p>
+            )}
+          </div>
+        </div>
 
-          {overdueNonInvoiced && overdueNonInvoiced.length > 0 && (
-            <div className="overdue-shipments-container">
-              <h2 className="text-primary">Overdue Non-Invoiced Shipments</h2>
-              <OverdueShipments shipments={overdueNonInvoiced} />
-            </div>
-          )}
-
-          <div className="dashboard-charts">
-            <div className="chart-container">
-              <h2 className="text-primary">Shipments by Customer</h2>
-              {shipmentsByCustomer && shipmentsByCustomer.length > 0 ? (
-                <ShipmentsByCustomerChart data={shipmentsByCustomer} />
+        <div className="shipment-status card">
+          <div className="card-header">
+            <h3>Shipment Status</h3>
+          </div>
+          <div className="card-body">
+            <div className="status-distribution">
+              {Object.entries(shipmentsByStatus).length > 0 ? (
+                Object.entries(shipmentsByStatus).map(([status, count]) => (
+                  <Link to={`/shipments?status=${status}`} key={status} className="status-item">
+                    <div className={`status-color status-${status.toLowerCase().replace(/\s+/g, '-')}`}></div>
+                    <div className="status-label">{status}</div>
+                    <div className="status-count">{count}</div>
+                  </Link>
+                ))
               ) : (
-                <p>No data available</p>
-              )}
-            </div>
-
-            <div className="chart-container">
-              <h2 className="text-primary">Shipments by Date</h2>
-              {shipmentsByDate && shipmentsByDate.length > 0 ? (
-                <ShipmentsByDateChart data={shipmentsByDate} />
-              ) : (
-                <p>No data available</p>
+                <p>No status data available</p>
               )}
             </div>
           </div>
-        </>
+        </div>
+      </div>
+
+      {overdueNonInvoiced && overdueNonInvoiced.length > 0 && (
+        <div className="overdue-shipments-container">
+          <h2 className="text-primary">Overdue Non-Invoiced Shipments</h2>
+          <OverdueShipments shipments={overdueNonInvoiced} />
+        </div>
       )}
+
+      <div className="dashboard-charts">
+        <div className="chart-container">
+          <h2 className="text-primary">Shipments by Customer</h2>
+          {shipmentsByCustomer && shipmentsByCustomer.length > 0 ? (
+            <ShipmentsByCustomerChart data={shipmentsByCustomer} />
+          ) : (
+            <p>No data available</p>
+          )}
+        </div>
+
+        <div className="chart-container">
+          <h2 className="text-primary">Shipments by Date</h2>
+          {shipmentsByDate && shipmentsByDate.length > 0 ? (
+            <ShipmentsByDateChart data={shipmentsByDate} />
+          ) : (
+            <p>No data available</p>
+          )}
+        </div>
+      </div>
 
       <DashboardDetailModal
         isOpen={modalData.isOpen}

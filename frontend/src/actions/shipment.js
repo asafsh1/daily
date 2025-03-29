@@ -8,7 +8,8 @@ import {
   UPDATE_SHIPMENT,
   DELETE_SHIPMENT,
   CLEAR_SHIPMENT,
-  SHIPMENT_LOADING
+  SHIPMENT_LOADING,
+  SHIPMENTS_LOADING
 } from './types';
 import io from 'socket.io-client';
 import store from '../store';
@@ -17,21 +18,36 @@ import store from '../store';
 const socket = io(process.env.REACT_APP_SOCKET_URL || 'http://localhost:5001');
 
 // Get all shipments
-export const getShipments = (page = 1, limit = 50) => async dispatch => {
-  dispatch({ type: SHIPMENT_LOADING });
-  
+export const getShipments = () => async dispatch => {
   try {
-    const res = await axios.get(`/api/shipments?page=${page}&limit=${limit}`);
+    dispatch({ type: CLEAR_SHIPMENT });
+    dispatch({ type: SHIPMENTS_LOADING });
+    
+    console.log('Fetching shipments from API...');
+    const res = await axios.get('/api/shipments');
+    console.log('API response:', res.data);
 
+    // Handle both old and new response formats
+    const shipmentsData = res.data.shipments ? res.data.shipments : res.data;
+    
     dispatch({
       type: GET_SHIPMENTS,
-      payload: res.data
+      payload: shipmentsData
     });
+    
+    return shipmentsData;
   } catch (err) {
+    console.error('Error in getShipments action:', err);
+    
     dispatch({
       type: SHIPMENT_ERROR,
-      payload: { msg: err.response?.statusText, status: err.response?.status }
+      payload: { 
+        msg: err.response?.statusText || 'Server Error', 
+        status: err.response?.status || 500 
+      }
     });
+    
+    throw err;
   }
 };
 

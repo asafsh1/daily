@@ -11,9 +11,9 @@ import {
 // Get dashboard summary
 export const getDashboardSummary = () => async dispatch => {
   try {
-    console.log('Fetching dashboard summary...');
+    dispatch({ type: DASHBOARD_LOADING });
     
-    // Fetch summary data
+    console.log('Fetching dashboard summary from API...');
     const res = await axios.get('/api/dashboard/summary');
     console.log('Dashboard data received:', res.data);
     
@@ -66,13 +66,20 @@ export const getDashboardSummary = () => async dispatch => {
       type: GET_DASHBOARD_SUMMARY,
       payload: res.data
     });
+    
+    return res.data;
   } catch (err) {
     console.error('Error loading dashboard data:', err);
     
     dispatch({
       type: DASHBOARD_ERROR,
-      payload: { msg: err.response?.statusText, status: err.response?.status }
+      payload: { 
+        msg: err.response?.statusText || 'Server Error', 
+        status: err.response?.status || 500
+      }
     });
+    
+    throw err;
   }
 };
 

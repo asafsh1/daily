@@ -1,27 +1,24 @@
 import {
   GET_SHIPMENTS,
   GET_SHIPMENT,
-  SHIPMENT_ERROR,
   ADD_SHIPMENT,
   UPDATE_SHIPMENT,
   DELETE_SHIPMENT,
   CLEAR_SHIPMENT,
-  SHIPMENT_LOADING
+  SHIPMENT_ERROR,
+  SHIPMENT_LOADING,
+  SHIPMENTS_LOADING
 } from '../actions/types';
 
 const initialState = {
   shipments: [],
-  pagination: {
-    total: 0,
-    page: 1,
-    pages: 1
-  },
   shipment: null,
-  loading: true,
+  loading: false,
+  shipmentsLoading: false,
   error: {}
 };
 
-const shipmentReducer = (state = initialState, action) => {
+export default function(state = initialState, action) {
   const { type, payload } = action;
 
   switch (type) {
@@ -30,12 +27,18 @@ const shipmentReducer = (state = initialState, action) => {
         ...state,
         loading: true
       };
-    case GET_SHIPMENTS:
+    case SHIPMENTS_LOADING:
       return {
         ...state,
-        shipments: payload.shipments || payload, // Handle both new and old response format
-        pagination: payload.pagination || state.pagination,
-        loading: false
+        shipmentsLoading: true
+      };
+    case GET_SHIPMENTS:
+      console.log('Reducer: GET_SHIPMENTS with payload:', payload);
+      return {
+        ...state,
+        shipments: Array.isArray(payload) ? payload : [],
+        loading: false,
+        shipmentsLoading: false
       };
     case GET_SHIPMENT:
       return {
@@ -55,7 +58,6 @@ const shipmentReducer = (state = initialState, action) => {
         shipments: state.shipments.map(shipment =>
           shipment._id === payload._id ? payload : shipment
         ),
-        shipment: payload,
         loading: false
       };
     case DELETE_SHIPMENT:
@@ -67,18 +69,17 @@ const shipmentReducer = (state = initialState, action) => {
     case CLEAR_SHIPMENT:
       return {
         ...state,
-        shipment: null,
-        loading: false
+        shipment: null
       };
     case SHIPMENT_ERROR:
+      console.error('Shipment reducer error:', payload);
       return {
         ...state,
         error: payload,
-        loading: false
+        loading: false,
+        shipmentsLoading: false
       };
     default:
       return state;
   }
-};
-
-export default shipmentReducer; 
+} 

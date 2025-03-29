@@ -8,12 +8,15 @@ import {
 } from '../actions/types';
 
 const initialState = {
-  loading: true,
-  error: {},
-  summary: null
+  summary: null,
+  shipmentsByCustomer: [],
+  shipmentsByDate: [],
+  overdueNonInvoiced: [],
+  loading: false,
+  error: null
 };
 
-const dashboardReducer = (state = initialState, action) => {
+export default function(state = initialState, action) {
   const { type, payload } = action;
 
   switch (type) {
@@ -23,30 +26,36 @@ const dashboardReducer = (state = initialState, action) => {
         loading: true
       };
     case GET_DASHBOARD_SUMMARY:
+      console.log('Dashboard reducer: GET_DASHBOARD_SUMMARY with payload:', payload);
       return {
         ...state,
         summary: payload,
-        loading: false
+        loading: false,
+        error: null
       };
     case GET_SHIPMENTS_BY_CUSTOMER:
       return {
         ...state,
         shipmentsByCustomer: payload,
-        loading: false
+        loading: false,
+        error: null
       };
     case GET_SHIPMENTS_BY_DATE:
       return {
         ...state,
         shipmentsByDate: payload,
-        loading: false
+        loading: false,
+        error: null
       };
     case GET_OVERDUE_NON_INVOICED:
       return {
         ...state,
         overdueNonInvoiced: payload,
-        loading: false
+        loading: false,
+        error: null
       };
     case DASHBOARD_ERROR:
+      console.error('Dashboard reducer error:', payload);
       return {
         ...state,
         error: payload,
@@ -55,6 +64,4 @@ const dashboardReducer = (state = initialState, action) => {
     default:
       return state;
   }
-};
-
-export default dashboardReducer; 
+} 
