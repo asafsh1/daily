@@ -42,10 +42,13 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
   const fetchLegs = async () => {
     try {
       setLoading(true);
+      console.log("Fetching legs for shipment:", shipmentId);
       
       // Only fetch legs from the server if this is a real shipment ID (not a temp one)
       if (shipmentId && !shipmentId.toString().startsWith('temp-')) {
-        const res = await axios.get(`/api/shipmentLegs/shipment/${shipmentId}`);
+        // Changed the endpoint URL to match the backend route
+        const res = await axios.get(`/api/shipment-legs/${shipmentId}`);
+        console.log("Legs response:", res.data);
         setLegs(res.data);
       } else {
         // For temporary IDs, just use the local state
@@ -100,7 +103,9 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
         setError(null);
       } else {
         // For real shipments, save to the server
-        const res = await axios.post('/api/shipmentLegs', legData);
+        console.log("Adding leg to shipment:", shipmentId, legData);
+        const res = await axios.post(`/api/shipment-legs/${shipmentId}`, legData);
+        console.log("Add leg response:", res.data);
         
         // Update the legs list with the new leg
         setLegs([...legs, res.data]);
@@ -190,7 +195,8 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
         setLegs(legs.filter(leg => leg._id !== legId));
       } else {
         // For real legs, delete from the server
-        await axios.delete(`/api/shipmentLegs/${legId}`);
+        console.log("Deleting leg:", legId);
+        await axios.delete(`/api/shipment-legs/${shipmentId}/${legId}`);
         setLegs(legs.filter(leg => leg._id !== legId));
       }
     } catch (err) {
@@ -209,7 +215,8 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
         ));
       } else {
         // For real legs, update on the server
-        const res = await axios.put(`/api/shipmentLegs/${shipmentId}/${legId}`, { status: newStatus });
+        // Fix the endpoint URL to match the backend route
+        const res = await axios.put(`/api/shipment-legs/${shipmentId}/${legId}`, { status: newStatus });
         
         // Update local state
         setLegs(legs.map(leg => 

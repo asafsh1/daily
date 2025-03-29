@@ -3,6 +3,10 @@ const Schema = mongoose.Schema;
 
 const ShipmentSchema = new Schema(
   {
+    serialNumber: {
+      type: String,
+      unique: true
+    },
     dateAdded: {
       type: Date,
       required: true,

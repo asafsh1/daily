@@ -166,6 +166,7 @@ const Shipments = ({ getShipments, updateShipment, shipment: { shipments, loadin
         <table className="table">
           <thead>
             <tr>
+              <th>Serial #</th>
               <th>Date Added</th>
               <th>Customer</th>
               <th>AWBs</th>
@@ -182,13 +183,16 @@ const Shipments = ({ getShipments, updateShipment, shipment: { shipments, loadin
             {filteredData.length > 0 ? (
               filteredData.map(shipment => (
                 <tr key={shipment._id}>
+                  <td>{shipment.serialNumber || '-'}</td>
                   <td>
                     <Moment format="DD/MM/YYYY">{shipment.dateAdded}</Moment>
                   </td>
                   <td>
                     {typeof shipment.customer === 'object' 
                       ? (shipment.customer?.name || 'Unknown') 
-                      : shipment.customer || 'Unknown'}
+                      : (typeof shipment.customer === 'string' && shipment.customer.length > 24 
+                        ? 'Unknown' // If it's an ObjectId string
+                        : shipment.customer || 'Unknown')}
                   </td>
                   <td>
                     {shipment.legs && shipment.legs.length > 0 ? (

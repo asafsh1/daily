@@ -4,73 +4,110 @@ const { check, validationResult } = require('express-validator');
 const mongoose = require('mongoose');
 
 const Shipment = require('../../models/Shipment');
+const ShipmentLeg = require('../../models/ShipmentLeg');
 
 // @route   GET api/shipments
 // @desc    Get all shipments
 // @access  Public
 router.get('/', async (req, res) => {
   try {
-    console.log('Processing shipments request - FIXED DIRECT VERSION');
+    console.log('Processing shipments request');
     
     // Check database connection - if not connected, return empty data
     if (mongoose.connection.readyState !== 1) {
       console.error('Database connection is not ready. Current state:', mongoose.connection.readyState);
       
-      // Return empty data with same structure to avoid frontend errors
       return res.json({
         shipments: [],
         pagination: {
           total: 0,
           page: 1,
-          pages: 0
+          pages: 1
         }
       });
     }
     
-    console.log('Database connected, fetching ALL shipments directly');
-    
     try {
-      // Get all shipments WITHOUT POPULATE to avoid ObjectId casting errors
-      const allShipments = await Shipment.find()
+      console.log('Fetching all shipments');
+      const shipments = await Shipment.find()
         .sort({ dateAdded: -1 })
         .lean();
       
-      console.log(`Directly found ${allShipments.length} shipments without populate`);
+      console.log(`Found ${shipments.length} shipments`);
       
-      // Process customers manually to handle both string names and ObjectIds
-      const processedShipments = allShipments.map(shipment => {
-        // If customer is a string (name), leave it as is
-        // Otherwise, it's already an ObjectId reference that would be populated
+      // Get shipment legs for all shipments
+      const allLegs = await ShipmentLeg.find()
+        .sort({ legOrder: 1 })
+        .lean();
+      
+      console.log(`Found ${allLegs.length} total legs`);
+      
+      // Organize legs by shipment ID
+      const legsByShipment = allLegs.reduce((acc, leg) => {
+        const shipmentId = leg.shipmentId.toString();
+        if (!acc[shipmentId]) {
+          acc[shipmentId] = [];
+        }
+        acc[shipmentId].push(leg);
+        return acc;
+      }, {});
+      
+      // Process each shipment to format properly
+      const processedShipments = shipments.map(shipment => {
+        const shipmentId = shipment._id.toString();
+        const shipmentLegs = legsByShipment[shipmentId] || [];
+        
+        // Sort legs by order
+        shipmentLegs.sort((a, b) => a.legOrder - b.legOrder);
+        
+        // Calculate departure and arrival times
+        let departureTime = null;
+        let arrivalTime = null;
+        
+        if (shipmentLegs.length === 1) {
+          // If single leg, use its departure and arrival
+          departureTime = shipmentLegs[0].departureTime;
+          arrivalTime = shipmentLegs[0].arrivalTime;
+        } else if (shipmentLegs.length > 1) {
+          // If multiple legs, use first leg departure and last leg arrival
+          departureTime = shipmentLegs[0].departureTime;
+          arrivalTime = shipmentLegs[shipmentLegs.length - 1].arrivalTime;
+        }
+        
+        // Process customer field to handle both string and ObjectId references
+        let customerDisplay = shipment.customer;
+        if (typeof shipment.customer === 'string' && shipment.customer.length > 24) {
+          customerDisplay = { _id: shipment.customer, name: 'Unknown' };
+        } else if (typeof shipment.customer === 'string') {
+          customerDisplay = { name: shipment.customer };
+        }
+        
         return {
           ...shipment,
-          // Ensure customer is always presented in a consistent format
-          customer: typeof shipment.customer === 'string' 
-            ? { name: shipment.customer } // Convert string to object format
-            : shipment.customer // Keep as is for ObjectId references
+          legs: shipmentLegs,
+          customer: customerDisplay,
+          scheduledDeparture: departureTime,
+          scheduledArrival: arrivalTime
         };
       });
       
-      console.log(`Processed ${processedShipments.length} shipments for customer references`);
+      // Calculate total
+      const total = processedShipments.length;
       
-      // Get the count separately
-      const count = await Shipment.countDocuments();
-      console.log(`Count reports ${count} shipments`);
-      
-      // Return all shipments with simple pagination
       return res.json({
         shipments: processedShipments,
         pagination: {
-          total: count,
+          total,
           page: 1,
           pages: 1
         }
       });
     } catch (queryErr) {
-      console.error('Error in direct shipment query:', queryErr);
+      console.error('Error in main query:', queryErr.message);
       
-      // If this is a customer ObjectId casting error, try a more direct approach
+      // If the error is due to customer ObjectId casting, try a fallback approach
       if (queryErr.message && queryErr.message.includes('Cast to ObjectId failed')) {
-        console.log('Detected ObjectId casting error, trying fallback approach...');
+        console.log('Detected customer casting error, using fallback query');
         
         try {
           // Get all shipments with absolutely no filtering or population
@@ -211,8 +248,28 @@ router.post(
     }
 
     try {
+      // Generate serial number (format: SHP-YYYY-XXXX)
+      const currentYear = new Date().getFullYear();
+      
+      // Find the highest serial number for this year
+      const latestShipment = await Shipment.findOne(
+        { serialNumber: new RegExp(`SHP-${currentYear}-\\d+`) },
+        { serialNumber: 1 }
+      ).sort({ serialNumber: -1 });
+      
+      let nextNumber = 1;
+      if (latestShipment && latestShipment.serialNumber) {
+        const parts = latestShipment.serialNumber.split('-');
+        if (parts.length === 3) {
+          nextNumber = parseInt(parts[2], 10) + 1;
+        }
+      }
+      
+      // Format with leading zeros (e.g., SHP-2023-0001)
+      const serialNumber = `SHP-${currentYear}-${nextNumber.toString().padStart(4, '0')}`;
+      
       // Ensure dates are properly formatted
-      let shipmentData = {...req.body};
+      let shipmentData = {...req.body, serialNumber};
       
       try {
         // Format dateAdded if it exists
