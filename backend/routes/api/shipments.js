@@ -355,22 +355,80 @@ router.post(
 // @access  Public
 router.put('/:id', async (req, res) => {
   try {
+    console.log('Updating shipment:', req.params.id);
+    console.log('Update data:', req.body);
+    
     const shipment = await Shipment.findById(req.params.id);
 
     if (!shipment) {
       return res.status(404).json({ msg: 'Shipment not found' });
     }
 
+    // Get existing legs if not provided in the update
+    if (!req.body.legs && shipment.legs && shipment.legs.length > 0) {
+      console.log('Preserving existing legs:', shipment.legs);
+      req.body.legs = shipment.legs;
+    }
+    
+    // Format dates if present
+    try {
+      if (req.body.dateAdded) {
+        req.body.dateAdded = new Date(req.body.dateAdded);
+      }
+      
+      if (req.body.fileCreatedDate) {
+        req.body.fileCreatedDate = new Date(req.body.fileCreatedDate);
+      }
+      
+      if (req.body.scheduledArrival) {
+        req.body.scheduledArrival = new Date(req.body.scheduledArrival);
+      }
+    } catch (dateErr) {
+      console.error('Error formatting dates in update:', dateErr.message);
+    }
+
+    // Add updatedAt timestamp
+    req.body.updatedAt = new Date();
+
     // Update the shipment
     const updatedShipment = await Shipment.findByIdAndUpdate(
       req.params.id,
       { $set: req.body },
       { new: true }
-    );
+    )
+    .populate({
+      path: 'legs',
+      options: { sort: { legOrder: 1 } }
+    });
+    
+    if (!updatedShipment) {
+      return res.status(404).json({ msg: 'Failed to update shipment' });
+    }
+    
+    console.log('Shipment updated:', updatedShipment._id);
+    
+    // Process the response to include customer details
+    let result = updatedShipment.toObject();
+    
+    // If customer is a reference, try to populate it
+    if (typeof result.customer === 'string' || 
+       (result.customer && mongoose.Types.ObjectId.isValid(result.customer))) {
+      try {
+        const customerDoc = await mongoose.model('customer').findById(result.customer);
+        if (customerDoc) {
+          result.customer = {
+            _id: customerDoc._id,
+            name: customerDoc.name
+          };
+        }
+      } catch (err) {
+        console.error('Error populating customer in update response:', err.message);
+      }
+    }
 
-    res.json(updatedShipment);
+    res.json(result);
   } catch (err) {
-    console.error(err.message);
+    console.error('Error updating shipment:', err.message);
     if (err.kind === 'ObjectId') {
       return res.status(404).json({ msg: 'Shipment not found' });
     }

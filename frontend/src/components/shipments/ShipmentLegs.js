@@ -101,6 +101,9 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
         setFormData({ ...initialState });
         setShowForm(false);
         setError(null);
+        
+        // Show success message
+        toast.success('Leg added successfully');
       } else {
         // For real shipments, save to the server
         console.log("Adding leg to shipment:", shipmentId, legData);
@@ -108,14 +111,15 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
           const res = await axios.post(`/api/shipment-legs/${shipmentId}`, legData);
           console.log("Add leg response:", res.data);
           
-          // Update the legs list with the new leg
-          setLegs([...legs, res.data]);
-          toast.success('Leg added successfully');
+          // Reload all legs to ensure we have the latest data
+          fetchLegs(); 
           
           // Reset form
           setFormData({ ...initialState });
           setShowForm(false);
           setError(null);
+          
+          toast.success('Leg added successfully');
         } catch (err) {
           console.error('Error in API call:', err);
           const errorMsg = err.response?.data?.errors?.[0]?.msg || 'Failed to add shipment leg';
@@ -142,6 +146,7 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
       destination: leg.destination,
       flightNumber: leg.flightNumber,
       mawbNumber: leg.mawbNumber,
+      awbNumber: leg.awbNumber || leg.mawbNumber, // Use awbNumber if available, fallback to mawbNumber
       departureTime: formatDate(leg.departureTime),
       arrivalTime: formatDate(leg.arrivalTime),
       status: leg.status,
@@ -150,11 +155,19 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
     
     setEditingLeg(leg);
     setShowForm(true);
+    setEditMode(true);  // Set editMode to true to indicate we're editing
+  };
+
+  // Get the AWB number to display
+  const getDisplayAwb = (leg) => {
+    // First try to use awbNumber, then fallback to mawbNumber
+    return leg.awbNumber || leg.mawbNumber || 'N/A';
   };
 
   // Submit the form to add/update a leg
   const handleSubmit = async (e) => {
     e.preventDefault();
+    e.stopPropagation(); // Prevent the event from bubbling up to parent forms
     
     // If editing a leg, update it
     if (editingLeg) {
@@ -176,9 +189,9 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
         );
         
         console.log("Update leg response:", res.data);
-        setLegs(legs.map(leg => 
-          leg._id === editingLeg._id ? res.data : leg
-        ));
+        
+        // Reload all legs to ensure we have the latest data
+        fetchLegs();
         
         toast.success('Leg updated successfully');
         setShowForm(false);
@@ -319,7 +332,7 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
                   <td>{leg.legOrder || index + 1}</td>
                   <td>{leg.origin}</td>
                   <td>{leg.destination}</td>
-                  <td>{leg.awbNumber || 'N/A'}</td>
+                  <td>{getDisplayAwb(leg)}</td>
                   <td>{leg.flightNumber || 'N/A'}</td>
                   <td>
                     <Moment format="DD/MM/YYYY HH:mm">

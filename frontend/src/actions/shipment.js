@@ -127,6 +127,16 @@ export const updateShipment = (id, formData, navigate) => async dispatch => {
       }
     }
     
+    // Preserve legs if not explicitly set
+    if (!shipmentData.legs) {
+      const currentShipment = state.shipment.shipment;
+      if (currentShipment && currentShipment.legs) {
+        shipmentData.legs = currentShipment.legs;
+      }
+    }
+    
+    console.log('Updating shipment with data:', shipmentData);
+    
     const config = {
       headers: {
         'Content-Type': 'application/json'

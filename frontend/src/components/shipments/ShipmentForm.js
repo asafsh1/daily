@@ -67,36 +67,56 @@ const ShipmentForm = ({
   // Populate form data when shipment is loaded
   useEffect(() => {
     if (!loading && shipment && isEditMode) {
-      const shipmentData = { ...initialState };
+      console.log('Populating form data from shipment:', shipment);
       
-      // Format dates to match form field requirements
-      const formatDate = (dateString) => {
-        if (!dateString) return '';
-        return new Date(dateString).toISOString().split('T')[0];
-      };
+      // Only initialize once to prevent data loss during editing
+      if (formData === initialState || 
+          (formData.customer !== shipment.customer && 
+          formData.dateAdded === initialState.dateAdded)) {
+      
+        // Format dates to match form field requirements
+        const formatDate = (dateString) => {
+          if (!dateString) return '';
+          return new Date(dateString).toISOString().split('T')[0];
+        };
 
-      const formatDateTime = (dateString) => {
-        if (!dateString) return '';
-        // Format: YYYY-MM-DDThh:mm
-        return new Date(dateString).toISOString().slice(0, 16);
-      };
+        const formatDateTime = (dateString) => {
+          if (!dateString) return '';
+          // Format: YYYY-MM-DDThh:mm
+          return new Date(dateString).toISOString().slice(0, 16);
+        };
 
-      // Map all shipment data to form fields
-      for (const key in shipment) {
-        if (key in shipmentData) {
-          if (key === 'dateAdded' || key === 'fileCreatedDate') {
-            shipmentData[key] = formatDate(shipment[key]);
-          } else if (key === 'scheduledArrival') {
-            shipmentData[key] = formatDateTime(shipment[key]);
-          } else {
-            shipmentData[key] = shipment[key];
+        // Create a new object to hold shipment data
+        const shipmentData = {}; 
+        
+        // Copy all fields from shipment to data object
+        for (const key in shipment) {
+          if (key in initialState || key === '_id') {
+            if (key === 'dateAdded' || key === 'fileCreatedDate') {
+              shipmentData[key] = formatDate(shipment[key]);
+            } else if (key === 'scheduledArrival') {
+              shipmentData[key] = formatDateTime(shipment[key]);
+            } else if (key === 'customer' && typeof shipment[key] === 'object') {
+              // Handle customer object versus ID
+              shipmentData[key] = shipment[key]._id || shipment[key];
+            } else {
+              shipmentData[key] = shipment[key];
+            }
           }
         }
+        
+        // Fill any missing fields with defaults
+        for (const key in initialState) {
+          if (!(key in shipmentData)) {
+            shipmentData[key] = initialState[key];
+          }
+        }
+        
+        console.log('Setting form data to:', shipmentData);
+        setFormData(shipmentData);
       }
-
-      setFormData(shipmentData);
     }
-  }, [loading, shipment, isEditMode]);
+  }, [loading, shipment, isEditMode, formData]);
 
   // Fetch customers from API
   const fetchCustomers = async () => {
@@ -175,14 +195,19 @@ const ShipmentForm = ({
       return;
     }
 
+    // Preserve the form data to prevent it from being reset
+    const submittingData = {...formData};
+    
     const shipmentData = {
-      ...formData,
+      ...submittingData,
       dateAdded: new Date(dateAdded).toISOString(),
       fileCreatedDate: fileCreatedDate ? new Date(fileCreatedDate).toISOString() : undefined,
       cost: cost ? Number(cost) : undefined,
       weight: weight ? Number(weight) : undefined,
       packageCount: packageCount ? Number(packageCount) : undefined
     };
+
+    console.log('Submitting shipment data:', shipmentData);
 
     try {
       if (isEditMode) {
