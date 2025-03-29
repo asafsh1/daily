@@ -104,16 +104,24 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
       } else {
         // For real shipments, save to the server
         console.log("Adding leg to shipment:", shipmentId, legData);
-        const res = await axios.post(`/api/shipment-legs/${shipmentId}`, legData);
-        console.log("Add leg response:", res.data);
-        
-        // Update the legs list with the new leg
-        setLegs([...legs, res.data]);
-        
-        // Reset form
-        setFormData({ ...initialState });
-        setShowForm(false);
-        setError(null);
+        try {
+          const res = await axios.post(`/api/shipment-legs/${shipmentId}`, legData);
+          console.log("Add leg response:", res.data);
+          
+          // Update the legs list with the new leg
+          setLegs([...legs, res.data]);
+          toast.success('Leg added successfully');
+          
+          // Reset form
+          setFormData({ ...initialState });
+          setShowForm(false);
+          setError(null);
+        } catch (err) {
+          console.error('Error in API call:', err);
+          const errorMsg = err.response?.data?.errors?.[0]?.msg || 'Failed to add shipment leg';
+          toast.error(errorMsg);
+          setError(errorMsg);
+        }
       }
     } catch (err) {
       console.error('Error adding shipment leg:', err);
@@ -148,42 +156,41 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     
-    // Basic validation
-    if (!formData.origin || !formData.destination || !formData.flightNumber || 
-        !formData.mawbNumber || !formData.departureTime || !formData.arrivalTime) {
-      toast.error('Please fill in all required fields');
-      return;
-    }
-
-    try {
-      if (editingLeg) {
-        // Update existing leg
+    // If editing a leg, update it
+    if (editingLeg) {
+      if (!validateForm()) {
+        return;
+      }
+      
+      try {
+        const updateData = {
+          ...formData,
+          departureTime: new Date(formData.departureTime).toISOString(),
+          arrivalTime: new Date(formData.arrivalTime).toISOString()
+        };
+        
+        console.log("Updating leg:", editingLeg._id, updateData);
         const res = await axios.put(
           `/api/shipment-legs/${shipmentId}/${editingLeg._id}`, 
-          formData
+          updateData
         );
         
+        console.log("Update leg response:", res.data);
         setLegs(legs.map(leg => 
           leg._id === editingLeg._id ? res.data : leg
         ));
         
         toast.success('Leg updated successfully');
-      } else {
-        // Add new leg
-        const res = await axios.post(
-          `/api/shipment-legs/${shipmentId}`, 
-          formData
-        );
-        
-        setLegs([...legs, res.data]);
-        toast.success('Leg added successfully');
+        setShowForm(false);
+        resetForm();
+      } catch (err) {
+        console.error('Error updating leg:', err);
+        const errorMsg = err.response?.data?.errors?.[0]?.msg || 'Failed to update leg';
+        toast.error(errorMsg);
       }
-      
-      setShowForm(false);
-      resetForm();
-    } catch (err) {
-      console.error('Error saving leg:', err);
-      toast.error(`Error: ${err.response?.data?.errors?.[0]?.msg || 'Something went wrong'}`);
+    } else {
+      // If adding a new leg
+      handleAddLeg();
     }
   };
 
@@ -246,8 +253,17 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
     if (!formData.mawbNumber) newErrors.mawbNumber = 'MAWB Number is required';
     if (!formData.departureTime) newErrors.departureTime = 'Departure Time is required';
     if (!formData.arrivalTime) newErrors.arrivalTime = 'Arrival Time is required';
+    
     setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
+    
+    if (Object.keys(newErrors).length > 0) {
+      // Display toast error with all validation errors
+      const errorMsg = Object.values(newErrors).join(', ');
+      toast.error(errorMsg);
+      return false;
+    }
+    
+    return true;
   };
 
   if (loading) {
@@ -355,8 +371,8 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
       {/* Leg form for adding new legs */}
       {showForm && !readOnly && (
         <div className="leg-form">
-          <h4>{editMode ? 'Edit Leg' : 'Add New Leg'}</h4>
-          <form>
+          <h4>{editingLeg ? 'Edit Leg' : 'Add New Leg'}</h4>
+          <form onSubmit={handleSubmit}>
             <div className="form-row">
               <div className="form-group">
                 <label htmlFor="origin">Origin*</label>
@@ -397,19 +413,55 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
                   value={formData.awbNumber}
                   onChange={onChange}
                   className="form-control"
+                  placeholder="AWB number for display"
                 />
               </div>
               
               <div className="form-group">
-                <label htmlFor="flightNumber">Flight Number</label>
+                <label htmlFor="flightNumber">Flight Number*</label>
                 <input
                   type="text"
                   id="flightNumber"
                   name="flightNumber"
                   value={formData.flightNumber}
                   onChange={onChange}
-                  className="form-control"
+                  required
+                  className={errors.flightNumber ? 'form-control is-invalid' : 'form-control'}
                 />
+                {errors.flightNumber && <div className="invalid-feedback">{errors.flightNumber}</div>}
+              </div>
+            </div>
+            
+            <div className="form-row">
+              <div className="form-group">
+                <label htmlFor="mawbNumber">MAWB Number*</label>
+                <input
+                  type="text"
+                  id="mawbNumber"
+                  name="mawbNumber"
+                  value={formData.mawbNumber}
+                  onChange={onChange}
+                  required
+                  className={errors.mawbNumber ? 'form-control is-invalid' : 'form-control'}
+                />
+                {errors.mawbNumber && <div className="invalid-feedback">{errors.mawbNumber}</div>}
+              </div>
+              
+              <div className="form-group">
+                <label htmlFor="status">Status</label>
+                <select
+                  id="status"
+                  name="status"
+                  value={formData.status}
+                  onChange={onChange}
+                  className="form-control"
+                >
+                  <option value="Pending">Pending</option>
+                  <option value="In Transit">In Transit</option>
+                  <option value="Arrived">Arrived</option>
+                  <option value="Delayed">Delayed</option>
+                  <option value="Canceled">Canceled</option>
+                </select>
               </div>
             </div>
             
@@ -451,26 +503,23 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
                 value={formData.notes}
                 onChange={onChange}
                 className="form-control"
-              />
+                rows="3"
+              ></textarea>
             </div>
             
-            <div className="form-actions">
-              <button
-                type="button"
-                onClick={handleAddLeg}
-                className="btn btn-primary"
-              >
-                {editMode ? 'Update Leg' : 'Add Leg'}
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setShowForm(false);
-                  setErrors({});
-                }}
-                className="btn btn-light"
+            <div className="form-buttons">
+              <button 
+                type="button" 
+                onClick={handleCancel}
+                className="btn btn-secondary"
               >
                 Cancel
+              </button>
+              <button 
+                type="submit" 
+                className="btn btn-primary"
+              >
+                {editingLeg ? 'Update Leg' : 'Add Leg'}
               </button>
             </div>
           </form>

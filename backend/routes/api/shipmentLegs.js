@@ -71,6 +71,8 @@ router.post(
     }
 
     try {
+      console.log('Adding leg to shipment:', req.params.shipmentId, req.body);
+      
       // Check if shipment exists
       const shipment = await Shipment.findById(req.params.shipmentId);
       if (!shipment) {
@@ -95,6 +97,7 @@ router.post(
         destination,
         flightNumber,
         mawbNumber,
+        awbNumber,
         departureTime,
         arrivalTime,
         status,
@@ -108,13 +111,22 @@ router.post(
         destination,
         flightNumber,
         mawbNumber,
+        awbNumber: awbNumber || mawbNumber, // Use awbNumber if provided, otherwise use mawbNumber
         departureTime,
         arrivalTime,
         status: status || 'Pending',
         notes
       });
 
-      await shipmentLeg.save();
+      const savedLeg = await shipmentLeg.save();
+      console.log('Saved leg:', savedLeg._id);
+      
+      // Add the leg to the shipment's legs array
+      await Shipment.findByIdAndUpdate(
+        req.params.shipmentId,
+        { $addToSet: { legs: savedLeg._id } }
+      );
+      console.log('Updated shipment with new leg reference');
 
       // Update the shipment routing
       await updateShipmentRouting(req.params.shipmentId);
@@ -122,9 +134,9 @@ router.post(
       // Update the shipment status based on legs
       await updateShipmentStatus(req.params.shipmentId);
 
-      res.json(shipmentLeg);
+      res.json(savedLeg);
     } catch (err) {
-      console.error(err.message);
+      console.error('Error adding shipment leg:', err.message);
       res.status(500).send('Server Error');
     }
   }
@@ -215,6 +227,8 @@ router.put(
 // @access   Public
 router.delete('/:shipmentId/:legId', async (req, res) => {
   try {
+    console.log('Deleting leg:', req.params.legId, 'from shipment:', req.params.shipmentId);
+    
     // Check if leg exists
     const shipmentLeg = await ShipmentLeg.findOne({
       _id: req.params.legId,
@@ -225,7 +239,16 @@ router.delete('/:shipmentId/:legId', async (req, res) => {
       return res.status(404).json({ msg: 'Shipment leg not found' });
     }
 
-    await shipmentLeg.remove();
+    // Remove the leg
+    await ShipmentLeg.deleteOne({ _id: req.params.legId });
+    console.log('Deleted leg from ShipmentLeg collection');
+    
+    // Remove the leg reference from the shipment
+    await Shipment.findByIdAndUpdate(
+      req.params.shipmentId,
+      { $pull: { legs: req.params.legId } }
+    );
+    console.log('Removed leg reference from shipment');
 
     // Update the shipment routing
     await updateShipmentRouting(req.params.shipmentId);
@@ -235,7 +258,7 @@ router.delete('/:shipmentId/:legId', async (req, res) => {
 
     res.json({ msg: 'Shipment leg removed' });
   } catch (err) {
-    console.error(err.message);
+    console.error('Error deleting shipment leg:', err.message);
     if (err.kind === 'ObjectId') {
       return res.status(404).json({ msg: 'Shipment leg not found' });
     }

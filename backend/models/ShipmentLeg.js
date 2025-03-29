@@ -28,6 +28,9 @@ const ShipmentLegSchema = new mongoose.Schema({
     type: String,
     required: true
   },
+  awbNumber: {
+    type: String
+  },
   departureTime: {
     type: Date,
     required: true
