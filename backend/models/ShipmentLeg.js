@@ -4,7 +4,8 @@ const ShipmentLegSchema = new mongoose.Schema({
   shipmentId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'shipment',
-    required: true
+    required: true,
+    index: true
   },
   legOrder: {
     type: Number,
@@ -59,5 +60,29 @@ const ShipmentLegSchema = new mongoose.Schema({
 
 // Create a compound index for shipmentId and legOrder to ensure uniqueness
 ShipmentLegSchema.index({ shipmentId: 1, legOrder: 1 }, { unique: true });
+
+// Pre-save hook to ensure the leg has a valid legOrder
+ShipmentLegSchema.pre('save', async function(next) {
+  if (!this.isNew && !this.isModified('legOrder')) {
+    return next();
+  }
+  
+  try {
+    // If legOrder is not set or is 0, auto-assign the next available number
+    if (!this.legOrder || this.legOrder === 0) {
+      const highestLeg = await this.constructor.findOne(
+        { shipmentId: this.shipmentId },
+        { legOrder: 1 },
+        { sort: { legOrder: -1 } }
+      );
+      
+      this.legOrder = highestLeg ? highestLeg.legOrder + 1 : 1;
+    }
+    
+    next();
+  } catch (err) {
+    next(err);
+  }
+});
 
 module.exports = mongoose.model('shipmentLeg', ShipmentLegSchema); 

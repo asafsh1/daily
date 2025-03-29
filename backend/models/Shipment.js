@@ -19,7 +19,7 @@ const ShipmentSchema = new Schema(
       default: 'planned'
     },
     customer: {
-      type: Schema.Types.ObjectId,
+      type: Schema.Types.Mixed, // Changed to Mixed to handle both ObjectId and string
       ref: 'customer',
       required: true
     },
@@ -70,11 +70,17 @@ const ShipmentSchema = new Schema(
     createdBy: {
       type: String
     },
-    // Virtual field to reference legs
-    legs: [{
-      type: Schema.Types.ObjectId,
-      ref: 'shipmentLeg'
-    }]
+    updatedBy: {
+      type: String
+    },
+    // Legs array field - changed to ensure it's always initialized
+    legs: {
+      type: [{
+        type: Schema.Types.ObjectId,
+        ref: 'shipmentLeg'
+      }],
+      default: []
+    }
   },
   {
     timestamps: true

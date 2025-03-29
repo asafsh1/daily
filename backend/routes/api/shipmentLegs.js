@@ -13,6 +13,13 @@ const Shipment = require('../../models/Shipment');
 router.get('/:shipmentId', async (req, res) => {
   try {
     console.log('Fetching legs for shipment:', req.params.shipmentId);
+    
+    // Check if ID is valid
+    if (!mongoose.Types.ObjectId.isValid(req.params.shipmentId)) {
+      console.log('Invalid shipment ID format:', req.params.shipmentId);
+      return res.json([]);  // Return empty array instead of error for invalid IDs
+    }
+    
     const shipmentLegs = await ShipmentLeg.find({ 
       shipmentId: req.params.shipmentId 
     }).sort({ legOrder: 1 });
@@ -21,7 +28,10 @@ router.get('/:shipmentId', async (req, res) => {
     res.json(shipmentLegs);
   } catch (err) {
     console.error('Error fetching shipment legs:', err.message);
-    res.status(500).send('Server Error');
+    res.status(500).json({ 
+      msg: 'Error fetching legs', 
+      error: err.message 
+    });
   }
 });
 
@@ -75,6 +85,14 @@ router.post(
       console.log('Creating new leg for shipment:', req.params.shipmentId);
       console.log('Request body:', JSON.stringify(req.body));
       
+      // Check if ID is valid
+      if (!mongoose.Types.ObjectId.isValid(req.params.shipmentId)) {
+        console.log('Invalid shipment ID format:', req.params.shipmentId);
+        return res.status(400).json({ 
+          errors: [{ msg: 'Invalid shipment ID format' }]
+        });
+      }
+      
       // Check if shipment exists
       let shipment;
       try {
@@ -91,6 +109,13 @@ router.post(
       if (!shipment) {
         console.log('Shipment not found with ID:', req.params.shipmentId);
         return res.status(404).json({ msg: 'Shipment not found' });
+      }
+
+      // Initialize legs array if not present
+      if (!shipment.legs) {
+        shipment.legs = [];
+        console.log('Initialized legs array for shipment');
+        await shipment.save();
       }
 
       // Auto-assign legOrder if not specified
@@ -158,10 +183,6 @@ router.post(
       }
       
       // Add the leg to the shipment's legs array if not already there
-      if (!shipment.legs) {
-        shipment.legs = [];
-      }
-      
       if (!shipment.legs.includes(savedLeg._id)) {
         console.log('Adding leg ID to shipment legs array');
         shipment.legs.push(savedLeg._id);
