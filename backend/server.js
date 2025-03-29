@@ -17,38 +17,41 @@ const io = socketIo(server, {
   }
 });
 
-// Connect to Database (but don't exit if it fails)
-connectDB().then(connected => {
-  if (!connected) {
-    console.log('Warning: Running with limited functionality due to database connection failure');
-  }
-});
-
-// Initialize Middleware
+// Initialize Middleware before DB connection
 app.use(express.json({ extended: false }));
 app.use(cors({
   origin: ['http://localhost:3000', 'https://vocal-cheesecake-1379ed.netlify.app', 'https://daily-shipment-tracker.netlify.app', 'https://veleka-shipments-daily-report.netlify.app'],
+  methods: ['GET', 'POST', 'PUT', 'DELETE'],
   credentials: true
 }));
+
+// Connect to Database (but don't exit if it fails)
+(async () => {
+  const connected = await connectDB();
+  if (!connected) {
+    console.warn('⚠️ WARNING: Running with limited functionality due to database connection failure');
+    console.warn('⚠️ APIs will return empty data instead of failing');
+  } else {
+    console.log('✅ Database connection successful - all functionality available');
+  }
+})();
 
 // Define Routes
 app.use('/api/users', require('./routes/api/users'));
 app.use('/api/auth', require('./routes/api/auth'));
-app.use('/api/shipments', require('./routes/api/shipments'));
-app.use('/api/shipmentLegs', require('./routes/api/shipmentLegs'));
 app.use('/api/customers', require('./routes/api/customers'));
+app.use('/api/shipments', require('./routes/api/shipments'));
+app.use('/api/shipment-legs', require('./routes/api/shipmentLegs'));
 app.use('/api/dashboard', require('./routes/api/dashboard'));
 
-// Socket.io connection
-io.on('connection', (socket) => {
-  console.log('New client connected');
-  
-  socket.on('shipmentUpdated', (data) => {
-    io.emit('shipmentUpdate', data);
-  });
-  
-  socket.on('disconnect', () => {
-    console.log('Client disconnected');
+// Health check endpoint
+app.get('/health', (req, res) => {
+  const dbStatus = require('mongoose').connection.readyState === 1 ? 'connected' : 'disconnected';
+  res.json({
+    status: 'ok',
+    timestamp: new Date(),
+    database: dbStatus,
+    environment: process.env.NODE_ENV || 'development'
   });
 });
 
@@ -91,3 +94,12 @@ app.use((err, req, res, next) => {
 const PORT = process.env.PORT || 5001;
 
 server.listen(PORT, () => console.log(`Server started on port ${PORT}`));
+
+// Set up websocket communication
+io.on('connection', (socket) => {
+  console.log('New client connected');
+  
+  socket.on('disconnect', () => {
+    console.log('Client disconnected');
+  });
+});

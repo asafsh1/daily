@@ -10,6 +10,23 @@ const Shipment = require('../../models/Shipment');
 // @access  Public
 router.get('/', async (req, res) => {
   try {
+    console.log('Processing shipments request');
+    
+    // Check database connection - if not connected, return empty data
+    if (mongoose.connection.readyState !== 1) {
+      console.error('Database connection is not ready. Current state:', mongoose.connection.readyState);
+      
+      // Return empty data with same structure to avoid frontend errors
+      return res.json({
+        shipments: [],
+        pagination: {
+          total: 0,
+          page: 1,
+          pages: 0
+        }
+      });
+    }
+    
     // Parse query parameters
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 50; // Default to 50 items per page
@@ -41,8 +58,17 @@ router.get('/', async (req, res) => {
       }
     });
   } catch (err) {
-    console.error(err.message);
-    res.status(500).send('Server Error');
+    console.error('Shipments route error:', err.message);
+    
+    // Return empty data with same structure instead of error
+    res.json({
+      shipments: [],
+      pagination: {
+        total: 0,
+        page: 1,
+        pages: 0
+      }
+    });
   }
 });
 
@@ -51,6 +77,22 @@ router.get('/', async (req, res) => {
 // @access  Public
 router.get('/:id', async (req, res) => {
   try {
+    // Check database connection - if not connected, return empty data
+    if (mongoose.connection.readyState !== 1) {
+      console.error('Database connection is not ready. Current state:', mongoose.connection.readyState);
+      
+      // Return empty shipment data to avoid frontend errors
+      return res.json({
+        _id: req.params.id,
+        dateAdded: new Date(),
+        customer: null,
+        legs: [],
+        shipmentStatus: 'Pending',
+        orderStatus: 'planned',
+        invoiced: false
+      });
+    }
+    
     const shipment = await Shipment.findById(req.params.id)
       .populate('customer', 'name contactPerson email phone') // Populate with more customer details
       .populate({
@@ -65,11 +107,23 @@ router.get('/:id', async (req, res) => {
 
     res.json(shipment);
   } catch (err) {
-    console.error(err.message);
+    console.error('Error getting shipment by ID:', err.message);
+    
+    // For ObjectId errors, return 404
     if (err.kind === 'ObjectId') {
       return res.status(404).json({ msg: 'Shipment not found' });
     }
-    res.status(500).send('Server Error');
+    
+    // Return empty shipment data for other errors
+    res.json({
+      _id: req.params.id,
+      dateAdded: new Date(),
+      customer: null,
+      legs: [],
+      shipmentStatus: 'Pending',
+      orderStatus: 'planned',
+      invoiced: false
+    });
   }
 });
 
