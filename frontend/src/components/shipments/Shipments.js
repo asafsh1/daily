@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { connect } from 'react-redux';
 import PropTypes from 'prop-types';
@@ -10,47 +10,57 @@ import { convertToCSV, downloadCSV } from '../../utils/exportUtils';
 const Shipments = ({ getShipments, updateShipment, shipment: { shipments, loading } }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
+  const [filteredData, setFilteredData] = useState([]);
 
   useEffect(() => {
     getShipments();
   }, [getShipments]);
 
+  // Filter shipments when data changes
   useEffect(() => {
+    if (!shipments) return;
+    
     console.log('Current shipments data:', shipments);
-    console.log('Filtered shipments:', filteredShipments);
-  }, [shipments, filteredShipments]);
+    
+    const filtered = shipments.filter(shipment => {
+      // Skip null/undefined shipments
+      if (!shipment) return false;
+      
+      try {
+        // Get customer name safely - handle both string and object customer references
+        const customerName = typeof shipment.customer === 'object' 
+          ? (shipment.customer?.name || '') 
+          : (shipment.customer || '');
+        
+        // Get AWB numbers from legs or from direct properties
+        let awbNumbers = '';
+        if (shipment.legs && shipment.legs.length > 0) {
+          awbNumbers = shipment.legs.map(leg => leg.awbNumber || '').join(' ');
+        } else if (shipment.awbNumber1) {
+          awbNumbers = shipment.awbNumber1;
+          if (shipment.awbNumber2) awbNumbers += ' ' + shipment.awbNumber2;
+        }
+        
+        // Search in customer name and AWB numbers
+        const searchLower = searchTerm.toLowerCase();
+        const customerMatches = customerName.toLowerCase().includes(searchLower);
+        const awbMatches = awbNumbers.toLowerCase().includes(searchLower);
+        
+        return (searchTerm === '' || customerMatches || awbMatches) &&
+              (filterStatus === '' || shipment.shipmentStatus === filterStatus);
+      } catch (err) {
+        console.error('Error filtering shipment:', err, shipment);
+        return false;
+      }
+    });
+    
+    setFilteredData(filtered);
+    console.log('Filtered shipments:', filtered);
+  }, [shipments, searchTerm, filterStatus]);
 
   const handleStatusChange = async (shipmentId, newStatus) => {
     await updateShipment(shipmentId, { shipmentStatus: newStatus });
   };
-
-  const filteredShipments = shipments.filter(
-    shipment => {
-      console.log('Processing shipment:', shipment);
-      
-      // Get customer name safely - handle both string and object customer references
-      const customerName = typeof shipment.customer === 'object' 
-        ? (shipment.customer?.name || '') 
-        : (shipment.customer || '');
-      
-      // Get AWB numbers from legs or from direct properties
-      let awbNumbers = '';
-      if (shipment.legs && shipment.legs.length > 0) {
-        awbNumbers = shipment.legs.map(leg => leg.awbNumber || '').join(' ');
-      } else if (shipment.awbNumber1) {
-        awbNumbers = shipment.awbNumber1;
-        if (shipment.awbNumber2) awbNumbers += ' ' + shipment.awbNumber2;
-      }
-      
-      // Search in customer name and AWB numbers
-      const searchLower = searchTerm.toLowerCase();
-      const customerMatches = customerName.toLowerCase().includes(searchLower);
-      const awbMatches = awbNumbers.toLowerCase().includes(searchLower);
-      
-      return (searchTerm === '' || customerMatches || awbMatches) &&
-             (filterStatus === '' || shipment.shipmentStatus === filterStatus);
-    }
-  );
 
   // Handle export to CSV
   const handleExportCSV = () => {
@@ -73,7 +83,7 @@ const Shipments = ({ getShipments, updateShipment, shipment: { shipments, loadin
     ];
 
     // Process the data to handle nested properties
-    const processedData = filteredShipments.map(shipment => {
+    const processedData = filteredData.map(shipment => {
       const processed = {...shipment};
       processed['customer.name'] = shipment.customer?.name || 'Unknown';
       processed['legs[0].awbNumber'] = shipment.legs && shipment.legs.length > 0 ? shipment.legs[0].awbNumber : '';
@@ -101,6 +111,7 @@ const Shipments = ({ getShipments, updateShipment, shipment: { shipments, loadin
       <p className="lead">
         <i className="fas fa-shipping-fast"></i> View and manage shipments
       </p>
+      
       <div className="shipment-controls">
         <div className="search-filter">
           <input
@@ -153,8 +164,8 @@ const Shipments = ({ getShipments, updateShipment, shipment: { shipments, loadin
             </tr>
           </thead>
           <tbody>
-            {filteredShipments.length > 0 ? (
-              filteredShipments.map(shipment => (
+            {filteredData.length > 0 ? (
+              filteredData.map(shipment => (
                 <tr key={shipment._id}>
                   <td>
                     <Moment format="DD/MM/YYYY">{shipment.dateAdded}</Moment>
