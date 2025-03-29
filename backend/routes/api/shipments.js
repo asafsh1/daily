@@ -262,4 +262,51 @@ router.delete('/:id', async (req, res) => {
   }
 });
 
+// Add this new diagnostic endpoint:
+// @route   GET api/shipments/diagnostic/count
+// @desc    Get shipment count with detailed diagnostics
+// @access  Public
+router.get('/diagnostic/count', async (req, res) => {
+  try {
+    console.log('Running shipment count diagnostic');
+    
+    // Check MongoDB connection state 
+    const dbState = mongoose.connection.readyState;
+    const dbStateText = ['disconnected', 'connected', 'connecting', 'disconnecting'];
+    console.log(`Database connection state: ${dbState} (${dbStateText[dbState]})`);
+    
+    // Check environment
+    console.log(`NODE_ENV: ${process.env.NODE_ENV}`);
+    
+    // Log database connection details (without exposing credentials)
+    const dbURI = mongoose.connection.client.s.url || 'Unknown';
+    const maskedURI = dbURI.replace(/:\/\/[^@]*@/, '://****:****@');
+    console.log(`MongoDB URI (masked): ${maskedURI}`);
+    
+    // Get counts of various collections
+    const shipmentCount = await Shipment.countDocuments();
+    const customerCount = await mongoose.model('customer').countDocuments();
+    const userCount = await mongoose.model('user').countDocuments();
+    
+    // Return diagnostic data
+    return res.json({
+      database: {
+        state: dbState,
+        stateText: dbStateText[dbState],
+        uri: maskedURI,
+        connectionName: mongoose.connection.name || 'Unknown'
+      },
+      collections: {
+        shipments: shipmentCount,
+        customers: customerCount,
+        users: userCount
+      },
+      environment: process.env.NODE_ENV || 'Unknown'
+    });
+  } catch (err) {
+    console.error('Diagnostic error:', err.message);
+    return res.status(500).json({ error: 'Diagnostic error', message: err.message });
+  }
+});
+
 module.exports = router; 
