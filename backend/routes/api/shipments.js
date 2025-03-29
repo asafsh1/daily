@@ -353,88 +353,84 @@ router.post(
 // @route   PUT api/shipments/:id
 // @desc    Update a shipment
 // @access  Public
-router.put('/:id', async (req, res) => {
-  try {
-    console.log('Updating shipment:', req.params.id);
-    console.log('Update data:', req.body);
-    
-    const shipment = await Shipment.findById(req.params.id);
-
-    if (!shipment) {
-      return res.status(404).json({ msg: 'Shipment not found' });
-    }
-
-    // Get existing legs if not provided in the update
-    if (!req.body.legs && shipment.legs && shipment.legs.length > 0) {
-      console.log('Preserving existing legs:', shipment.legs);
-      req.body.legs = shipment.legs;
-    }
-    
-    // Format dates if present
+router.put(
+  '/:id',
+  async (req, res) => {
     try {
-      if (req.body.dateAdded) {
-        req.body.dateAdded = new Date(req.body.dateAdded);
-      }
+      console.log('Updating shipment with ID:', req.params.id);
+      console.log('Request body:', JSON.stringify(req.body));
       
-      if (req.body.fileCreatedDate) {
-        req.body.fileCreatedDate = new Date(req.body.fileCreatedDate);
-      }
+      // Filter out undefined fields and handle special data types
+      const shipmentFields = {};
       
-      if (req.body.scheduledArrival) {
-        req.body.scheduledArrival = new Date(req.body.scheduledArrival);
-      }
-    } catch (dateErr) {
-      console.error('Error formatting dates in update:', dateErr.message);
-    }
-
-    // Add updatedAt timestamp
-    req.body.updatedAt = new Date();
-
-    // Update the shipment
-    const updatedShipment = await Shipment.findByIdAndUpdate(
-      req.params.id,
-      { $set: req.body },
-      { new: true }
-    )
-    .populate({
-      path: 'legs',
-      options: { sort: { legOrder: 1 } }
-    });
-    
-    if (!updatedShipment) {
-      return res.status(404).json({ msg: 'Failed to update shipment' });
-    }
-    
-    console.log('Shipment updated:', updatedShipment._id);
-    
-    // Process the response to include customer details
-    let result = updatedShipment.toObject();
-    
-    // If customer is a reference, try to populate it
-    if (typeof result.customer === 'string' || 
-       (result.customer && mongoose.Types.ObjectId.isValid(result.customer))) {
-      try {
-        const customerDoc = await mongoose.model('customer').findById(result.customer);
-        if (customerDoc) {
-          result.customer = {
-            _id: customerDoc._id,
-            name: customerDoc.name
-          };
+      // Copy valid fields from request body
+      const validFields = [
+        'serialNumber', 'dateAdded', 'orderStatus', 'customer', 'packageCount',
+        'weight', 'fileNumber', 'fileCreatedDate', 'createdBy', 'updatedBy',
+        'shipmentStatus', 'routing', 'cost', 'receivables', 'scheduledArrival',
+        'scheduledDeparture', 'actualArrival', 'actualDeparture', 'comments',
+        'invoiced', 'invoiceSent', 'invoiceNumber', 'invoiceStatus', 'legs'
+      ];
+      
+      for (const key of validFields) {
+        if (req.body[key] !== undefined) {
+          // Special handling for certain fields
+          if (key === 'customer') {
+            // Handle customer field correctly - could be an ID or object
+            if (req.body[key] && typeof req.body[key] === 'object' && req.body[key]._id) {
+              shipmentFields.customer = req.body[key]._id;
+            } else {
+              shipmentFields.customer = req.body[key];
+            }
+          } else if (key === 'legs') {
+            // Handle legs array specially - don't lose data
+            if (Array.isArray(req.body[key])) {
+              shipmentFields.legs = req.body[key];
+            }
+          } else {
+            shipmentFields[key] = req.body[key];
+          }
         }
-      } catch (err) {
-        console.error('Error populating customer in update response:', err.message);
       }
+      
+      // Add timestamp
+      shipmentFields.updatedAt = Date.now();
+      
+      // Find current shipment
+      const currentShipment = await Shipment.findById(req.params.id);
+      if (!currentShipment) {
+        return res.status(404).json({ msg: 'Shipment not found' });
+      }
+      
+      // Preserve legs array if not in update data
+      if (!shipmentFields.legs && currentShipment.legs) {
+        shipmentFields.legs = currentShipment.legs;
+      }
+      
+      // Update the shipment with new fields
+      console.log('Updating with fields:', shipmentFields);
+      const shipment = await Shipment.findByIdAndUpdate(
+        req.params.id,
+        { $set: shipmentFields },
+        { new: true }
+      ).populate('customer', 'name contactPerson email phone');
+      
+      // Log updated shipment
+      console.log('Updated shipment:', shipment);
+      
+      return res.json(shipment);
+    } catch (err) {
+      console.error('Error updating shipment:', err.message);
+      if (err.kind === 'ObjectId') {
+        return res.status(404).json({ msg: 'Shipment not found' });
+      }
+      return res.status(500).json({ 
+        msg: 'Server Error', 
+        error: err.message 
+      });
     }
-
-    res.json(result);
-  } catch (err) {
-    console.error('Error updating shipment:', err.message);
-    if (err.kind === 'ObjectId') {
-      return res.status(404).json({ msg: 'Shipment not found' });
-    }
-    res.status(500).send('Server Error');
   }
-});
+);
 
 // @route   DELETE api/shipments/:id
 // @desc    Delete a shipment

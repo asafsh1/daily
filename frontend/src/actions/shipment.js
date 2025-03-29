@@ -128,10 +128,17 @@ export const updateShipment = (id, formData, navigate) => async dispatch => {
     }
     
     // Preserve legs if not explicitly set
-    if (!shipmentData.legs) {
-      const currentShipment = state.shipment.shipment;
-      if (currentShipment && currentShipment.legs) {
-        shipmentData.legs = currentShipment.legs;
+    if (!shipmentData.legs && state.shipment.shipment && state.shipment.shipment.legs) {
+      shipmentData.legs = state.shipment.shipment.legs;
+    }
+    
+    // Preserve customer data
+    if (state.shipment.shipment && state.shipment.shipment.customer) {
+      // If the customer hasn't changed, preserve the original customer data
+      if (shipmentData.customer === state.shipment.shipment.customer._id ||
+          (state.shipment.shipment.customer._id && 
+           shipmentData.customer === state.shipment.shipment.customer._id.toString())) {
+        shipmentData.customer = state.shipment.shipment.customer;
       }
     }
     
@@ -146,13 +153,19 @@ export const updateShipment = (id, formData, navigate) => async dispatch => {
     const res = await axios.put(`/api/shipments/${id}`, shipmentData, config);
 
     if (res && res.data) {
+      // Ensure the response data includes the legs array
+      const updatedShipment = res.data;
+      if (!updatedShipment.legs && state.shipment.shipment && state.shipment.shipment.legs) {
+        updatedShipment.legs = state.shipment.shipment.legs;
+      }
+      
       dispatch({
         type: UPDATE_SHIPMENT,
-        payload: res.data
+        payload: updatedShipment
       });
 
       // Emit socket event
-      socket.emit('shipmentUpdated', res.data);
+      socket.emit('shipmentUpdated', updatedShipment);
 
       dispatch(setAlert('Shipment Updated', 'success'));
 

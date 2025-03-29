@@ -117,15 +117,19 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
         return;
       }
 
+      // Set loading state
+      setLoading(true);
+      
       // Prepare leg data with proper format
       const legData = {
         ...formData,
-        shipmentId,
         departureTime: new Date(formData.departureTime).toISOString(),
         arrivalTime: new Date(formData.arrivalTime).toISOString(),
         // Let the server auto-assign legOrder if not specified
-        legOrder: legs.length + 1
+        legOrder: formData.legOrder || legs.length + 1
       };
+
+      console.log("Submitting leg data:", legData);
 
       // For temporary shipments, just add to local state
       if (shipmentId.toString().startsWith('temp-')) {
@@ -138,22 +142,21 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
         setFormData({ ...initialState });
         setShowForm(false);
         setError(null);
+        setLoading(false);
         
         // Show success message
         toast.success('Leg added successfully');
       } else {
         // For real shipments, save to the server
-        console.log("Adding leg to shipment:", shipmentId, legData);
+        console.log("Adding leg to shipment:", shipmentId);
+        
         try {
-          // Set loading state
-          setLoading(true);
-          
           // Make the API call with proper error handling
           const res = await axios.post(`/api/shipment-legs/${shipmentId}`, legData);
           console.log("Add leg response:", res.data);
           
-          // Reload all legs to ensure we have the latest data
-          await fetchLegs();
+          // Update the legs state with the new leg
+          setLegs(prevLegs => [...prevLegs, res.data]);
           
           // Reset form and loading state
           setFormData({ ...initialState });
@@ -163,6 +166,9 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
           
           // Show success message
           toast.success('Leg added successfully');
+          
+          // Reload all legs to ensure we have the latest data
+          fetchLegs();
         } catch (err) {
           setLoading(false);
           console.error('Error in API call:', err);
@@ -172,6 +178,7 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
         }
       }
     } catch (err) {
+      setLoading(false);
       console.error('Error adding shipment leg:', err);
       setError('Failed to add shipment leg');
     }
@@ -204,50 +211,106 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
 
   // Get the AWB number to display
   const getDisplayAwb = (leg) => {
-    // First try to use awbNumber, then fallback to mawbNumber
-    return leg.awbNumber || leg.mawbNumber || 'N/A';
+    // Display MAWB number only
+    return leg.mawbNumber || 'N/A';
   };
 
-  // Submit the form to add/update a leg
+  // Validate form inputs
+  const validateForm = () => {
+    const newErrors = {};
+    
+    if (!formData.origin) newErrors.origin = 'Origin is required';
+    if (!formData.destination) newErrors.destination = 'Destination is required';
+    if (!formData.flightNumber) newErrors.flightNumber = 'Flight number is required';
+    if (!formData.mawbNumber) newErrors.mawbNumber = 'MAWB number is required';
+    if (!formData.departureTime) newErrors.departureTime = 'Departure time is required';
+    if (!formData.arrivalTime) newErrors.arrivalTime = 'Arrival time is required';
+    
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  // Handle form submission
   const handleSubmit = async (e) => {
     e.preventDefault();
-    e.stopPropagation(); // Prevent the event from bubbling up to parent forms
     
-    // If editing a leg, update it
+    if (!validateForm()) {
+      return;
+    }
+    
     if (editingLeg) {
-      if (!validateForm()) {
-        return;
-      }
+      handleUpdateLeg();
+    } else {
+      handleAddLeg();
+    }
+  };
+
+  // Update an existing leg
+  const handleUpdateLeg = async () => {
+    try {
+      console.log('Updating leg with ID:', editingLeg._id);
+      setLoading(true);
       
-      try {
-        const updateData = {
-          ...formData,
-          departureTime: new Date(formData.departureTime).toISOString(),
-          arrivalTime: new Date(formData.arrivalTime).toISOString()
-        };
+      // Format dates
+      const legData = {
+        ...formData,
+        departureTime: new Date(formData.departureTime).toISOString(),
+        arrivalTime: new Date(formData.arrivalTime).toISOString()
+      };
+      
+      console.log('Update leg data:', legData);
+      
+      // For temporary shipments, update in local state
+      if (shipmentId.toString().startsWith('temp-') || 
+          (editingLeg._id && editingLeg._id.toString().startsWith('temp-'))) {
         
-        console.log("Updating leg:", editingLeg._id, updateData);
-        const res = await axios.put(
-          `/api/shipment-legs/${shipmentId}/${editingLeg._id}`, 
-          updateData
-        );
+        // Update in local state
+        setLegs(prevLegs => prevLegs.map(leg => 
+          leg._id === editingLeg._id ? { ...leg, ...legData, _id: editingLeg._id } : leg
+        ));
         
-        console.log("Update leg response:", res.data);
-        
-        // Reload all legs to ensure we have the latest data
-        fetchLegs();
+        setFormData(initialState);
+        setEditingLeg(null);
+        setShowForm(false);
+        setError(null);
+        setLoading(false);
         
         toast.success('Leg updated successfully');
-        setShowForm(false);
-        resetForm();
-      } catch (err) {
-        console.error('Error updating leg:', err);
-        const errorMsg = err.response?.data?.errors?.[0]?.msg || 'Failed to update leg';
-        toast.error(errorMsg);
+      } else {
+        // For real shipments, update through API
+        try {
+          console.log(`Sending PUT to /api/shipment-legs/${shipmentId}/${editingLeg._id} with data:`, legData);
+          const res = await axios.put(`/api/shipment-legs/${shipmentId}/${editingLeg._id}`, legData);
+          console.log('Update response:', res.data);
+          
+          // Update the leg in the local state
+          setLegs(prevLegs => prevLegs.map(leg => 
+            leg._id === editingLeg._id ? res.data : leg
+          ));
+          
+          // Reset form
+          setFormData(initialState);
+          setEditingLeg(null);
+          setShowForm(false);
+          setError(null);
+          setLoading(false);
+          
+          toast.success('Leg updated successfully');
+          
+          // Reload all legs to ensure we have the latest data
+          await fetchLegs();
+        } catch (err) {
+          setLoading(false);
+          console.error('Error updating leg:', err);
+          const errorMsg = err.response?.data?.errors?.[0]?.msg || 'Failed to update shipment leg';
+          toast.error(errorMsg);
+          setError(errorMsg);
+        }
       }
-    } else {
-      // If adding a new leg
-      handleAddLeg();
+    } catch (err) {
+      setLoading(false);
+      console.error('Error in handleUpdateLeg:', err);
+      setError('Failed to update shipment leg');
     }
   };
 
@@ -299,28 +362,6 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
   const handleCancel = () => {
     setShowForm(false);
     resetForm();
-  };
-
-  // Validate form
-  const validateForm = () => {
-    const newErrors = {};
-    if (!formData.origin) newErrors.origin = 'Origin is required';
-    if (!formData.destination) newErrors.destination = 'Destination is required';
-    if (!formData.flightNumber) newErrors.flightNumber = 'Flight Number is required';
-    if (!formData.mawbNumber) newErrors.mawbNumber = 'MAWB Number is required';
-    if (!formData.departureTime) newErrors.departureTime = 'Departure Time is required';
-    if (!formData.arrivalTime) newErrors.arrivalTime = 'Arrival Time is required';
-    
-    setErrors(newErrors);
-    
-    if (Object.keys(newErrors).length > 0) {
-      // Display toast error with all validation errors
-      const errorMsg = Object.values(newErrors).join(', ');
-      toast.error(errorMsg);
-      return false;
-    }
-    
-    return true;
   };
 
   if (loading) {
@@ -462,16 +503,17 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
             
             <div className="form-row">
               <div className="form-group">
-                <label htmlFor="awbNumber">AWB Number</label>
+                <label htmlFor="mawbNumber">MAWB/AWB Number*</label>
                 <input
                   type="text"
-                  id="awbNumber"
-                  name="awbNumber"
-                  value={formData.awbNumber}
+                  id="mawbNumber"
+                  name="mawbNumber"
+                  value={formData.mawbNumber}
                   onChange={onChange}
-                  className="form-control"
-                  placeholder="AWB number for display"
+                  required
+                  className={errors.mawbNumber ? 'form-control is-invalid' : 'form-control'}
                 />
+                {errors.mawbNumber && <div className="invalid-feedback">{errors.mawbNumber}</div>}
               </div>
               
               <div className="form-group">
@@ -490,20 +532,6 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
             </div>
             
             <div className="form-row">
-              <div className="form-group">
-                <label htmlFor="mawbNumber">MAWB Number*</label>
-                <input
-                  type="text"
-                  id="mawbNumber"
-                  name="mawbNumber"
-                  value={formData.mawbNumber}
-                  onChange={onChange}
-                  required
-                  className={errors.mawbNumber ? 'form-control is-invalid' : 'form-control'}
-                />
-                {errors.mawbNumber && <div className="invalid-feedback">{errors.mawbNumber}</div>}
-              </div>
-              
               <div className="form-group">
                 <label htmlFor="status">Status</label>
                 <select
