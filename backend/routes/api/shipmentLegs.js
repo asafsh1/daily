@@ -75,16 +75,17 @@ router.post(
     ]
   ],
   async (req, res) => {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      console.log('Validation errors:', errors.array());
-      return res.status(400).json({ errors: errors.array() });
-    }
-
     try {
-      console.log('Creating new leg for shipment:', req.params.shipmentId);
+      console.log('-- Starting shipment leg creation --');
+      console.log('Shipment ID:', req.params.shipmentId);
       console.log('Request body:', JSON.stringify(req.body));
       
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        console.log('Validation errors:', errors.array());
+        return res.status(400).json({ errors: errors.array() });
+      }
+
       // Check if ID is valid
       if (!mongoose.Types.ObjectId.isValid(req.params.shipmentId)) {
         console.log('Invalid shipment ID format:', req.params.shipmentId);
@@ -113,8 +114,8 @@ router.post(
 
       // Initialize legs array if not present
       if (!shipment.legs) {
+        console.log('Creating legs array - it was not defined');
         shipment.legs = [];
-        console.log('Initialized legs array for shipment');
         await shipment.save();
       }
 
@@ -143,6 +144,7 @@ router.post(
         }
       }
 
+      // Extract leg data from request
       const {
         origin,
         destination,
@@ -153,6 +155,14 @@ router.post(
         status,
         notes
       } = req.body;
+
+      console.log('Creating new ShipmentLeg document with:');
+      console.log('- shipmentId:', req.params.shipmentId);
+      console.log('- legOrder:', legOrder);
+      console.log('- origin:', origin);
+      console.log('- destination:', destination);
+      console.log('- departure:', departureTime);
+      console.log('- arrival:', arrivalTime);
 
       // Create new leg document
       const shipmentLeg = new ShipmentLeg({
@@ -167,15 +177,13 @@ router.post(
         status: status || 'Pending',
         notes
       });
-
-      console.log('Created shipment leg object:', JSON.stringify(shipmentLeg));
       
       let savedLeg;
       try {
         savedLeg = await shipmentLeg.save();
-        console.log('Saved leg with ID:', savedLeg._id);
+        console.log('Successfully saved leg with ID:', savedLeg._id);
       } catch (err) {
-        console.error('Error saving shipment leg:', err.message);
+        console.error('Error saving shipment leg:', err.message, err.stack);
         return res.status(500).json({ 
           msg: 'Error saving shipment leg', 
           error: err.message 
@@ -214,6 +222,7 @@ router.post(
         // Continue even if this fails
       }
 
+      console.log('Shipment leg creation completed successfully');
       res.json(savedLeg);
     } catch (err) {
       console.error('Error creating shipment leg:', err.message, err.stack);

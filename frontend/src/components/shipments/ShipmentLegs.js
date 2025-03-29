@@ -113,6 +113,8 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
   // Open form to add a new leg
   const handleAddLeg = async () => {
     try {
+      console.log('handleAddLeg called');
+      
       if (!validateForm()) {
         return;
       }
@@ -132,7 +134,7 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
       console.log("Submitting leg data:", legData);
 
       // For temporary shipments, just add to local state
-      if (shipmentId.toString().startsWith('temp-')) {
+      if (shipmentId && shipmentId.toString().startsWith('temp-')) {
         // Create a temporary ID
         const tempLegId = 'temp-leg-' + Date.now() + '-' + Math.random().toString(36).substring(2, 9);
         const newLeg = { ...legData, _id: tempLegId };
@@ -233,6 +235,9 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
   // Handle form submission
   const handleSubmit = async (e) => {
     e.preventDefault();
+    e.stopPropagation(); // Prevent the event from bubbling up to parent forms
+    
+    console.log('Form submission handler called');
     
     if (!validateForm()) {
       return;
@@ -470,7 +475,7 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
       {showForm && !readOnly && (
         <div className="leg-form">
           <h4>{editingLeg ? 'Edit Leg' : 'Add New Leg'}</h4>
-          <form onSubmit={handleSubmit}>
+          <form onSubmit={(e) => handleSubmit(e)}>
             <div className="form-row">
               <div className="form-group">
                 <label htmlFor="origin">Origin*</label>
@@ -601,7 +606,8 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
                 Cancel
               </button>
               <button 
-                type="submit" 
+                type="button"
+                onClick={(e) => handleSubmit(e)}
                 className="btn btn-primary"
               >
                 {editingLeg ? 'Update Leg' : 'Add Leg'}
