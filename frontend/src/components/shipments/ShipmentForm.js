@@ -11,11 +11,6 @@ const initialState = {
   dateAdded: new Date().toISOString().split('T')[0],
   orderStatus: 'planned',
   customer: '',
-  awbNumber1: '',
-  awbNumber2: '',
-  // routing is now generated automatically from legs
-  scheduledDeparture: '',
-  scheduledArrival: '',
   shipmentStatus: 'Pending',
   weight: '',
   packageCount: '',
@@ -112,10 +107,6 @@ const ShipmentForm = ({
     dateAdded,
     orderStatus,
     customer,
-    awbNumber1,
-    awbNumber2,
-    scheduledDeparture,
-    scheduledArrival,
     shipmentStatus,
     weight,
     packageCount,
@@ -136,13 +127,10 @@ const ShipmentForm = ({
     
     if (!dateAdded) newErrors.dateAdded = 'Date added is required';
     if (!orderStatus) newErrors.orderStatus = 'Order status is required';
-    if (!['done', 'confirmed', 'planned', 'canceled'].includes(orderStatus)) {
+    if (!['done', 'confirmed', 'planned', 'canceled', 'in transit'].includes(orderStatus)) {
       newErrors.orderStatus = 'Invalid order status';
     }
     if (!customer) newErrors.customer = 'Customer is required';
-    if (!awbNumber1) newErrors.awbNumber1 = 'AWB number is required';
-    if (!scheduledDeparture) newErrors.scheduledDeparture = 'Scheduled departure is required';
-    if (!scheduledArrival) newErrors.scheduledArrival = 'Scheduled arrival is required';
     if (!['Pending', 'Arrived', 'Delayed', 'Canceled', 'In Transit'].includes(shipmentStatus)) {
       newErrors.shipmentStatus = 'Invalid shipment status';
     }
@@ -182,8 +170,6 @@ const ShipmentForm = ({
     const shipmentData = {
       ...formData,
       dateAdded: new Date(dateAdded).toISOString(),
-      scheduledDeparture: new Date(scheduledDeparture).toISOString(),
-      scheduledArrival: new Date(scheduledArrival).toISOString(),
       fileCreatedDate: fileCreatedDate ? new Date(fileCreatedDate).toISOString() : undefined,
       cost: cost ? Number(cost) : undefined,
       weight: weight ? Number(weight) : undefined,
@@ -224,11 +210,12 @@ const ShipmentForm = ({
         <div className="alert alert-danger">{errors.submit}</div>
       )}
 
-      <form className="form" onSubmit={onSubmit}>
+      <form className="form shipment-form" onSubmit={onSubmit}>
         <div className="form-group">
-          <label>Date Added*</label>
+          <label htmlFor="dateAdded">Date Added</label>
           <input
             type="date"
+            id="dateAdded"
             name="dateAdded"
             value={dateAdded}
             onChange={onChange}
@@ -236,23 +223,7 @@ const ShipmentForm = ({
           />
           {errors.dateAdded && <div className="invalid-feedback">{errors.dateAdded}</div>}
         </div>
-
-        <div className="form-group">
-          <label>Order Status*</label>
-          <select
-            name="orderStatus"
-            value={orderStatus}
-            onChange={onChange}
-            className={errors.orderStatus ? 'form-control is-invalid' : 'form-control'}
-          >
-            <option value="planned">Planned</option>
-            <option value="confirmed">Confirmed</option>
-            <option value="done">Done</option>
-            <option value="canceled">Canceled</option>
-          </select>
-          {errors.orderStatus && <div className="invalid-feedback">{errors.orderStatus}</div>}
-        </div>
-
+        
         <div className="form-group">
           <label htmlFor="customer">Customer</label>
           <select
@@ -275,57 +246,29 @@ const ShipmentForm = ({
             <Link to="/customers">Manage customers</Link>
           </small>
         </div>
-
+        
         <div className="form-group">
-          <label>AWB Number 1*</label>
-          <input
-            type="text"
-            name="awbNumber1"
-            value={awbNumber1}
-            onChange={onChange}
-            className={errors.awbNumber1 ? 'form-control is-invalid' : 'form-control'}
-          />
-          {errors.awbNumber1 && <div className="invalid-feedback">{errors.awbNumber1}</div>}
-        </div>
-
-        <div className="form-group">
-          <label>AWB Number 2</label>
-          <input
-            type="text"
-            name="awbNumber2"
-            value={awbNumber2}
-            onChange={onChange}
-            className="form-control"
-          />
-        </div>
-
-        <div className="form-group">
-          <label>Scheduled Departure*</label>
-          <input
-            type="datetime-local"
-            name="scheduledDeparture"
-            value={scheduledDeparture}
-            onChange={onChange}
-            className={errors.scheduledDeparture ? 'form-control is-invalid' : 'form-control'}
-          />
-          {errors.scheduledDeparture && <div className="invalid-feedback">{errors.scheduledDeparture}</div>}
-        </div>
-
-        <div className="form-group">
-          <label>Scheduled Arrival*</label>
-          <input
-            type="datetime-local"
-            name="scheduledArrival"
-            value={scheduledArrival}
-            onChange={onChange}
-            className={errors.scheduledArrival ? 'form-control is-invalid' : 'form-control'}
-          />
-          {errors.scheduledArrival && <div className="invalid-feedback">{errors.scheduledArrival}</div>}
-        </div>
-
-        <div className="form-group">
-          <label>Shipment Status</label>
+          <label htmlFor="orderStatus">Order Status</label>
           <select
+            id="orderStatus"
+            name="orderStatus"
+            value={orderStatus}
+            onChange={onChange}
+            className={errors.orderStatus ? 'form-control is-invalid' : 'form-control'}
+          >
+            <option value="planned">Planned</option>
+            <option value="confirmed">Confirmed</option>
+            <option value="in transit">In Transit</option>
+            <option value="done">Done</option>
+            <option value="canceled">Canceled</option>
+          </select>
+          {errors.orderStatus && <div className="invalid-feedback">{errors.orderStatus}</div>}
+        </div>
+        
+        <div className="form-group">
+          <label htmlFor="shipmentStatus">Shipment Status</label>
+          <select
+            id="shipmentStatus"
             name="shipmentStatus"
             value={shipmentStatus}
             onChange={onChange}
@@ -339,51 +282,74 @@ const ShipmentForm = ({
           </select>
           {errors.shipmentStatus && <div className="invalid-feedback">{errors.shipmentStatus}</div>}
         </div>
-
-        <div className="form-group">
-          <label>Weight</label>
-          <input
-            type="text"
-            name="weight"
-            value={weight}
-            onChange={onChange}
-            className="form-control"
-          />
+        
+        <div className="form-row">
+          <div className="form-group">
+            <label htmlFor="weight">Weight (kg)</label>
+            <input
+              type="number"
+              id="weight"
+              name="weight"
+              value={weight}
+              onChange={onChange}
+              className={errors.weight ? 'form-control is-invalid' : 'form-control'}
+              placeholder="Total weight in kg"
+              step="0.01"
+              min="0"
+            />
+            {errors.weight && <div className="invalid-feedback">{errors.weight}</div>}
+          </div>
+          
+          <div className="form-group">
+            <label htmlFor="packageCount">Number of Packages</label>
+            <input
+              type="number"
+              id="packageCount"
+              name="packageCount"
+              value={packageCount}
+              onChange={onChange}
+              className={errors.packageCount ? 'form-control is-invalid' : 'form-control'}
+              placeholder="Number of packages"
+              min="0"
+            />
+            {errors.packageCount && <div className="invalid-feedback">{errors.packageCount}</div>}
+          </div>
         </div>
-
-        <div className="form-group">
-          <label>Package Count</label>
-          <input
-            type="text"
-            name="packageCount"
-            value={packageCount}
-            onChange={onChange}
-            className="form-control"
-          />
+        
+        {/* Shipment Legs section moved here */}
+        {isEditMode && (
+          <div className="shipment-legs-section">
+            <ShipmentLegs shipmentId={id} />
+          </div>
+        )}
+        
+        <div className="form-row">
+          <div className="form-group">
+            <label htmlFor="fileNumber">File Number</label>
+            <input
+              type="text"
+              id="fileNumber"
+              name="fileNumber"
+              value={fileNumber}
+              onChange={onChange}
+              className="form-control"
+              placeholder="Internal file number"
+            />
+          </div>
+          
+          <div className="form-group">
+            <label htmlFor="fileCreatedDate">File Created Date</label>
+            <input
+              type="date"
+              id="fileCreatedDate"
+              name="fileCreatedDate"
+              value={fileCreatedDate}
+              onChange={onChange}
+              className="form-control"
+            />
+          </div>
         </div>
-
-        <div className="form-group">
-          <label>File Number</label>
-          <input
-            type="text"
-            name="fileNumber"
-            value={fileNumber}
-            onChange={onChange}
-            className="form-control"
-          />
-        </div>
-
-        <div className="form-group">
-          <label>File Created Date</label>
-          <input
-            type="date"
-            name="fileCreatedDate"
-            value={fileCreatedDate}
-            onChange={onChange}
-            className="form-control"
-          />
-        </div>
-
+        
         <div className="form-group">
           <label>Cost (USD)</label>
           <input
@@ -496,9 +462,9 @@ const ShipmentForm = ({
         </div>
       </form>
 
-      {isEditMode && (
-        <div className="shipment-legs-section">
-          <ShipmentLegs shipmentId={id} />
+      {!isEditMode && (
+        <div className="alert alert-info mt-4">
+          <i className="fas fa-info-circle"></i> You can add shipment legs after saving the shipment.
         </div>
       )}
     </section>

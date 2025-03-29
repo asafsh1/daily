@@ -65,36 +65,55 @@ const ShipmentDetail = ({
               </div>
               <div className="info-item">
                 <span className="info-label">Customer:</span>
-                <span className="info-value">{shipment.customer}</span>
+                <span className="info-value">{shipment.customer?.name || 'Unknown'}</span>
               </div>
               <div className="info-item">
-                <span className="info-label">AWB Number 1:</span>
-                <span className="info-value">{shipment.awbNumber1}</span>
-              </div>
-              {shipment.awbNumber2 && (
-                <div className="info-item">
-                  <span className="info-label">AWB Number 2:</span>
-                  <span className="info-value">{shipment.awbNumber2}</span>
-                </div>
-              )}
-              <div className="info-item">
-                <span className="info-label">Routing:</span>
-                <span className="info-value">{shipment.routing}</span>
-              </div>
-              <div className="info-item">
-                <span className="info-label">Flight Number:</span>
-                <span className="info-value">{shipment.flightNumber}</span>
-              </div>
-              <div className="info-item">
-                <span className="info-label">Scheduled Departure:</span>
+                <span className="info-label">AWB Numbers:</span>
                 <span className="info-value">
-                  <Moment format="DD/MM/YYYY HH:mm">{shipment.scheduledDeparture}</Moment>
+                  {shipment.legs && shipment.legs.length > 0 ? (
+                    <div className="awb-list">
+                      {shipment.legs.map((leg, index) => (
+                        leg.awbNumber && <div key={index}>{leg.awbNumber}</div>
+                      ))}
+                    </div>
+                  ) : (
+                    'No AWBs'
+                  )}
                 </span>
               </div>
               <div className="info-item">
-                <span className="info-label">Scheduled Arrival:</span>
+                <span className="info-label">Routing:</span>
                 <span className="info-value">
-                  <Moment format="DD/MM/YYYY HH:mm">{shipment.scheduledArrival}</Moment>
+                  {shipment.legs && shipment.legs.length > 0 ? (
+                    shipment.legs.map((leg, index) => (
+                      <span key={index}>
+                        {index === 0 ? leg.origin : ''} → {leg.destination}
+                        {index < shipment.legs.length - 1 ? ' → ' : ''}
+                      </span>
+                    ))
+                  ) : (
+                    'No routing information'
+                  )}
+                </span>
+              </div>
+              <div className="info-item">
+                <span className="info-label">First Departure:</span>
+                <span className="info-value">
+                  {shipment.legs && shipment.legs.length > 0 ? (
+                    <Moment format="DD/MM/YYYY HH:mm">{shipment.legs[0].departureTime}</Moment>
+                  ) : (
+                    'N/A'
+                  )}
+                </span>
+              </div>
+              <div className="info-item">
+                <span className="info-label">Final Arrival:</span>
+                <span className="info-value">
+                  {shipment.legs && shipment.legs.length > 0 ? (
+                    <Moment format="DD/MM/YYYY HH:mm">{shipment.legs[shipment.legs.length - 1].arrivalTime}</Moment>
+                  ) : (
+                    'N/A'
+                  )}
                 </span>
               </div>
               <div className="info-item">
@@ -105,6 +124,18 @@ const ShipmentDetail = ({
                   {shipment.shipmentStatus}
                 </span>
               </div>
+              {shipment.weight && (
+                <div className="info-item">
+                  <span className="info-label">Weight:</span>
+                  <span className="info-value">{shipment.weight} kg</span>
+                </div>
+              )}
+              {shipment.packageCount && (
+                <div className="info-item">
+                  <span className="info-label">Package Count:</span>
+                  <span className="info-value">{shipment.packageCount}</span>
+                </div>
+              )}
             </div>
           </div>
 
@@ -193,7 +224,11 @@ const ShipmentDetail = ({
 
         <h2 className="shipment-detail-heading">Shipment Details</h2>
         <div className="shipment-header">
-          <h3>AWB: {shipment.awbNumber1}</h3>
+          <h3>
+            AWB: {shipment.legs && shipment.legs.length > 0 
+              ? shipment.legs.map(leg => leg.awbNumber).filter(Boolean).join(', ') 
+              : 'No AWB'}
+          </h3>
           <p className={`status-badge ${shipment.shipmentStatus.toLowerCase()}`}>
             {shipment.shipmentStatus}
           </p>
@@ -202,21 +237,25 @@ const ShipmentDetail = ({
         <div className="shipment-info">
           <div className="column">
             <p><strong>Customer:</strong> {shipment.customer?.name || 'Unknown'}</p>
-            <p><strong>Origin:</strong> {shipment.from}</p>
-            <p><strong>Destination:</strong> {shipment.to}</p>
+            <p><strong>Origin:</strong> {shipment.legs && shipment.legs.length > 0 ? shipment.legs[0].origin : 'N/A'}</p>
+            <p><strong>Destination:</strong> {shipment.legs && shipment.legs.length > 0 ? shipment.legs[shipment.legs.length - 1].destination : 'N/A'}</p>
             <p><strong>Date Added:</strong> <Moment format="DD/MM/YYYY">{shipment.dateAdded}</Moment></p>
             <p><strong>Weight:</strong> {shipment.weight || 'N/A'} kg</p>
           </div>
           <div className="column">
             <p><strong>Order Status:</strong> {shipment.orderStatus}</p>
-            <p><strong>Scheduled Arrival:</strong> <Moment format="DD/MM/YYYY">{shipment.scheduledArrival}</Moment></p>
-            <p><strong>Routing:</strong> {shipment.routing}</p>
-            <p><strong>Flight Number:</strong> {shipment.flightNumber || 'N/A'}</p>
+            <p><strong>First Departure:</strong> {shipment.legs && shipment.legs.length > 0 ? 
+              <Moment format="DD/MM/YYYY HH:mm">{shipment.legs[0].departureTime}</Moment> : 'N/A'}</p>
+            <p><strong>Final Arrival:</strong> {shipment.legs && shipment.legs.length > 0 ? 
+              <Moment format="DD/MM/YYYY HH:mm">{shipment.legs[shipment.legs.length - 1].arrivalTime}</Moment> : 'N/A'}</p>
+            <p><strong>Routing:</strong> {shipment.legs && shipment.legs.length > 0 ? 
+              shipment.legs.map((leg, i) => i === 0 ? leg.origin : '').filter(Boolean).join('') + ' → ' + 
+              shipment.legs.map(leg => leg.destination).join(' → ') : 'N/A'}</p>
             <p><strong>Package Count:</strong> {shipment.packageCount || 'N/A'}</p>
           </div>
         </div>
 
-        {/* Add ShipmentLegs component to show legs */}
+        {/* Shipment Legs section - placed before file information as requested */}
         <div className="shipment-legs-section">
           <ShipmentLegs shipmentId={id} readOnly={true} />
         </div>

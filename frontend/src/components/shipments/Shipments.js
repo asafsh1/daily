@@ -112,8 +112,7 @@ const Shipments = ({ getShipments, updateShipment, shipment: { shipments, loadin
             <tr>
               <th>Date Added</th>
               <th>Customer</th>
-              <th>AWB</th>
-              <th>Flight #</th>
+              <th>AWBs</th>
               <th>Routing</th>
               <th>Order Status</th>
               <th>Shipment Status</th>
@@ -131,8 +130,17 @@ const Shipments = ({ getShipments, updateShipment, shipment: { shipments, loadin
                     <Moment format="DD/MM/YYYY">{shipment.dateAdded}</Moment>
                   </td>
                   <td>{shipment.customer?.name || 'Unknown'}</td>
-                  <td>{shipment.awbNumber1}</td>
-                  <td>{shipment.flightNumber}</td>
+                  <td>
+                    {shipment.legs && shipment.legs.length > 0 ? (
+                      <div className="awb-list">
+                        {shipment.legs.map((leg, index) => (
+                          leg.awbNumber && <div key={index}>{leg.awbNumber}</div>
+                        ))}
+                      </div>
+                    ) : (
+                      'No AWBs'
+                    )}
+                  </td>
                   <td>{shipment.routing}</td>
                   <td>
                     <span 
@@ -155,14 +163,22 @@ const Shipments = ({ getShipments, updateShipment, shipment: { shipments, loadin
                     </select>
                   </td>
                   <td>
-                    <Moment format="DD/MM/YYYY HH:mm">
-                      {shipment.scheduledDeparture}
-                    </Moment>
+                    {shipment.legs && shipment.legs.length > 0 ? (
+                      <Moment format="DD/MM/YYYY HH:mm">
+                        {shipment.legs[0].departureTime}
+                      </Moment>
+                    ) : (
+                      'N/A'
+                    )}
                   </td>
                   <td>
-                    <Moment format="DD/MM/YYYY HH:mm">
-                      {shipment.scheduledArrival}
-                    </Moment>
+                    {shipment.legs && shipment.legs.length > 0 ? (
+                      <Moment format="DD/MM/YYYY HH:mm">
+                        {shipment.legs[shipment.legs.length - 1].arrivalTime}
+                      </Moment>
+                    ) : (
+                      'N/A'
+                    )}
                   </td>
                   <td>{shipment.invoiced ? 'Yes' : 'No'}</td>
                   <td>

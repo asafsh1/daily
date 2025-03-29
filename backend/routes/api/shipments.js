@@ -17,11 +17,17 @@ router.get('/', async (req, res) => {
     // Get total count for pagination info
     const totalShipments = await Shipment.countDocuments();
     
-    // Query with pagination
+    // Query with pagination and populate customer and legs
     const shipments = await Shipment.find()
       .sort({ dateAdded: -1 })
       .skip(skip)
       .limit(limit)
+      .populate('customer', 'name') // Populate customer with just the name field
+      .populate({
+        path: 'legs',
+        options: { sort: { legOrder: 1 } }, // Sort legs by order
+        select: 'awbNumber departureTime arrivalTime origin destination legOrder'
+      })
       .lean(); // Use lean() for better performance
     
     // Return with pagination info
@@ -44,7 +50,13 @@ router.get('/', async (req, res) => {
 // @access  Public
 router.get('/:id', async (req, res) => {
   try {
-    const shipment = await Shipment.findById(req.params.id);
+    const shipment = await Shipment.findById(req.params.id)
+      .populate('customer', 'name contactPerson email phone') // Populate with more customer details
+      .populate({
+        path: 'legs',
+        options: { sort: { legOrder: 1 } }, // Sort legs by order
+        select: 'awbNumber departureTime arrivalTime origin destination legOrder flightNumber'
+      });
     
     if (!shipment) {
       return res.status(404).json({ msg: 'Shipment not found' });
