@@ -12,6 +12,7 @@ import Dashboard from './components/dashboard/Dashboard';
 import ShipmentForm from './components/shipments/ShipmentForm';
 import Shipments from './components/shipments/Shipments';
 import ShipmentDetail from './components/shipments/ShipmentDetail';
+import CustomerList from './components/customers/CustomerList';
 import NotFound from './components/layout/NotFound';
 
 const App = () => {
@@ -28,6 +29,7 @@ const App = () => {
             <Route path="/add-shipment" element={<ShipmentForm />} />
             <Route path="/edit-shipment/:id" element={<ShipmentForm />} />
             <Route path="/shipments/:id" element={<ShipmentDetail />} />
+            <Route path="/customers" element={<CustomerList />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
           <ToastContainer />

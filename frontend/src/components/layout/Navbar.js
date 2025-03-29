@@ -22,6 +22,12 @@ const Navbar = () => {
             <span className="hide-sm">Shipments</span>
           </Link>
         </li>
+        <li>
+          <Link to="/customers">
+            <i className="fas fa-users"></i>{' '}
+            <span className="hide-sm">Customers</span>
+          </Link>
+        </li>
       </ul>
     </nav>
   );

@@ -8,10 +8,11 @@ const ShipmentSchema = new mongoose.Schema({
   orderStatus: {
     type: String,
     required: true,
-    enum: ['done', 'confirmed', 'planned', 'canceled']
+    enum: ['done', 'confirmed', 'planned', 'canceled', 'in transit']
   },
   customer: {
-    type: String,
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'customer',
     required: true
   },
   awbNumber1: {
@@ -22,12 +23,7 @@ const ShipmentSchema = new mongoose.Schema({
     type: String
   },
   routing: {
-    type: String,
-    required: true
-  },
-  flightNumber: {
-    type: String,
-    required: true
+    type: String
   },
   scheduledDeparture: {
     type: Date,
@@ -41,6 +37,14 @@ const ShipmentSchema = new mongoose.Schema({
     type: String,
     default: 'Pending',
     enum: ['Pending', 'In Transit', 'Arrived', 'Delayed', 'Canceled']
+  },
+  weight: {
+    type: Number,
+    min: 0
+  },
+  packageCount: {
+    type: Number,
+    min: 0
   },
   fileNumber: {
     type: String

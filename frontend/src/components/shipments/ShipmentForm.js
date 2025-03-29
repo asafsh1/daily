@@ -3,7 +3,9 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { connect } from 'react-redux';
 import PropTypes from 'prop-types';
 import { addShipment, getShipment, updateShipment, clearShipment } from '../../actions/shipment';
+import axios from '../../utils/axiosConfig';
 import Spinner from '../layout/Spinner';
+import ShipmentLegs from './ShipmentLegs';
 
 const initialState = {
   dateAdded: new Date().toISOString().split('T')[0],
@@ -11,11 +13,12 @@ const initialState = {
   customer: '',
   awbNumber1: '',
   awbNumber2: '',
-  routing: '',
-  flightNumber: '',
+  // routing is now generated automatically from legs
   scheduledDeparture: '',
   scheduledArrival: '',
   shipmentStatus: 'Pending',
+  weight: '',
+  packageCount: '',
   fileNumber: '',
   fileCreatedDate: '',
   invoiced: false,
@@ -37,6 +40,8 @@ const ShipmentForm = ({
 }) => {
   const [formData, setFormData] = useState(initialState);
   const [errors, setErrors] = useState({});
+  const [customers, setCustomers] = useState([]);
+  const [customersLoading, setCustomersLoading] = useState(true);
   const navigate = useNavigate();
   const { id } = useParams(); // Get the shipment ID from URL params
   const isEditMode = !!id;
@@ -46,6 +51,9 @@ const ShipmentForm = ({
     if (isEditMode) {
       getShipment(id);
     }
+
+    // Load customers
+    fetchCustomers();
 
     // Cleanup on component unmount
     return () => {
@@ -87,17 +95,30 @@ const ShipmentForm = ({
     }
   }, [loading, shipment, isEditMode]);
 
+  // Fetch customers from API
+  const fetchCustomers = async () => {
+    try {
+      setCustomersLoading(true);
+      const res = await axios.get('/api/customers');
+      setCustomers(res.data);
+      setCustomersLoading(false);
+    } catch (err) {
+      console.error('Error fetching customers:', err);
+      setCustomersLoading(false);
+    }
+  };
+
   const {
     dateAdded,
     orderStatus,
     customer,
     awbNumber1,
     awbNumber2,
-    routing,
-    flightNumber,
     scheduledDeparture,
     scheduledArrival,
     shipmentStatus,
+    weight,
+    packageCount,
     fileNumber,
     fileCreatedDate,
     invoiced,
@@ -120,8 +141,6 @@ const ShipmentForm = ({
     }
     if (!customer) newErrors.customer = 'Customer is required';
     if (!awbNumber1) newErrors.awbNumber1 = 'AWB number is required';
-    if (!routing) newErrors.routing = 'Routing is required';
-    if (!flightNumber) newErrors.flightNumber = 'Flight number is required';
     if (!scheduledDeparture) newErrors.scheduledDeparture = 'Scheduled departure is required';
     if (!scheduledArrival) newErrors.scheduledArrival = 'Scheduled arrival is required';
     if (!['Pending', 'Arrived', 'Delayed', 'Canceled', 'In Transit'].includes(shipmentStatus)) {
@@ -133,6 +152,12 @@ const ShipmentForm = ({
     }
     if (cost && isNaN(Number(cost))) {
       newErrors.cost = 'Cost must be a number';
+    }
+    if (weight && isNaN(Number(weight))) {
+      newErrors.weight = 'Weight must be a number';
+    }
+    if (packageCount && isNaN(Number(packageCount))) {
+      newErrors.packageCount = 'Package count must be a number';
     }
 
     setErrors(newErrors);
@@ -157,9 +182,12 @@ const ShipmentForm = ({
     const shipmentData = {
       ...formData,
       dateAdded: new Date(dateAdded).toISOString(),
+      scheduledDeparture: new Date(scheduledDeparture).toISOString(),
       scheduledArrival: new Date(scheduledArrival).toISOString(),
       fileCreatedDate: fileCreatedDate ? new Date(fileCreatedDate).toISOString() : undefined,
-      cost: cost ? Number(cost) : undefined
+      cost: cost ? Number(cost) : undefined,
+      weight: weight ? Number(weight) : undefined,
+      packageCount: packageCount ? Number(packageCount) : undefined
     };
 
     try {
@@ -178,7 +206,7 @@ const ShipmentForm = ({
   };
 
   // Show loading indicator while fetching shipment data
-  if (loading && isEditMode) {
+  if ((loading && isEditMode) || customersLoading) {
     return <Spinner />;
   }
 
@@ -226,15 +254,26 @@ const ShipmentForm = ({
         </div>
 
         <div className="form-group">
-          <label>Customer*</label>
-          <input
-            type="text"
+          <label htmlFor="customer">Customer</label>
+          <select
+            id="customer"
             name="customer"
             value={customer}
             onChange={onChange}
             className={errors.customer ? 'form-control is-invalid' : 'form-control'}
-          />
+            required
+          >
+            <option value="">Select a customer</option>
+            {customers.map(cust => (
+              <option key={cust._id} value={cust._id}>
+                {cust.name}
+              </option>
+            ))}
+          </select>
           {errors.customer && <div className="invalid-feedback">{errors.customer}</div>}
+          <small className="form-text">
+            <Link to="/customers">Manage customers</Link>
+          </small>
         </div>
 
         <div className="form-group">
@@ -258,30 +297,6 @@ const ShipmentForm = ({
             onChange={onChange}
             className="form-control"
           />
-        </div>
-
-        <div className="form-group">
-          <label>Routing*</label>
-          <input
-            type="text"
-            name="routing"
-            value={routing}
-            onChange={onChange}
-            className={errors.routing ? 'form-control is-invalid' : 'form-control'}
-          />
-          {errors.routing && <div className="invalid-feedback">{errors.routing}</div>}
-        </div>
-
-        <div className="form-group">
-          <label>Flight Number*</label>
-          <input
-            type="text"
-            name="flightNumber"
-            value={flightNumber}
-            onChange={onChange}
-            className={errors.flightNumber ? 'form-control is-invalid' : 'form-control'}
-          />
-          {errors.flightNumber && <div className="invalid-feedback">{errors.flightNumber}</div>}
         </div>
 
         <div className="form-group">
@@ -323,6 +338,28 @@ const ShipmentForm = ({
             <option value="Canceled">Canceled</option>
           </select>
           {errors.shipmentStatus && <div className="invalid-feedback">{errors.shipmentStatus}</div>}
+        </div>
+
+        <div className="form-group">
+          <label>Weight</label>
+          <input
+            type="text"
+            name="weight"
+            value={weight}
+            onChange={onChange}
+            className="form-control"
+          />
+        </div>
+
+        <div className="form-group">
+          <label>Package Count</label>
+          <input
+            type="text"
+            name="packageCount"
+            value={packageCount}
+            onChange={onChange}
+            className="form-control"
+          />
         </div>
 
         <div className="form-group">
@@ -458,6 +495,12 @@ const ShipmentForm = ({
           </Link>
         </div>
       </form>
+
+      {isEditMode && (
+        <div className="shipment-legs-section">
+          <ShipmentLegs shipmentId={id} />
+        </div>
+      )}
     </section>
   );
 };

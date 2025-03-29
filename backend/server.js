@@ -33,6 +33,8 @@ app.use(cors({
 // Define Routes
 app.use('/api/shipments', require('./routes/api/shipments'));
 app.use('/api/dashboard', require('./routes/api/dashboard'));
+app.use('/api/customers', require('./routes/api/customers'));
+app.use('/api/shipment-legs', require('./routes/api/shipmentLegs'));
 
 // Socket.io connection
 io.on('connection', (socket) => {
