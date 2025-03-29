@@ -17,37 +17,34 @@ export const getDashboardSummary = () => async dispatch => {
     const res = await axios.get('/api/dashboard/summary');
     console.log('Dashboard data received:', res.data);
     
-    // Check if we received fallback data due to database issues
-    const data = res.data.fallbackData || res.data;
-    
     // Process data to include paths and actions
-    if (data) {
+    if (res.data) {
       // Add stats data for the cards
-      data.statsData = [
+      res.data.statsData = [
         {
           title: 'Total Shipments',
-          value: data.totalShipments || 0,
+          value: res.data.totalShipments || 0,
           footer: 'All time shipments',
           icon: 'fa-shipping-fast',
           path: '/shipments'
         },
         {
           title: 'Pending',
-          value: data.shipmentsByStatus?.Pending || 0,
+          value: res.data.shipmentsByStatus?.Pending || 0,
           footer: 'Waiting to be shipped',
           icon: 'fa-clock',
           path: '/shipments?status=Pending'
         },
         {
           title: 'In Transit',
-          value: data.shipmentsByStatus?.['In Transit'] || 0,
+          value: res.data.shipmentsByStatus?.['In Transit'] || 0,
           footer: 'Currently in transit',
           icon: 'fa-plane',
           path: '/shipments?status=In Transit'
         },
         {
           title: 'Non-Invoiced',
-          value: data.totalNonInvoiced || 0,
+          value: res.data.totalNonInvoiced || 0,
           footer: 'Shipments without invoice',
           icon: 'fa-file-invoice-dollar',
           path: '/shipments?invoiced=false'
@@ -55,81 +52,34 @@ export const getDashboardSummary = () => async dispatch => {
       ];
       
       // Ensure shipmentsByStatus has all statuses with at least 0 count
-      data.shipmentsByStatus = {
-        'Pending': data.shipmentsByStatus?.Pending || 0,
-        'In Transit': data.shipmentsByStatus?.['In Transit'] || 0,
-        'Arrived': data.shipmentsByStatus?.Arrived || 0,
-        'Delayed': data.shipmentsByStatus?.Delayed || 0,
-        'Canceled': data.shipmentsByStatus?.Canceled || 0,
-        ...data.shipmentsByStatus
+      res.data.shipmentsByStatus = {
+        'Pending': res.data.shipmentsByStatus?.Pending || 0,
+        'In Transit': res.data.shipmentsByStatus?.['In Transit'] || 0,
+        'Arrived': res.data.shipmentsByStatus?.Arrived || 0,
+        'Delayed': res.data.shipmentsByStatus?.Delayed || 0,
+        'Canceled': res.data.shipmentsByStatus?.Canceled || 0,
+        ...res.data.shipmentsByStatus
       };
     }
     
     dispatch({
       type: GET_DASHBOARD_SUMMARY,
-      payload: data
+      payload: res.data
     });
     
-    return data;
+    return res.data;
   } catch (err) {
     console.error('Error loading dashboard data:', err);
-    
-    // Create fallback data for the dashboard when the API fails completely
-    const fallbackData = {
-      totalShipments: 0,
-      recentShipments: [],
-      shipmentsByStatus: {
-        'Pending': 0,
-        'In Transit': 0,
-        'Arrived': 0,
-        'Delayed': 0,
-        'Canceled': 0
-      },
-      totalNonInvoiced: 0,
-      shipmentsByCustomer: [],
-      statsData: [
-        {
-          title: 'Total Shipments',
-          value: 0,
-          footer: 'All time shipments',
-          icon: 'fa-shipping-fast',
-          path: '/shipments'
-        },
-        {
-          title: 'Pending',
-          value: 0,
-          footer: 'Waiting to be shipped',
-          icon: 'fa-clock',
-          path: '/shipments?status=Pending'
-        },
-        {
-          title: 'In Transit',
-          value: 0,
-          footer: 'Currently in transit',
-          icon: 'fa-plane',
-          path: '/shipments?status=In Transit'
-        },
-        {
-          title: 'Non-Invoiced',
-          value: 0,
-          footer: 'Shipments without invoice',
-          icon: 'fa-file-invoice-dollar',
-          path: '/shipments?invoiced=false'
-        }
-      ]
-    };
     
     dispatch({
       type: DASHBOARD_ERROR,
       payload: { 
         msg: err.response?.statusText || 'Server Error', 
-        status: err.response?.status || 500,
-        fallbackData: fallbackData
+        status: err.response?.status || 500
       }
     });
     
-    // Still return the fallback data so components can render something
-    return fallbackData;
+    throw err;
   }
 };
 

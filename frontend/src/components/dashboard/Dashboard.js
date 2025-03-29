@@ -17,7 +17,6 @@ import OverdueShipments from './OverdueShipments';
 import DashboardDetailModal from './DashboardDetailModal';
 import { Link } from 'react-router-dom';
 import Moment from 'react-moment';
-import { Alert } from 'react-bootstrap';
 
 const Dashboard = ({
   getDashboardSummary,
@@ -33,39 +32,41 @@ const Dashboard = ({
     error
   }
 }) => {
+  const [errorMsg, setErrorMsg] = useState('');
   const [modalData, setModalData] = useState({
     isOpen: false,
     title: '',
     data: [],
     type: ''
   });
-  const [errorMsg, setErrorMsg] = useState(null);
 
   useEffect(() => {
     console.log('Dashboard component mounted, fetching summary...');
     
-    // Set up error handling
-    const fetchData = async () => {
-      try {
-        await getDashboardSummary();
-        await getShipmentsByCustomer();
-        await getShipmentsByDate();
-        await getOverdueNonInvoiced();
-      } catch (err) {
+    getDashboardSummary()
+      .then(() => console.log('Dashboard summary fetched successfully'))
+      .catch(err => {
         console.error('Error fetching dashboard data:', err);
-        // The error is already handled in the action creator
-      }
-    };
-    
-    fetchData();
-  }, [getDashboardSummary, getShipmentsByCustomer, getShipmentsByDate, getOverdueNonInvoiced]);
+        setErrorMsg('Failed to load dashboard data. Please try again later.');
+      });
+  }, [getDashboardSummary]);
 
   useEffect(() => {
     console.log('Dashboard data state:', { summary, loading, error });
+    
+    if (error) {
+      setErrorMsg(`Error loading dashboard: ${error.msg || 'Unknown error'}`);
+    }
   }, [summary, loading, error]);
 
   useEffect(() => {
-    console.log('Dashboard data:', { summary, shipmentsByCustomer, shipmentsByDate, overdueNonInvoiced, loading });
+    console.log('Dashboard data:', { 
+      summary, 
+      shipmentsByCustomer, 
+      shipmentsByDate, 
+      overdueNonInvoiced,
+      loading 
+    });
   }, [summary, shipmentsByCustomer, shipmentsByDate, overdueNonInvoiced, loading]);
 
   const handleSectionClick = async (sectionType, title) => {
@@ -147,50 +148,41 @@ const Dashboard = ({
     });
   };
 
-  // Create a fallback if summary is null but we have an error with fallback data
-  const displayData = summary || (error && error.fallbackData) || {
-    statsData: [
-      {
-        title: 'Total Shipments',
-        value: 0,
-        footer: 'All time shipments',
-        icon: 'fa-shipping-fast',
-        path: '/shipments'
-      },
-      {
-        title: 'Pending',
-        value: 0,
-        footer: 'Waiting to be shipped',
-        icon: 'fa-clock',
-        path: '/shipments?status=Pending'
-      },
-      {
-        title: 'In Transit',
-        value: 0,
-        footer: 'Currently in transit',
-        icon: 'fa-plane',
-        path: '/shipments?status=In Transit'
-      },
-      {
-        title: 'Non-Invoiced',
-        value: 0,
-        footer: 'Shipments without invoice',
-        icon: 'fa-file-invoice-dollar',
-        path: '/shipments?invoiced=false'
-      }
-    ],
-    recentShipments: [],
-    shipmentsByStatus: {
-      'Pending': 0,
-      'In Transit': 0,
-      'Arrived': 0,
-      'Delayed': 0,
-      'Canceled': 0
+  // Create default stats data if summary is not available
+  const statsData = summary?.statsData || [
+    {
+      title: 'Total Shipments',
+      value: summary?.totalShipments || 0,
+      footer: 'All time shipments',
+      icon: 'fa-shipping-fast',
+      path: '/shipments'
+    },
+    {
+      title: 'Pending',
+      value: summary?.shipmentsByStatus?.Pending || 0,
+      footer: 'Waiting to be shipped',
+      icon: 'fa-clock',
+      path: '/shipments?status=Pending'
+    },
+    {
+      title: 'In Transit',
+      value: summary?.shipmentsByStatus?.['In Transit'] || 0,
+      footer: 'Currently in transit',
+      icon: 'fa-plane',
+      path: '/shipments?status=In Transit'
+    },
+    {
+      title: 'Non-Invoiced',
+      value: summary?.totalNonInvoiced || 0,
+      footer: 'Shipments without invoice',
+      icon: 'fa-file-invoice-dollar',
+      path: '/shipments?invoiced=false'
     }
-  };
-  
-  // Use the stats data from the summary or fallback
-  const statsData = displayData.statsData || [];
+  ];
+
+  // Handle empty data safely
+  const recentShipments = summary?.recentShipments || [];
+  const shipmentsByStatus = summary?.shipmentsByStatus || {};
 
   if (errorMsg) {
     return (
@@ -212,15 +204,6 @@ const Dashboard = ({
       <p className="lead">
         <i className="fas fa-tachometer-alt"></i> Welcome to the Dashboard
       </p>
-
-      {error && (
-        <Alert variant="warning" className="mb-4">
-          <i className="fas fa-exclamation-triangle mr-2"></i>
-          There was an issue loading the dashboard data. {error.msg}. 
-          {error.status === 503 && " Database connection unavailable."}
-          Showing limited information.
-        </Alert>
-      )}
 
       <div className="stats-row">
         {statsData.map((stat, index) => (
@@ -247,7 +230,7 @@ const Dashboard = ({
           </div>
           
           <div className="card-body">
-            {displayData.recentShipments.length > 0 ? (
+            {recentShipments.length > 0 ? (
               <div className="table-responsive">
                 <table className="table">
                   <thead>
@@ -259,7 +242,7 @@ const Dashboard = ({
                     </tr>
                   </thead>
                   <tbody>
-                    {displayData.recentShipments.map(shipment => (
+                    {recentShipments.map(shipment => (
                       <tr key={shipment._id}>
                         <td>
                           <Moment format="DD/MM/YYYY">
@@ -298,8 +281,8 @@ const Dashboard = ({
           </div>
           <div className="card-body">
             <div className="status-distribution">
-              {Object.entries(displayData.shipmentsByStatus).length > 0 ? (
-                Object.entries(displayData.shipmentsByStatus).map(([status, count]) => (
+              {Object.entries(shipmentsByStatus).length > 0 ? (
+                Object.entries(shipmentsByStatus).map(([status, count]) => (
                   <Link to={`/shipments?status=${status}`} key={status} className="status-item">
                     <div className={`status-color status-${status.toLowerCase().replace(/\s+/g, '-')}`}></div>
                     <div className="status-label">{status}</div>

@@ -18,41 +18,36 @@ import store from '../store';
 const socket = io(process.env.REACT_APP_SOCKET_URL || 'http://localhost:5001');
 
 // Get all shipments
-export const getShipments = (page = 1, limit = 50) => async dispatch => {
+export const getShipments = () => async dispatch => {
   try {
+    dispatch({ type: CLEAR_SHIPMENT });
     dispatch({ type: SHIPMENTS_LOADING });
     
     console.log('Fetching shipments from API...');
-    const res = await axios.get(`/api/shipments?page=${page}&limit=${limit}`);
-    
-    // Check if we received an error response with empty shipments
-    const shipments = res.data.shipments || [];
-    const pagination = res.data.pagination || { total: 0, page: 1, pages: 0 };
+    const res = await axios.get('/api/shipments');
+    console.log('API response:', res.data);
+
+    // Handle both old and new response formats
+    const shipmentsData = res.data.shipments ? res.data.shipments : res.data;
     
     dispatch({
       type: GET_SHIPMENTS,
-      payload: { shipments, pagination }
+      payload: shipmentsData
     });
+    
+    return shipmentsData;
   } catch (err) {
     console.error('Error in getShipments action:', err);
-    
-    // Create fallback data for empty shipments
-    const fallbackData = { 
-      shipments: [], 
-      pagination: { total: 0, page: 1, pages: 0 } 
-    };
     
     dispatch({
       type: SHIPMENT_ERROR,
       payload: { 
         msg: err.response?.statusText || 'Server Error', 
-        status: err.response?.status || 500,
-        fallbackData 
+        status: err.response?.status || 500 
       }
     });
     
-    // Still return the fallback data so components can render something
-    return fallbackData;
+    throw err;
   }
 };
 

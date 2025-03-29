@@ -12,82 +12,72 @@ import {
 
 const initialState = {
   shipments: [],
-  pagination: {
-    total: 0,
-    page: 1, 
-    pages: 0
-  },
   shipment: null,
   loading: false,
-  error: null
+  shipmentsLoading: false,
+  error: {}
 };
 
 export default function(state = initialState, action) {
   const { type, payload } = action;
 
   switch (type) {
-    case SHIPMENTS_LOADING:
-      return {
-        ...state,
-        loading: true
-      };
     case SHIPMENT_LOADING:
       return {
         ...state,
         loading: true
       };
-    case GET_SHIPMENTS:
+    case SHIPMENTS_LOADING:
       return {
         ...state,
-        shipments: payload.shipments,
-        pagination: payload.pagination,
+        shipmentsLoading: true
+      };
+    case GET_SHIPMENTS:
+      console.log('Reducer: GET_SHIPMENTS with payload:', payload);
+      return {
+        ...state,
+        shipments: Array.isArray(payload) ? payload : [],
         loading: false,
-        error: null
+        shipmentsLoading: false
       };
     case GET_SHIPMENT:
       return {
         ...state,
         shipment: payload,
-        loading: false,
-        error: null
+        loading: false
       };
     case ADD_SHIPMENT:
       return {
         ...state,
         shipments: [payload, ...state.shipments],
-        loading: false,
-        error: null
+        loading: false
       };
     case UPDATE_SHIPMENT:
       return {
         ...state,
-        shipments: state.shipments.map(shipment => 
+        shipments: state.shipments.map(shipment =>
           shipment._id === payload._id ? payload : shipment
         ),
-        loading: false,
-        error: null
+        loading: false
       };
     case DELETE_SHIPMENT:
       return {
         ...state,
         shipments: state.shipments.filter(shipment => shipment._id !== payload),
-        loading: false,
-        error: null
+        loading: false
       };
     case CLEAR_SHIPMENT:
       return {
         ...state,
-        shipment: null,
-        error: null
+        shipment: null
       };
     case SHIPMENT_ERROR:
       console.error('Shipment reducer error:', payload);
       return {
         ...state,
-        shipments: payload.fallbackData?.shipments || state.shipments,
-        pagination: payload.fallbackData?.pagination || state.pagination,
         error: payload,
-        loading: false
+        loading: false,
+        shipmentsLoading: false
       };
     default:
       return state;

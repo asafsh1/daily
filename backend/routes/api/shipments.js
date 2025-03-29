@@ -10,49 +10,26 @@ const Shipment = require('../../models/Shipment');
 // @access  Public
 router.get('/', async (req, res) => {
   try {
-    console.log('Processing shipments request');
-    
-    // Check if database is connected
-    if (mongoose.connection.readyState !== 1) {
-      console.error('Database connection is not ready. Current state:', mongoose.connection.readyState);
-      return res.status(503).json({ 
-        message: 'Database connection unavailable', 
-        shipments: [],
-        pagination: {
-          total: 0,
-          page: 1,
-          pages: 0
-        }
-      });
-    }
-    
     // Parse query parameters
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 50; // Default to 50 items per page
     const skip = (page - 1) * limit;
     
-    let totalShipments = 0;
-    let shipments = [];
+    // Get total count for pagination info
+    const totalShipments = await Shipment.countDocuments();
     
-    try {
-      // Get total count for pagination info
-      totalShipments = await Shipment.countDocuments();
-      
-      // Query with pagination and populate customer and legs
-      shipments = await Shipment.find()
-        .sort({ dateAdded: -1 })
-        .skip(skip)
-        .limit(limit)
-        .populate('customer', 'name') // Populate customer with just the name field
-        .populate({
-          path: 'legs',
-          options: { sort: { legOrder: 1 } }, // Sort legs by order
-          select: 'awbNumber departureTime arrivalTime origin destination legOrder'
-        })
-        .lean(); // Use lean() for better performance
-    } catch (dbErr) {
-      console.error('Error querying shipments:', dbErr.message);
-    }
+    // Query with pagination and populate customer and legs
+    const shipments = await Shipment.find()
+      .sort({ dateAdded: -1 })
+      .skip(skip)
+      .limit(limit)
+      .populate('customer', 'name') // Populate customer with just the name field
+      .populate({
+        path: 'legs',
+        options: { sort: { legOrder: 1 } }, // Sort legs by order
+        select: 'awbNumber departureTime arrivalTime origin destination legOrder'
+      })
+      .lean(); // Use lean() for better performance
     
     // Return with pagination info
     res.json({
@@ -64,17 +41,8 @@ router.get('/', async (req, res) => {
       }
     });
   } catch (err) {
-    console.error('Shipments route error:', err);
-    res.status(500).json({ 
-      msg: 'Server Error',
-      error: err.message,
-      shipments: [],
-      pagination: {
-        total: 0,
-        page: 1,
-        pages: 0
-      }
-    });
+    console.error(err.message);
+    res.status(500).send('Server Error');
   }
 });
 

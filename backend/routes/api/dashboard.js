@@ -13,115 +13,54 @@ router.get('/summary', auth, async (req, res) => {
   try {
     console.log('Processing dashboard summary request');
     
-    // Prepare fallback data in case of database errors
-    const fallbackResponse = {
-      totalShipments: 0,
-      recentShipments: [],
-      shipmentsByStatus: {
-        'Pending': 0,
-        'In Transit': 0,
-        'Arrived': 0,
-        'Delayed': 0,
-        'Canceled': 0
-      },
-      totalNonInvoiced: 0,
-      shipmentsByCustomer: []
-    };
-    
-    // Check if database is connected
-    if (mongoose.connection.readyState !== 1) {
-      console.error('Database connection is not ready. Current state:', mongoose.connection.readyState);
-      return res.status(503).json({ 
-        message: 'Database connection unavailable', 
-        fallbackData: fallbackResponse 
-      });
-    }
-    
-    // Try to get total shipments count
-    let totalShipments = 0;
-    try {
-      totalShipments = await Shipment.countDocuments();
-    } catch (err) {
-      console.error('Error getting shipment count:', err.message);
-    }
+    // Get total shipments count
+    const totalShipments = await Shipment.countDocuments();
     
     // Get recent shipments with customer data
-    let recentShipments = [];
-    try {
-      recentShipments = await Shipment.find()
-        .sort({ dateAdded: -1 })
-        .limit(5)
-        .populate('customer', 'name')
-        .populate({
-          path: 'legs',
-          options: { sort: { legOrder: 1 } },
-          select: 'awbNumber departureTime arrivalTime origin destination'
-        })
-        .lean();
-    } catch (err) {
-      console.error('Error getting recent shipments:', err.message);
-    }
+    const recentShipments = await Shipment.find()
+      .sort({ dateAdded: -1 })
+      .limit(5)
+      .populate('customer', 'name')
+      .populate({
+        path: 'legs',
+        options: { sort: { legOrder: 1 } },
+        select: 'awbNumber departureTime arrivalTime origin destination'
+      })
+      .lean();
     
     // Get shipments by status
-    let shipmentsByStatus = {};
-    try {
-      const shipmentStatusCounts = await Shipment.aggregate([
-        { $group: { _id: '$shipmentStatus', count: { $sum: 1 } } }
-      ]);
-      
-      shipmentStatusCounts.forEach(status => {
-        shipmentsByStatus[status._id] = status.count;
-      });
-    } catch (err) {
-      console.error('Error getting shipment status counts:', err.message);
-      shipmentsByStatus = fallbackResponse.shipmentsByStatus;
-    }
+    const shipmentStatusCounts = await Shipment.aggregate([
+      { $group: { _id: '$shipmentStatus', count: { $sum: 1 } } }
+    ]);
     
-    // Ensure shipmentsByStatus has all possible statuses
-    shipmentsByStatus = {
-      'Pending': shipmentsByStatus['Pending'] || 0,
-      'In Transit': shipmentsByStatus['In Transit'] || 0,
-      'Arrived': shipmentsByStatus['Arrived'] || 0,
-      'Delayed': shipmentsByStatus['Delayed'] || 0,
-      'Canceled': shipmentsByStatus['Canceled'] || 0,
-      ...shipmentsByStatus
-    };
+    const shipmentsByStatus = {};
+    shipmentStatusCounts.forEach(status => {
+      shipmentsByStatus[status._id] = status.count;
+    });
     
     // Get non-invoiced shipments count
-    let totalNonInvoiced = 0;
-    try {
-      totalNonInvoiced = await Shipment.countDocuments({ invoiced: false });
-    } catch (err) {
-      console.error('Error getting non-invoiced count:', err.message);
-    }
+    const totalNonInvoiced = await Shipment.countDocuments({ invoiced: false });
     
     // Get shipments by customer
-    let formattedShipmentsByCustomer = [];
-    try {
-      const shipmentsByCustomer = await Shipment.aggregate([
-        { $group: { _id: '$customer', count: { $sum: 1 } } },
-        { $sort: { count: -1 } },
-        { $limit: 5 }
-      ]);
-      
-      if (shipmentsByCustomer.length > 0) {
-        // Get customer names
-        const customerIds = shipmentsByCustomer.map(item => item._id);
-        const customers = await Customer.find({ _id: { $in: customerIds } }).select('name');
-        
-        const customerMap = {};
-        customers.forEach(customer => {
-          customerMap[customer._id] = customer.name;
-        });
-        
-        formattedShipmentsByCustomer = shipmentsByCustomer.map(item => ({
-          customer: customerMap[item._id] || 'Unknown',
-          count: item.count
-        }));
-      }
-    } catch (err) {
-      console.error('Error getting shipments by customer:', err.message);
-    }
+    const shipmentsByCustomer = await Shipment.aggregate([
+      { $group: { _id: '$customer', count: { $sum: 1 } } },
+      { $sort: { count: -1 } },
+      { $limit: 5 }
+    ]);
+    
+    // Get customer names
+    const customerIds = shipmentsByCustomer.map(item => item._id);
+    const customers = await Customer.find({ _id: { $in: customerIds } }).select('name');
+    
+    const customerMap = {};
+    customers.forEach(customer => {
+      customerMap[customer._id] = customer.name;
+    });
+    
+    const formattedShipmentsByCustomer = shipmentsByCustomer.map(item => ({
+      customer: customerMap[item._id] || 'Unknown',
+      count: item.count
+    }));
     
     const response = {
       totalShipments,
@@ -140,8 +79,8 @@ router.get('/summary', auth, async (req, res) => {
     
     res.json(response);
   } catch (err) {
-    console.error('Dashboard summary error:', err);
-    res.status(500).json({ msg: 'Server Error', error: err.message });
+    console.error('Dashboard summary error:', err.message);
+    res.status(500).send('Server Error');
   }
 });
 

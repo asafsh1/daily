@@ -6,23 +6,17 @@ import Moment from 'react-moment';
 import { getShipments, updateShipment } from '../../actions/shipment';
 import Spinner from '../layout/Spinner';
 import { convertToCSV, downloadCSV } from '../../utils/exportUtils';
-import { Alert } from 'react-bootstrap';
 
-const Shipments = ({ getShipments, updateShipment, shipment: { shipments, loading, error } }) => {
+const Shipments = ({ getShipments, updateShipment, shipment: { shipments, loading } }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
   const [filteredData, setFilteredData] = useState([]);
 
   useEffect(() => {
-    const fetchData = async () => {
-      try {
-        await getShipments();
-      } catch (err) {
-        console.error('Error fetching shipments:', err);
-      }
-    };
-    
-    fetchData();
+    console.log('Calling getShipments()...');
+    getShipments()
+      .then(() => console.log('getShipments completed successfully'))
+      .catch(err => console.error('Error in getShipments:', err));
   }, [getShipments]);
 
   // Filter shipments when data changes
@@ -120,25 +114,14 @@ const Shipments = ({ getShipments, updateShipment, shipment: { shipments, loadin
     downloadCSV(csvContent, fileName);
   };
 
-  return (
-    <div className="shipments-container">
-      <h1 className="text-primary">Shipments</h1>
+  return loading ? (
+    <Spinner />
+  ) : (
+    <section className="container">
+      <h1 className="large text-primary">Shipments</h1>
       <p className="lead">
-        <i className="fas fa-shipping-fast"></i> View and manage all shipments
+        <i className="fas fa-shipping-fast"></i> View and manage shipments
       </p>
-      
-      {error && (
-        <Alert variant="warning" className="mb-4">
-          <i className="fas fa-exclamation-triangle mr-2"></i>
-          There was an issue loading the shipments. {error.msg}
-          {error.status === 503 && " Database connection unavailable."}
-          Showing limited information.
-        </Alert>
-      )}
-      
-      <Link to="/shipments/new" className="btn btn-primary mb-3">
-        <i className="fas fa-plus"></i> Add New Shipment
-      </Link>
       
       <div className="shipment-controls">
         <div className="search-filter">
@@ -286,7 +269,7 @@ const Shipments = ({ getShipments, updateShipment, shipment: { shipments, loadin
           </tbody>
         </table>
       </div>
-    </div>
+    </section>
   );
 };
 

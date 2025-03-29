@@ -58,7 +58,6 @@ export default function(state = initialState, action) {
       console.error('Dashboard reducer error:', payload);
       return {
         ...state,
-        summary: payload.fallbackData || state.summary,
         error: payload,
         loading: false
       };
