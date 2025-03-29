@@ -41,7 +41,7 @@ app.use('/api/users', require('./routes/api/users'));
 app.use('/api/auth', require('./routes/api/auth'));
 app.use('/api/customers', require('./routes/api/customers'));
 app.use('/api/shipments', require('./routes/api/shipments'));
-app.use('/api/shipmentLegs', require('./routes/api/shipmentLegs'));
+app.use('/api/shipment-legs', require('./routes/api/shipmentLegs'));
 app.use('/api/dashboard', require('./routes/api/dashboard'));
 
 // Health check endpoint

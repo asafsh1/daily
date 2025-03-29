@@ -53,7 +53,7 @@ router.get('/', async (req, res) => {
       }, {});
       
       // Process each shipment to format properly
-      const processedShipments = shipments.map(shipment => {
+      const processedShipments = await Promise.all(shipments.map(async (shipment) => {
         const shipmentId = shipment._id.toString();
         const shipmentLegs = legsByShipment[shipmentId] || [];
         
@@ -77,9 +77,41 @@ router.get('/', async (req, res) => {
         // Process customer field to handle both string and ObjectId references
         let customerDisplay = shipment.customer;
         if (typeof shipment.customer === 'string' && shipment.customer.length > 24) {
-          customerDisplay = { _id: shipment.customer, name: 'Unknown' };
+          console.log('Processing ObjectId string customer:', shipment.customer);
+          // Try to fetch the actual customer by ID
+          try {
+            const customerDoc = await mongoose.model('customer').findById(shipment.customer);
+            if (customerDoc) {
+              customerDisplay = { 
+                _id: customerDoc._id, 
+                name: customerDoc.name 
+              };
+              console.log('Found customer name:', customerDoc.name);
+            } else {
+              customerDisplay = { _id: shipment.customer, name: 'Unknown' };
+              console.log('Customer not found for ID:', shipment.customer);
+            }
+          } catch (err) {
+            console.error('Error looking up customer:', err.message);
+            customerDisplay = { _id: shipment.customer, name: 'Unknown' };
+          }
         } else if (typeof shipment.customer === 'string') {
           customerDisplay = { name: shipment.customer };
+        } else if (shipment.customer && typeof shipment.customer === 'object') {
+          // It's already an object but might not have been populated
+          if (!shipment.customer.name && mongoose.Types.ObjectId.isValid(shipment.customer._id)) {
+            try {
+              const customerDoc = await mongoose.model('customer').findById(shipment.customer._id);
+              if (customerDoc) {
+                customerDisplay = { 
+                  _id: customerDoc._id, 
+                  name: customerDoc.name 
+                };
+              }
+            } catch (err) {
+              console.error('Error looking up customer from object:', err.message);
+            }
+          }
         }
         
         return {
@@ -89,7 +121,7 @@ router.get('/', async (req, res) => {
           scheduledDeparture: departureTime,
           scheduledArrival: arrivalTime
         };
-      });
+      }));
       
       // Calculate total
       const total = processedShipments.length;
@@ -413,6 +445,86 @@ router.get('/diagnostic/count', async (req, res) => {
   } catch (err) {
     console.error('Diagnostic error:', err.message);
     return res.status(500).json({ error: 'Diagnostic error', message: err.message });
+  }
+});
+
+// @route   PUT api/shipments/generate-serials
+// @desc    Generate serial numbers for all shipments without one
+// @access  Public
+router.put('/generate-serials', async (req, res) => {
+  try {
+    console.log('Starting serial number generation for existing shipments');
+    
+    // Find all shipments without serial numbers
+    const shipmentsWithoutSerials = await Shipment.find(
+      { serialNumber: { $exists: false } }
+    ).sort({ dateAdded: 1 });
+    
+    console.log(`Found ${shipmentsWithoutSerials.length} shipments without serial numbers`);
+    
+    if (shipmentsWithoutSerials.length === 0) {
+      return res.json({ message: 'No shipments need serial numbers', count: 0 });
+    }
+    
+    // Group shipments by year
+    const shipmentsByYear = {};
+    shipmentsWithoutSerials.forEach(shipment => {
+      const year = new Date(shipment.dateAdded).getFullYear();
+      if (!shipmentsByYear[year]) {
+        shipmentsByYear[year] = [];
+      }
+      shipmentsByYear[year].push(shipment);
+    });
+    
+    // Process each year
+    const results = [];
+    for (const year of Object.keys(shipmentsByYear)) {
+      console.log(`Processing ${shipmentsByYear[year].length} shipments from ${year}`);
+      
+      // Find highest serial for this year
+      const latestShipment = await Shipment.findOne(
+        { serialNumber: new RegExp(`SHP-${year}-\\d+`) },
+        { serialNumber: 1 }
+      ).sort({ serialNumber: -1 });
+      
+      let nextNumber = 1;
+      if (latestShipment && latestShipment.serialNumber) {
+        const parts = latestShipment.serialNumber.split('-');
+        if (parts.length === 3) {
+          nextNumber = parseInt(parts[2], 10) + 1;
+        }
+      }
+      
+      // Update each shipment
+      for (const shipment of shipmentsByYear[year]) {
+        const serialNumber = `SHP-${year}-${nextNumber.toString().padStart(4, '0')}`;
+        await Shipment.findByIdAndUpdate(
+          shipment._id,
+          { $set: { serialNumber } }
+        );
+        
+        results.push({
+          id: shipment._id,
+          serialNumber
+        });
+        
+        nextNumber++;
+      }
+    }
+    
+    console.log(`Successfully generated ${results.length} serial numbers`);
+    
+    res.json({
+      message: `Generated serial numbers for ${results.length} shipments`,
+      count: results.length,
+      results
+    });
+  } catch (err) {
+    console.error('Error generating serial numbers:', err);
+    res.status(500).json({ 
+      error: 'Failed to generate serial numbers',
+      message: err.message
+    });
   }
 });
 

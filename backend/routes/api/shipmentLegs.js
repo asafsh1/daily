@@ -8,24 +8,26 @@ const Shipment = require('../../models/Shipment');
 
 // @route    GET api/shipment-legs/:shipmentId
 // @desc     Get all legs for a shipment
-// @access   Private
-router.get('/:shipmentId', auth, async (req, res) => {
+// @access   Public
+router.get('/:shipmentId', async (req, res) => {
   try {
+    console.log('Fetching legs for shipment:', req.params.shipmentId);
     const shipmentLegs = await ShipmentLeg.find({ 
       shipmentId: req.params.shipmentId 
     }).sort({ legOrder: 1 });
     
+    console.log(`Found ${shipmentLegs.length} legs for shipment ${req.params.shipmentId}`);
     res.json(shipmentLegs);
   } catch (err) {
-    console.error(err.message);
+    console.error('Error fetching shipment legs:', err.message);
     res.status(500).send('Server Error');
   }
 });
 
 // @route    GET api/shipment-legs/:shipmentId/:legId
 // @desc     Get specific leg of a shipment
-// @access   Private
-router.get('/:shipmentId/:legId', auth, async (req, res) => {
+// @access   Public
+router.get('/:shipmentId/:legId', async (req, res) => {
   try {
     const shipmentLeg = await ShipmentLeg.findOne({
       _id: req.params.legId,
@@ -48,11 +50,10 @@ router.get('/:shipmentId/:legId', auth, async (req, res) => {
 
 // @route    POST api/shipment-legs/:shipmentId
 // @desc     Add a leg to a shipment
-// @access   Private
+// @access   Public
 router.post(
   '/:shipmentId',
   [
-    auth,
     [
       check('origin', 'Origin is required').not().isEmpty(),
       check('destination', 'Destination is required').not().isEmpty(),
@@ -131,10 +132,9 @@ router.post(
 
 // @route    PUT api/shipment-legs/:shipmentId/:legId
 // @desc     Update a shipment leg
-// @access   Private
+// @access   Public
 router.put(
   '/:shipmentId/:legId',
-  auth,
   async (req, res) => {
     try {
       // Check if leg exists
@@ -212,8 +212,8 @@ router.put(
 
 // @route    DELETE api/shipment-legs/:shipmentId/:legId
 // @desc     Delete a shipment leg
-// @access   Private
-router.delete('/:shipmentId/:legId', auth, async (req, res) => {
+// @access   Public
+router.delete('/:shipmentId/:legId', async (req, res) => {
   try {
     // Check if leg exists
     const shipmentLeg = await ShipmentLeg.findOne({
