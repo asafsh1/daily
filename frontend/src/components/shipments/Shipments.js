@@ -54,8 +54,12 @@ const Shipments = ({ getShipments, updateShipment, shipment: { shipments, loadin
           const customerMatches = customerName.toLowerCase().includes(searchLower);
           const awbMatches = awbNumbers.toLowerCase().includes(searchLower);
           
-          return (searchTerm === '' || customerMatches || awbMatches) &&
-                (filterStatus === '' || shipment.shipmentStatus === filterStatus);
+          // Match status by prefix instead of exact match to handle detailed statuses like "In Transit (Leg 1)"
+          const statusMatches = filterStatus === '' || 
+                                shipment.shipmentStatus === filterStatus || 
+                                (filterStatus && shipment.shipmentStatus?.startsWith(filterStatus));
+          
+          return (searchTerm === '' || customerMatches || awbMatches) && statusMatches;
         } catch (err) {
           console.error('Error filtering shipment:', err, shipment);
           return false;
@@ -206,17 +210,11 @@ const Shipments = ({ getShipments, updateShipment, shipment: { shipments, loadin
                     </span>
                   </td>
                   <td>
-                    <select
-                      className={`status-select status-${shipment.shipmentStatus.toLowerCase().replace(/\s+/g, '-')}`}
-                      value={shipment.shipmentStatus}
-                      onChange={(e) => handleStatusChange(shipment._id, e.target.value)}
+                    <span 
+                      className={`status-badge status-${shipment.shipmentStatus.split(' ')[0].toLowerCase().replace(/\s+/g, '-')}`}
                     >
-                      <option value="Pending">Pending</option>
-                      <option value="In Transit">In Transit</option>
-                      <option value="Arrived">Arrived</option>
-                      <option value="Delayed">Delayed</option>
-                      <option value="Canceled">Canceled</option>
-                    </select>
+                      {shipment.shipmentStatus}
+                    </span>
                   </td>
                   <td>
                     {shipment.legs && shipment.legs.length > 0 ? (
