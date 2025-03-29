@@ -15,19 +15,32 @@ const Shipments = ({ getShipments, updateShipment, shipment: { shipments, loadin
     getShipments();
   }, [getShipments]);
 
+  useEffect(() => {
+    console.log('Current shipments data:', shipments);
+    console.log('Filtered shipments:', filteredShipments);
+  }, [shipments, filteredShipments]);
+
   const handleStatusChange = async (shipmentId, newStatus) => {
     await updateShipment(shipmentId, { shipmentStatus: newStatus });
   };
 
   const filteredShipments = shipments.filter(
     shipment => {
-      // Get customer name safely
-      const customerName = shipment.customer?.name || '';
+      console.log('Processing shipment:', shipment);
       
-      // Get AWB numbers from legs
-      const awbNumbers = shipment.legs && shipment.legs.length > 0 
-        ? shipment.legs.map(leg => leg.awbNumber || '').join(' ') 
-        : '';
+      // Get customer name safely - handle both string and object customer references
+      const customerName = typeof shipment.customer === 'object' 
+        ? (shipment.customer?.name || '') 
+        : (shipment.customer || '');
+      
+      // Get AWB numbers from legs or from direct properties
+      let awbNumbers = '';
+      if (shipment.legs && shipment.legs.length > 0) {
+        awbNumbers = shipment.legs.map(leg => leg.awbNumber || '').join(' ');
+      } else if (shipment.awbNumber1) {
+        awbNumbers = shipment.awbNumber1;
+        if (shipment.awbNumber2) awbNumbers += ' ' + shipment.awbNumber2;
+      }
       
       // Search in customer name and AWB numbers
       const searchLower = searchTerm.toLowerCase();
@@ -146,7 +159,11 @@ const Shipments = ({ getShipments, updateShipment, shipment: { shipments, loadin
                   <td>
                     <Moment format="DD/MM/YYYY">{shipment.dateAdded}</Moment>
                   </td>
-                  <td>{shipment.customer?.name || 'Unknown'}</td>
+                  <td>
+                    {typeof shipment.customer === 'object' 
+                      ? (shipment.customer?.name || 'Unknown') 
+                      : shipment.customer || 'Unknown'}
+                  </td>
                   <td>
                     {shipment.legs && shipment.legs.length > 0 ? (
                       <div className="awb-list">
@@ -155,10 +172,10 @@ const Shipments = ({ getShipments, updateShipment, shipment: { shipments, loadin
                         ))}
                       </div>
                     ) : (
-                      'No AWBs'
+                      shipment.awbNumber1 || 'No AWBs'
                     )}
                   </td>
-                  <td>{shipment.routing}</td>
+                  <td>{shipment.routing || '-'}</td>
                   <td>
                     <span 
                       className={`status-badge order-status-${shipment.orderStatus ? shipment.orderStatus.replace(/\s+/g, '-').toLowerCase() : 'unknown'}`}
@@ -184,6 +201,10 @@ const Shipments = ({ getShipments, updateShipment, shipment: { shipments, loadin
                       <Moment format="DD/MM/YYYY HH:mm">
                         {shipment.legs[0].departureTime}
                       </Moment>
+                    ) : shipment.scheduledDeparture ? (
+                      <Moment format="DD/MM/YYYY HH:mm">
+                        {shipment.scheduledDeparture}
+                      </Moment>
                     ) : (
                       'N/A'
                     )}
@@ -192,6 +213,10 @@ const Shipments = ({ getShipments, updateShipment, shipment: { shipments, loadin
                     {shipment.legs && shipment.legs.length > 0 ? (
                       <Moment format="DD/MM/YYYY HH:mm">
                         {shipment.legs[shipment.legs.length - 1].arrivalTime}
+                      </Moment>
+                    ) : shipment.scheduledArrival ? (
+                      <Moment format="DD/MM/YYYY HH:mm">
+                        {shipment.scheduledArrival}
                       </Moment>
                     ) : (
                       'N/A'
@@ -216,7 +241,7 @@ const Shipments = ({ getShipments, updateShipment, shipment: { shipments, loadin
               ))
             ) : (
               <tr>
-                <td colSpan="9">No shipments found</td>
+                <td colSpan="10">No shipments found</td>
               </tr>
             )}
           </tbody>

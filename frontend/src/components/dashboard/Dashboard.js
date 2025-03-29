@@ -15,6 +15,8 @@ import ShipmentsByDateChart from './ShipmentsByDateChart';
 import RecentShipments from './RecentShipments';
 import OverdueShipments from './OverdueShipments';
 import DashboardDetailModal from './DashboardDetailModal';
+import { Link } from 'react-router-dom';
+import Moment from 'react-moment';
 
 const Dashboard = ({
   getDashboardSummary,
@@ -42,6 +44,16 @@ const Dashboard = ({
     getShipmentsByDate();
     getOverdueNonInvoiced();
   }, [getDashboardSummary, getShipmentsByCustomer, getShipmentsByDate, getOverdueNonInvoiced]);
+
+  useEffect(() => {
+    console.log('Dashboard data:', { 
+      summary, 
+      shipmentsByCustomer, 
+      shipmentsByDate, 
+      overdueNonInvoiced,
+      loading 
+    });
+  }, [summary, shipmentsByCustomer, shipmentsByDate, overdueNonInvoiced, loading]);
 
   const handleSectionClick = async (sectionType, title) => {
     let data = [];
@@ -123,7 +135,7 @@ const Dashboard = ({
   };
 
   return (
-    <section className="container">
+    <section className="container dashboard">
       <h1 className="large text-primary">Dashboard</h1>
       <p className="lead">
         <i className="fas fa-tachometer-alt"></i> Welcome to the Dashboard
@@ -132,15 +144,94 @@ const Dashboard = ({
       {loading ? (
         <Spinner />
       ) : (
-        <div className="dashboard-container">
-          {summary && <DashboardSummary summary={summary} onSectionClick={handleSectionClick} />}
+        <>
+          <div className="stats-row">
+            {summary && summary.statsData.map((stat, index) => (
+              <div key={index} className="stats-card" onClick={() => stat.onClick && stat.onClick()}>
+                <Link to={stat.path || '#'} className="stats-card-link">
+                  <div className="stats-header">
+                    <i className={`fas ${stat.icon}`}></i>
+                    <h3>{stat.title}</h3>
+                  </div>
+                  <div className="stats-value">{stat.value}</div>
+                  <div className="stats-footer">{stat.footer}</div>
+                </Link>
+              </div>
+            ))}
+          </div>
 
-          {summary && summary.recentShipments && (
-            <div className="recent-shipments-container">
-              <h2 className="text-primary">Recent Shipments</h2>
-              <RecentShipments shipments={summary.recentShipments} />
+          <div className="dashboard-row">
+            <div className="recent-shipments card">
+              <div className="card-header">
+                <h3>Recent Shipments</h3>
+                <Link to="/shipments" className="view-all">
+                  View All
+                </Link>
+              </div>
+              
+              <div className="card-body">
+                {summary && summary.recentShipments && summary.recentShipments.length > 0 ? (
+                  <div className="table-responsive">
+                    <table className="table">
+                      <thead>
+                        <tr>
+                          <th>Date</th>
+                          <th>Customer</th>
+                          <th>Status</th>
+                          <th>Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {summary.recentShipments.map(shipment => (
+                          <tr key={shipment._id}>
+                            <td>
+                              <Moment format="DD/MM/YYYY">
+                                {shipment.dateAdded}
+                              </Moment>
+                            </td>
+                            <td>
+                              {typeof shipment.customer === 'object' 
+                                ? (shipment.customer?.name || 'Unknown') 
+                                : (shipment.customer || 'Unknown')}
+                            </td>
+                            <td>
+                              <span className={`status-badge status-${shipment.shipmentStatus.toLowerCase().replace(/\s+/g, '-')}`}>
+                                {shipment.shipmentStatus}
+                              </span>
+                            </td>
+                            <td>
+                              <Link to={`/shipments/${shipment._id}`} className="btn btn-sm">
+                                View
+                              </Link>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <p>No recent shipments</p>
+                )}
+              </div>
             </div>
-          )}
+
+            <div className="shipment-status card">
+              <div className="card-header">
+                <h3>Shipment Status</h3>
+              </div>
+              <div className="card-body">
+                <div className="status-distribution">
+                  {Object.entries(summary.shipmentsByStatus).map(([status, count]) => (
+                    <Link to={`/shipments?status=${status}`} key={status} className="status-item">
+                      <div className={`status-color status-${status.toLowerCase().replace(/\s+/g, '-')}`}></div>
+                      <div className="status-label">{status}</div>
+                      <div className="status-count">{count}</div>
+                    </Link>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
 
           {overdueNonInvoiced && overdueNonInvoiced.length > 0 && (
             <div className="overdue-shipments-container">
@@ -168,7 +259,7 @@ const Dashboard = ({
               )}
             </div>
           </div>
-        </div>
+        </>
       )}
 
       <DashboardDetailModal

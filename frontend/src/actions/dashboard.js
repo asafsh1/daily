@@ -10,24 +10,68 @@ import {
 
 // Get dashboard summary
 export const getDashboardSummary = () => async dispatch => {
-  dispatch({ type: DASHBOARD_LOADING });
-  
   try {
-    const res = await axios.get('/api/dashboard/stats');
-    console.log('Dashboard summary data:', res.data);
-
+    console.log('Fetching dashboard summary...');
+    
+    // Fetch summary data
+    const res = await axios.get('/api/dashboard/summary');
+    console.log('Dashboard data received:', res.data);
+    
+    // Process data to include paths and actions
+    if (res.data) {
+      // Add stats data for the cards
+      res.data.statsData = [
+        {
+          title: 'Total Shipments',
+          value: res.data.totalShipments || 0,
+          footer: 'All time shipments',
+          icon: 'fa-shipping-fast',
+          path: '/shipments'
+        },
+        {
+          title: 'Pending',
+          value: res.data.shipmentsByStatus?.Pending || 0,
+          footer: 'Waiting to be shipped',
+          icon: 'fa-clock',
+          path: '/shipments?status=Pending'
+        },
+        {
+          title: 'In Transit',
+          value: res.data.shipmentsByStatus?.['In Transit'] || 0,
+          footer: 'Currently in transit',
+          icon: 'fa-plane',
+          path: '/shipments?status=In Transit'
+        },
+        {
+          title: 'Non-Invoiced',
+          value: res.data.totalNonInvoiced || 0,
+          footer: 'Shipments without invoice',
+          icon: 'fa-file-invoice-dollar',
+          path: '/shipments?invoiced=false'
+        }
+      ];
+      
+      // Ensure shipmentsByStatus has all statuses with at least 0 count
+      res.data.shipmentsByStatus = {
+        'Pending': res.data.shipmentsByStatus?.Pending || 0,
+        'In Transit': res.data.shipmentsByStatus?.['In Transit'] || 0,
+        'Arrived': res.data.shipmentsByStatus?.Arrived || 0,
+        'Delayed': res.data.shipmentsByStatus?.Delayed || 0,
+        'Canceled': res.data.shipmentsByStatus?.Canceled || 0,
+        ...res.data.shipmentsByStatus
+      };
+    }
+    
     dispatch({
       type: GET_DASHBOARD_SUMMARY,
       payload: res.data
     });
   } catch (err) {
-    console.error('Error loading dashboard summary:', err);
+    console.error('Error loading dashboard data:', err);
+    
     dispatch({
       type: DASHBOARD_ERROR,
-      payload: { 
-        msg: err.response ? err.response.statusText : 'Server Error', 
-        status: err.response ? err.response.status : 500 
-      }
+      payload: { msg: err.response?.statusText, status: err.response?.status }
     });
   }
 };

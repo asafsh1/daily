@@ -31,10 +31,14 @@ app.use(cors({
 }));
 
 // Define Routes
+app.use('/api/users', require('./routes/api/users'));
+app.use('/api/auth', require('./routes/api/auth'));
+app.use('/api/profile', require('./routes/api/profile'));
+app.use('/api/posts', require('./routes/api/posts'));
 app.use('/api/shipments', require('./routes/api/shipments'));
-app.use('/api/dashboard', require('./routes/api/dashboard'));
+app.use('/api/shipmentLegs', require('./routes/api/shipmentLegs'));
 app.use('/api/customers', require('./routes/api/customers'));
-app.use('/api/shipment-legs', require('./routes/api/shipmentLegs'));
+app.use('/api/dashboard', require('./routes/api/dashboard'));
 
 // Socket.io connection
 io.on('connection', (socket) => {

@@ -1404,4 +1404,236 @@ button {
 .shipment-form textarea {
   max-width: 600px;
   width: 100%;
+}
+
+/* Dashboard styling */
+.dashboard .stats-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20px;
+  margin-bottom: 20px;
+}
+
+.dashboard .stats-card {
+  flex: 1;
+  min-width: 200px;
+  background-color: #fff;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  padding: 20px;
+  transition: transform 0.2s, box-shadow 0.2s;
+  cursor: pointer;
+}
+
+.dashboard .stats-card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+}
+
+.dashboard .stats-card-link {
+  display: block;
+  text-decoration: none;
+  color: inherit;
+}
+
+.dashboard .stats-header {
+  display: flex;
+  align-items: center;
+  margin-bottom: 15px;
+}
+
+.dashboard .stats-header i {
+  font-size: 1.5rem;
+  margin-right: 10px;
+  color: var(--primary-color);
+}
+
+.dashboard .stats-value {
+  font-size: 2rem;
+  font-weight: bold;
+  margin-bottom: 10px;
+}
+
+.dashboard .stats-footer {
+  color: #666;
+  font-size: 0.9rem;
+}
+
+.dashboard .dashboard-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20px;
+  margin-bottom: 20px;
+}
+
+.dashboard .card {
+  flex: 1;
+  min-width: 300px;
+  background-color: #fff;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+}
+
+.dashboard .card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 15px 20px;
+  background-color: #f8f9fa;
+  border-bottom: 1px solid #e9ecef;
+}
+
+.dashboard .card-header h3 {
+  margin: 0;
+  font-size: 1.2rem;
+}
+
+.dashboard .view-all {
+  color: var(--primary-color);
+  text-decoration: none;
+  font-size: 0.9rem;
+}
+
+.dashboard .card-body {
+  padding: 20px;
+}
+
+.dashboard .status-distribution {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.dashboard .status-item {
+  display: flex;
+  align-items: center;
+  padding: 10px;
+  border-radius: 4px;
+  transition: background-color 0.2s;
+  text-decoration: none;
+  color: inherit;
+}
+
+.dashboard .status-item:hover {
+  background-color: #f8f9fa;
+}
+
+.dashboard .status-color {
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  margin-right: 10px;
+}
+
+.dashboard .status-label {
+  flex: 1;
+}
+
+.dashboard .status-count {
+  font-weight: bold;
+}
+
+/* Table styles to handle wide data */
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 1rem;
+  background-color: transparent;
+}
+
+.table td, 
+.table th {
+  padding: 0.75rem;
+  vertical-align: top;
+  border-top: 1px solid #dee2e6;
+  white-space: nowrap;
+}
+
+.table th {
+  background-color: #f8f9fa;
+  font-weight: bold;
+  text-align: left;
+}
+
+.table tr:nth-child(even) {
+  background-color: #f2f2f2;
+}
+
+.table tr:hover {
+  background-color: #e9ecef;
+}
+
+.table-responsive {
+  display: block;
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  -ms-overflow-style: -ms-autohiding-scrollbar;
+}
+
+@media (min-width: 768px) {
+  .table td, .table th {
+    white-space: normal;
+  }
+}
+
+/* Status badges */
+.status-badge {
+  display: inline-block;
+  padding: 5px 10px;
+  border-radius: 15px;
+  font-size: 0.8rem;
+  font-weight: bold;
+}
+
+.status-badge.status-pending {
+  background-color: #ffeeba;
+  color: #856404;
+}
+
+.status-badge.status-in-transit {
+  background-color: #b8daff;
+  color: #004085;
+}
+
+.status-badge.status-arrived {
+  background-color: #c3e6cb;
+  color: #155724;
+}
+
+.status-badge.status-delayed {
+  background-color: #f5c6cb;
+  color: #721c24;
+}
+
+.status-badge.status-canceled {
+  background-color: #d6d8db;
+  color: #383d41;
+}
+
+/* Order status badges */
+.status-badge.order-status-planned {
+  background-color: #ffeeba;
+  color: #856404;
+}
+
+.status-badge.order-status-confirmed {
+  background-color: #b8daff;
+  color: #004085;
+}
+
+.status-badge.order-status-in-transit {
+  background-color: #bee5eb;
+  color: #0c5460;
+}
+
+.status-badge.order-status-done {
+  background-color: #c3e6cb;
+  color: #155724;
+}
+
+.status-badge.order-status-canceled {
+  background-color: #f5c6cb;
+  color: #721c24;
 } 

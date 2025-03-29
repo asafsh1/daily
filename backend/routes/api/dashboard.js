@@ -1,6 +1,87 @@
 const express = require('express');
 const router = express.Router();
+const auth = require('../../middleware/auth');
 const Shipment = require('../../models/Shipment');
+const ShipmentLeg = require('../../models/ShipmentLeg');
+const Customer = require('../../models/Customer');
+
+// @route   GET api/dashboard/summary
+// @desc    Get dashboard summary statistics
+// @access  Private
+router.get('/summary', auth, async (req, res) => {
+  try {
+    console.log('Processing dashboard summary request');
+    
+    // Get total shipments count
+    const totalShipments = await Shipment.countDocuments();
+    
+    // Get recent shipments with customer data
+    const recentShipments = await Shipment.find()
+      .sort({ dateAdded: -1 })
+      .limit(5)
+      .populate('customer', 'name')
+      .populate({
+        path: 'legs',
+        options: { sort: { legOrder: 1 } },
+        select: 'awbNumber departureTime arrivalTime origin destination'
+      })
+      .lean();
+    
+    // Get shipments by status
+    const shipmentStatusCounts = await Shipment.aggregate([
+      { $group: { _id: '$shipmentStatus', count: { $sum: 1 } } }
+    ]);
+    
+    const shipmentsByStatus = {};
+    shipmentStatusCounts.forEach(status => {
+      shipmentsByStatus[status._id] = status.count;
+    });
+    
+    // Get non-invoiced shipments count
+    const totalNonInvoiced = await Shipment.countDocuments({ invoiced: false });
+    
+    // Get shipments by customer
+    const shipmentsByCustomer = await Shipment.aggregate([
+      { $group: { _id: '$customer', count: { $sum: 1 } } },
+      { $sort: { count: -1 } },
+      { $limit: 5 }
+    ]);
+    
+    // Get customer names
+    const customerIds = shipmentsByCustomer.map(item => item._id);
+    const customers = await Customer.find({ _id: { $in: customerIds } }).select('name');
+    
+    const customerMap = {};
+    customers.forEach(customer => {
+      customerMap[customer._id] = customer.name;
+    });
+    
+    const formattedShipmentsByCustomer = shipmentsByCustomer.map(item => ({
+      customer: customerMap[item._id] || 'Unknown',
+      count: item.count
+    }));
+    
+    const response = {
+      totalShipments,
+      recentShipments,
+      shipmentsByStatus,
+      totalNonInvoiced,
+      shipmentsByCustomer: formattedShipmentsByCustomer
+    };
+    
+    console.log('Dashboard summary prepared:', {
+      totalShipments,
+      recentShipmentsCount: recentShipments.length,
+      statusCounts: shipmentsByStatus,
+      nonInvoicedCount: totalNonInvoiced
+    });
+    
+    res.json(response);
+  } catch (err) {
+    console.error('Dashboard summary error:', err.message);
+    res.status(500).send('Server Error');
+  }
+});
 
 // @route   GET api/dashboard/stats
 // @desc    Get dashboard statistics
