@@ -10,7 +10,7 @@ const ShipmentLegSchema = new mongoose.Schema({
     type: Number,
     required: true,
     min: 1,
-    max: 4
+    max: 20
   },
   origin: {
     type: String,

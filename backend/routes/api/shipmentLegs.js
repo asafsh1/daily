@@ -67,15 +67,29 @@ router.post(
   async (req, res) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
+      console.log('Validation errors:', errors.array());
       return res.status(400).json({ errors: errors.array() });
     }
 
     try {
-      console.log('Creating new leg for shipment:', req.params.shipmentId, req.body);
+      console.log('Creating new leg for shipment:', req.params.shipmentId);
+      console.log('Request body:', JSON.stringify(req.body));
       
       // Check if shipment exists
-      const shipment = await Shipment.findById(req.params.shipmentId);
+      let shipment;
+      try {
+        shipment = await Shipment.findById(req.params.shipmentId);
+        console.log('Found shipment:', shipment ? 'yes' : 'no');
+      } catch (err) {
+        console.error('Error finding shipment:', err.message);
+        return res.status(500).json({ 
+          msg: 'Error finding shipment', 
+          error: err.message 
+        });
+      }
+      
       if (!shipment) {
+        console.log('Shipment not found with ID:', req.params.shipmentId);
         return res.status(404).json({ msg: 'Shipment not found' });
       }
 
@@ -97,6 +111,7 @@ router.post(
         });
 
         if (existingLeg) {
+          console.log('Leg with order', req.body.legOrder, 'already exists');
           return res.status(400).json({ 
             errors: [{ msg: `Leg ${req.body.legOrder} already exists for this shipment` }] 
           });
@@ -108,7 +123,6 @@ router.post(
         destination,
         flightNumber,
         mawbNumber,
-        awbNumber,
         departureTime,
         arrivalTime,
         status,
@@ -123,37 +137,69 @@ router.post(
         destination,
         flightNumber,
         mawbNumber,
-        awbNumber: awbNumber || mawbNumber, // Use awbNumber or fall back to mawbNumber
         departureTime,
         arrivalTime,
         status: status || 'Pending',
         notes
       });
 
-      console.log('Created shipment leg object:', shipmentLeg);
-      const savedLeg = await shipmentLeg.save();
-      console.log('Saved leg with ID:', savedLeg._id);
+      console.log('Created shipment leg object:', JSON.stringify(shipmentLeg));
+      
+      let savedLeg;
+      try {
+        savedLeg = await shipmentLeg.save();
+        console.log('Saved leg with ID:', savedLeg._id);
+      } catch (err) {
+        console.error('Error saving shipment leg:', err.message);
+        return res.status(500).json({ 
+          msg: 'Error saving shipment leg', 
+          error: err.message 
+        });
+      }
       
       // Add the leg to the shipment's legs array if not already there
+      if (!shipment.legs) {
+        shipment.legs = [];
+      }
+      
       if (!shipment.legs.includes(savedLeg._id)) {
         console.log('Adding leg ID to shipment legs array');
         shipment.legs.push(savedLeg._id);
-        await shipment.save();
-        console.log('Updated shipment with new leg reference');
+        
+        try {
+          await shipment.save();
+          console.log('Updated shipment with new leg reference');
+        } catch (err) {
+          console.error('Error updating shipment with leg reference:', err.message);
+          // Continue even if this fails - we've already saved the leg
+        }
       } else {
         console.log('Leg already in shipment legs array');
       }
 
       // Update the shipment routing
-      await updateShipmentRouting(req.params.shipmentId);
+      try {
+        await updateShipmentRouting(req.params.shipmentId);
+      } catch (err) {
+        console.error('Error updating shipment routing:', err.message);
+        // Continue even if this fails
+      }
       
       // Update the shipment status based on legs
-      await updateShipmentStatus(req.params.shipmentId);
+      try {
+        await updateShipmentStatus(req.params.shipmentId);
+      } catch (err) {
+        console.error('Error updating shipment status:', err.message);
+        // Continue even if this fails
+      }
 
       res.json(savedLeg);
     } catch (err) {
-      console.error('Error creating shipment leg:', err.message);
-      res.status(500).send('Server Error');
+      console.error('Error creating shipment leg:', err.message, err.stack);
+      res.status(500).json({
+        msg: 'Server Error', 
+        error: err.message
+      });
     }
   }
 );
@@ -388,7 +434,22 @@ async function updateShipmentStatus(shipmentId) {
 // @access  Public
 router.get('/diagnostic/count', async (req, res) => {
   try {
-    const count = await ShipmentLeg.countDocuments();
+    // Check database connection
+    const dbConnected = mongoose.connection.readyState === 1;
+    console.log('Database connection status:', dbConnected ? 'connected' : 'disconnected');
+    
+    if (!dbConnected) {
+      return res.status(500).json({
+        error: 'Database not connected',
+        connectionState: mongoose.connection.readyState
+      });
+    }
+    
+    // Get counts for all collections
+    const legCount = await ShipmentLeg.countDocuments();
+    const shipmentCount = await Shipment.countDocuments();
+    
+    console.log(`Collection counts - Legs: ${legCount}, Shipments: ${shipmentCount}`);
     
     // Get all legs grouped by shipment ID
     const legsByShipment = await ShipmentLeg.aggregate([
@@ -403,20 +464,122 @@ router.get('/diagnostic/count', async (req, res) => {
       _id: { $in: shipmentIds } 
     }, { _id: 1, serialNumber: 1, legs: 1 }).lean();
     
-    console.log('Diagnostic: Found', count, 'legs across', shipmentIds.length, 'shipments');
+    // Get shipments that should have legs but don't
+    const shipmentsWithoutLegs = await Shipment.find({
+      legs: { $exists: true, $size: 0 }
+    }, { _id: 1, serialNumber: 1 }).lean();
     
+    // Check for orphaned legs (no associated shipment)
+    const allShipmentIds = (await Shipment.find({}, { _id: 1 }).lean()).map(s => s._id.toString());
+    const orphanedLegCounts = await ShipmentLeg.countDocuments({
+      shipmentId: { $nin: allShipmentIds }
+    });
+    
+    console.log('Diagnostic: Found', legCount, 'legs across', shipmentIds.length, 'shipments');
+    console.log('Found', shipmentsWithoutLegs.length, 'shipments with empty legs array');
+    console.log('Found', orphanedLegCounts, 'orphaned legs');
+    
+    // Return all diagnostic info
     return res.json({
-      totalLegs: count,
-      shipmentCount: shipmentIds.length,
+      database: {
+        connected: dbConnected,
+        connectionState: mongoose.connection.readyState
+      },
+      counts: {
+        totalLegs: legCount,
+        totalShipments: shipmentCount,
+        shipmentsWithLegs: shipmentIds.length,
+        shipmentsWithoutLegs: shipmentsWithoutLegs.length,
+        orphanedLegs: orphanedLegCounts
+      },
       legsGrouped: legsByShipment,
       shipments: shipments,
-      database: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected'
+      shipmentsWithoutLegs: shipmentsWithoutLegs
     });
   } catch (err) {
-    console.error('Error in leg diagnostic:', err.message);
+    console.error('Error in leg diagnostic:', err.message, err.stack);
     return res.status(500).json({ 
       error: 'Error running leg diagnostic',
-      message: err.message
+      message: err.message,
+      stack: process.env.NODE_ENV === 'production' ? undefined : err.stack
+    });
+  }
+});
+
+// @route   GET api/shipment-legs/diagnostic/test/:shipmentId
+// @desc    Test adding a sample leg
+// @access  Public
+router.get('/diagnostic/test/:shipmentId', async (req, res) => {
+  try {
+    const shipmentId = req.params.shipmentId;
+    console.log('Running diagnostic test for shipment:', shipmentId);
+    
+    // Check database connection
+    const dbConnected = mongoose.connection.readyState === 1;
+    if (!dbConnected) {
+      return res.status(500).json({
+        error: 'Database not connected',
+        connectionState: mongoose.connection.readyState
+      });
+    }
+    
+    // Check if shipment exists
+    const shipment = await Shipment.findById(shipmentId);
+    if (!shipment) {
+      return res.status(404).json({ 
+        error: 'Shipment not found',
+        shipmentId
+      });
+    }
+    
+    // Try to create a test leg
+    const testLeg = new ShipmentLeg({
+      shipmentId: shipmentId,
+      legOrder: 999, // Special test leg order
+      origin: 'TEST_ORIGIN',
+      destination: 'TEST_DESTINATION',
+      flightNumber: 'TEST123',
+      mawbNumber: 'TEST-MAWB',
+      departureTime: new Date(),
+      arrivalTime: new Date(Date.now() + 3600000), // 1 hour later
+      status: 'Pending',
+      notes: 'This is a diagnostic test leg'
+    });
+    
+    console.log('Created test leg object:', JSON.stringify(testLeg));
+    
+    // Check if legs array exists in shipment
+    if (!shipment.legs) {
+      shipment.legs = [];
+      console.log('Legs array did not exist, created empty array');
+    }
+    
+    // Save the test leg
+    const savedLeg = await testLeg.save();
+    console.log('Test leg saved with ID:', savedLeg._id);
+    
+    // Add leg reference to shipment
+    shipment.legs.push(savedLeg._id);
+    await shipment.save();
+    console.log('Added test leg to shipment');
+    
+    return res.json({
+      success: true,
+      message: 'Diagnostic test leg created successfully',
+      shipment: {
+        id: shipment._id,
+        serialNumber: shipment.serialNumber,
+        legCount: shipment.legs.length
+      },
+      testLeg: savedLeg
+    });
+  } catch (err) {
+    console.error('Error in leg diagnostic test:', err.message, err.stack);
+    return res.status(500).json({ 
+      success: false,
+      error: 'Error creating test leg',
+      message: err.message,
+      stack: process.env.NODE_ENV === 'production' ? undefined : err.stack
     });
   }
 });
