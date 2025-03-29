@@ -43,13 +43,28 @@ const Dashboard = ({
   useEffect(() => {
     console.log('Dashboard component mounted, fetching summary...');
     
+    // Check if we have an auth token
+    const token = localStorage.getItem('token');
+    console.log('Auth token exists:', !!token);
+    
+    // Log the current API URL
+    console.log('Current API URL:', axios.defaults.baseURL);
+    
+    // Call dashboard data and log success/failure
     getDashboardSummary()
-      .then(() => console.log('Dashboard summary fetched successfully'))
+      .then(data => {
+        console.log('Dashboard summary fetched successfully:', data);
+        
+        // Also fetch the other dashboard data
+        getShipmentsByCustomer();
+        getShipmentsByDate();
+        getOverdueNonInvoiced();
+      })
       .catch(err => {
         console.error('Error fetching dashboard data:', err);
         setErrorMsg('Failed to load dashboard data. Please try again later.');
       });
-  }, [getDashboardSummary]);
+  }, [getDashboardSummary, getShipmentsByCustomer, getShipmentsByDate, getOverdueNonInvoiced]);
 
   useEffect(() => {
     console.log('Dashboard data state:', { summary, loading, error });

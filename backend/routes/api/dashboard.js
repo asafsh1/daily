@@ -8,8 +8,8 @@ const mongoose = require('mongoose');
 
 // @route   GET api/dashboard/summary
 // @desc    Get dashboard summary statistics
-// @access  Private
-router.get('/summary', auth, async (req, res) => {
+// @access  Public
+router.get('/summary', async (req, res) => {
   try {
     console.log('Processing dashboard summary request');
     
