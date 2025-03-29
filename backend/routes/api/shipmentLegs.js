@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const auth = require('../../middleware/auth');
 const { check, validationResult } = require('express-validator');
+const mongoose = require('mongoose');
 
 const ShipmentLeg = require('../../models/ShipmentLeg');
 const Shipment = require('../../models/Shipment');
@@ -60,8 +61,7 @@ router.post(
       check('flightNumber', 'Flight number is required').not().isEmpty(),
       check('mawbNumber', 'MAWB number is required').not().isEmpty(),
       check('departureTime', 'Departure time is required').isISO8601(),
-      check('arrivalTime', 'Arrival time is required').isISO8601(),
-      check('legOrder', 'Leg order is required').isInt({ min: 1, max: 4 })
+      check('arrivalTime', 'Arrival time is required').isISO8601()
     ]
   ],
   async (req, res) => {
@@ -71,7 +71,7 @@ router.post(
     }
 
     try {
-      console.log('Adding leg to shipment:', req.params.shipmentId, req.body);
+      console.log('Creating new leg for shipment:', req.params.shipmentId, req.body);
       
       // Check if shipment exists
       const shipment = await Shipment.findById(req.params.shipmentId);
@@ -79,20 +79,31 @@ router.post(
         return res.status(404).json({ msg: 'Shipment not found' });
       }
 
-      // Check if a leg with the same order already exists
-      const existingLeg = await ShipmentLeg.findOne({
-        shipmentId: req.params.shipmentId,
-        legOrder: req.body.legOrder
-      });
-
-      if (existingLeg) {
-        return res.status(400).json({ 
-          errors: [{ msg: `Leg ${req.body.legOrder} already exists for this shipment` }] 
+      // Auto-assign legOrder if not specified
+      let legOrder = req.body.legOrder;
+      if (!legOrder) {
+        // Find the max leg order and add 1
+        const existingLegs = await ShipmentLeg.find({ shipmentId: req.params.shipmentId })
+          .sort({ legOrder: -1 })
+          .limit(1);
+          
+        legOrder = existingLegs.length > 0 ? existingLegs[0].legOrder + 1 : 1;
+        console.log('Auto-assigned leg order:', legOrder);
+      } else {
+        // Check if a leg with the same order already exists
+        const existingLeg = await ShipmentLeg.findOne({
+          shipmentId: req.params.shipmentId,
+          legOrder: req.body.legOrder
         });
+
+        if (existingLeg) {
+          return res.status(400).json({ 
+            errors: [{ msg: `Leg ${req.body.legOrder} already exists for this shipment` }] 
+          });
+        }
       }
 
       const {
-        legOrder,
         origin,
         destination,
         flightNumber,
@@ -104,6 +115,7 @@ router.post(
         notes
       } = req.body;
 
+      // Create new leg document
       const shipmentLeg = new ShipmentLeg({
         shipmentId: req.params.shipmentId,
         legOrder,
@@ -111,22 +123,26 @@ router.post(
         destination,
         flightNumber,
         mawbNumber,
-        awbNumber: awbNumber || mawbNumber, // Use awbNumber if provided, otherwise use mawbNumber
+        awbNumber: awbNumber || mawbNumber, // Use awbNumber or fall back to mawbNumber
         departureTime,
         arrivalTime,
         status: status || 'Pending',
         notes
       });
 
+      console.log('Created shipment leg object:', shipmentLeg);
       const savedLeg = await shipmentLeg.save();
-      console.log('Saved leg:', savedLeg._id);
+      console.log('Saved leg with ID:', savedLeg._id);
       
-      // Add the leg to the shipment's legs array
-      await Shipment.findByIdAndUpdate(
-        req.params.shipmentId,
-        { $addToSet: { legs: savedLeg._id } }
-      );
-      console.log('Updated shipment with new leg reference');
+      // Add the leg to the shipment's legs array if not already there
+      if (!shipment.legs.includes(savedLeg._id)) {
+        console.log('Adding leg ID to shipment legs array');
+        shipment.legs.push(savedLeg._id);
+        await shipment.save();
+        console.log('Updated shipment with new leg reference');
+      } else {
+        console.log('Leg already in shipment legs array');
+      }
 
       // Update the shipment routing
       await updateShipmentRouting(req.params.shipmentId);
@@ -136,7 +152,7 @@ router.post(
 
       res.json(savedLeg);
     } catch (err) {
-      console.error('Error adding shipment leg:', err.message);
+      console.error('Error creating shipment leg:', err.message);
       res.status(500).send('Server Error');
     }
   }
@@ -366,5 +382,43 @@ async function updateShipmentStatus(shipmentId) {
     console.error('Error updating shipment status:', err);
   }
 }
+
+// @route   GET api/shipment-legs/diagnostic/count
+// @desc    Get diagnostic info for shipment legs
+// @access  Public
+router.get('/diagnostic/count', async (req, res) => {
+  try {
+    const count = await ShipmentLeg.countDocuments();
+    
+    // Get all legs grouped by shipment ID
+    const legsByShipment = await ShipmentLeg.aggregate([
+      { $group: { _id: "$shipmentId", count: { $sum: 1 } } }
+    ]);
+    
+    // Get all shipment IDs with legs
+    const shipmentIds = legsByShipment.map(group => group._id);
+    
+    // Get info about those shipments
+    const shipments = await Shipment.find({ 
+      _id: { $in: shipmentIds } 
+    }, { _id: 1, serialNumber: 1, legs: 1 }).lean();
+    
+    console.log('Diagnostic: Found', count, 'legs across', shipmentIds.length, 'shipments');
+    
+    return res.json({
+      totalLegs: count,
+      shipmentCount: shipmentIds.length,
+      legsGrouped: legsByShipment,
+      shipments: shipments,
+      database: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected'
+    });
+  } catch (err) {
+    console.error('Error in leg diagnostic:', err.message);
+    return res.status(500).json({ 
+      error: 'Error running leg diagnostic',
+      message: err.message
+    });
+  }
+});
 
 module.exports = router; 

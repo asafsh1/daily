@@ -18,7 +18,14 @@ const ShipmentDetail = ({
   useEffect(() => {
     getShipment(id);
 
+    // Refresh the shipment data every minute to catch updates
+    const refreshInterval = setInterval(() => {
+      console.log('Auto-refreshing shipment details');
+      getShipment(id);
+    }, 60000); // Refresh every 60 seconds
+
     return () => {
+      clearInterval(refreshInterval);
       clearShipment();
     };
   }, [getShipment, clearShipment, id]);

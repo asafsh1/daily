@@ -91,7 +91,7 @@ const ShipmentForm = ({
         
         // Copy all fields from shipment to data object
         for (const key in shipment) {
-          if (key in initialState || key === '_id') {
+          if (key in initialState || key === '_id' || key === 'legs') {
             if (key === 'dateAdded' || key === 'fileCreatedDate') {
               shipmentData[key] = formatDate(shipment[key]);
             } else if (key === 'scheduledArrival') {

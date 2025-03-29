@@ -31,10 +31,31 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
   // Load legs on component mount and when shipmentId changes
   useEffect(() => {
     if (shipmentId) {
+      console.log(`ShipmentLegs component: Loading legs for shipment ID ${shipmentId}`);
       fetchLegs();
     } else {
       setLegs([]);
       setLoading(false);
+    }
+    
+    // Clean up form when component unmounts
+    return () => {
+      setFormData(initialState);
+      setEditingLeg(null);
+      setShowForm(false);
+    };
+  }, [shipmentId]);
+  
+  // Periodically refresh legs data
+  useEffect(() => {
+    // Only set up refresh for real shipments, not temporary ones
+    if (shipmentId && !shipmentId.toString().startsWith('temp-')) {
+      const refreshInterval = setInterval(() => {
+        console.log('Auto-refreshing legs data');
+        fetchLegs();
+      }, 30000); // Refresh every 30 seconds
+      
+      return () => clearInterval(refreshInterval);
     }
   }, [shipmentId]);
 
@@ -46,20 +67,34 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
       
       // Only fetch legs from the server if this is a real shipment ID (not a temp one)
       if (shipmentId && !shipmentId.toString().startsWith('temp-')) {
-        // Changed the endpoint URL to match the backend route
-        const res = await axios.get(`/api/shipment-legs/${shipmentId}`);
-        console.log("Legs response:", res.data);
-        setLegs(res.data);
+        try {
+          // Changed the endpoint URL to match the backend route
+          const res = await axios.get(`/api/shipment-legs/${shipmentId}`);
+          console.log("Legs response:", res.data);
+          if (Array.isArray(res.data)) {
+            setLegs(res.data);
+            setError(null);
+          } else {
+            console.error("Unexpected response format:", res.data);
+            setError('Received invalid leg data format from server');
+            setLegs([]);
+          }
+        } catch (err) {
+          console.error('API error fetching legs:', err);
+          setError(`Error fetching legs: ${err.message}`);
+          setLegs([]);
+        }
       } else {
         // For temporary IDs, just use the local state
-        // We're not persisting these to the server until the shipment is created
+        console.log('Using local state for temp shipment ID');
       }
       
       setLoading(false);
     } catch (err) {
-      console.error('Error fetching shipment legs:', err);
+      console.error('Error in fetchLegs function:', err);
       setLoading(false);
       setError('Failed to load shipment legs');
+      setLegs([]);
     }
   };
 
@@ -82,12 +117,14 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
         return;
       }
 
+      // Prepare leg data with proper format
       const legData = {
         ...formData,
         shipmentId,
         departureTime: new Date(formData.departureTime).toISOString(),
         arrivalTime: new Date(formData.arrivalTime).toISOString(),
-        legOrder: legs.length + 1 // Set the order based on current number of legs
+        // Let the server auto-assign legOrder if not specified
+        legOrder: legs.length + 1
       };
 
       // For temporary shipments, just add to local state
@@ -95,7 +132,7 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
         // Create a temporary ID
         const tempLegId = 'temp-leg-' + Date.now() + '-' + Math.random().toString(36).substring(2, 9);
         const newLeg = { ...legData, _id: tempLegId };
-        setLegs([...legs, newLeg]);
+        setLegs(prevLegs => [...prevLegs, newLeg]);
         
         // Reset form
         setFormData({ ...initialState });
@@ -108,19 +145,26 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
         // For real shipments, save to the server
         console.log("Adding leg to shipment:", shipmentId, legData);
         try {
+          // Set loading state
+          setLoading(true);
+          
+          // Make the API call with proper error handling
           const res = await axios.post(`/api/shipment-legs/${shipmentId}`, legData);
           console.log("Add leg response:", res.data);
           
           // Reload all legs to ensure we have the latest data
-          fetchLegs(); 
+          await fetchLegs();
           
-          // Reset form
+          // Reset form and loading state
           setFormData({ ...initialState });
           setShowForm(false);
           setError(null);
+          setLoading(false);
           
+          // Show success message
           toast.success('Leg added successfully');
         } catch (err) {
+          setLoading(false);
           console.error('Error in API call:', err);
           const errorMsg = err.response?.data?.errors?.[0]?.msg || 'Failed to add shipment leg';
           toast.error(errorMsg);
