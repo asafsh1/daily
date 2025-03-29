@@ -123,6 +123,27 @@ router.get('/summary', auth, async (req, res) => {
 // @access  Public
 router.get('/stats', async (req, res) => {
   try {
+    // Check database connection - if not connected, return empty data
+    if (mongoose.connection.readyState !== 1) {
+      console.error('Database connection is not ready. Current state:', mongoose.connection.readyState);
+      
+      // Return empty data with same structure to avoid frontend errors
+      return res.json({
+        totalShipments: 0,
+        shipmentsByStatus: {
+          pending: 0,
+          arrived: 0,
+          delayed: 0,
+          canceled: 0
+        },
+        invoiceStats: {
+          invoiced: 0,
+          nonInvoiced: 0
+        },
+        recentShipments: []
+      });
+    }
+    
     // Get total shipments
     const totalShipments = await Shipment.countDocuments();
     
@@ -156,8 +177,23 @@ router.get('/stats', async (req, res) => {
       recentShipments
     });
   } catch (err) {
-    console.error(err.message);
-    res.status(500).send('Server Error');
+    console.error('Dashboard stats error:', err.message);
+    
+    // Return empty data with same structure instead of error
+    res.json({
+      totalShipments: 0,
+      shipmentsByStatus: {
+        pending: 0,
+        arrived: 0,
+        delayed: 0,
+        canceled: 0
+      },
+      invoiceStats: {
+        invoiced: 0,
+        nonInvoiced: 0
+      },
+      recentShipments: []
+    });
   }
 });
 
@@ -166,6 +202,17 @@ router.get('/stats', async (req, res) => {
 // @access  Public
 router.get('/monthly-stats', async (req, res) => {
   try {
+    // Check database connection - if not connected, return empty data
+    if (mongoose.connection.readyState !== 1) {
+      console.error('Database connection is not ready. Current state:', mongoose.connection.readyState);
+      
+      // Return empty monthly data
+      return res.json(Array.from({ length: 12 }, (_, i) => ({
+        month: i + 1,
+        count: 0
+      })));
+    }
+    
     const currentYear = new Date().getFullYear();
     
     // Use aggregation to get monthly counts in a single query
@@ -209,8 +256,13 @@ router.get('/monthly-stats', async (req, res) => {
     
     res.json(monthlyData);
   } catch (err) {
-    console.error(err.message);
-    res.status(500).send('Server Error');
+    console.error('Monthly stats error:', err.message);
+    
+    // Return empty monthly data
+    res.json(Array.from({ length: 12 }, (_, i) => ({
+      month: i + 1,
+      count: 0
+    })));
   }
 });
 
@@ -219,6 +271,12 @@ router.get('/monthly-stats', async (req, res) => {
 // @access  Public
 router.get('/overdue-non-invoiced', async (req, res) => {
   try {
+    // Check database connection - if not connected, return empty data
+    if (mongoose.connection.readyState !== 1) {
+      console.error('Database connection is not ready. Current state:', mongoose.connection.readyState);
+      return res.json([]);
+    }
+    
     const currentDate = new Date();
     
     // Find shipments where:
@@ -234,8 +292,8 @@ router.get('/overdue-non-invoiced', async (req, res) => {
     
     res.json(overdueShipments);
   } catch (err) {
-    console.error(err.message);
-    res.status(500).send('Server Error');
+    console.error('Overdue shipments error:', err.message);
+    res.json([]);
   }
 });
 
