@@ -6,57 +6,74 @@ import Moment from 'react-moment';
 import { getShipments, updateShipment } from '../../actions/shipment';
 import Spinner from '../layout/Spinner';
 import { convertToCSV, downloadCSV } from '../../utils/exportUtils';
+import { Alert } from 'react-bootstrap';
 
-const Shipments = ({ getShipments, updateShipment, shipment: { shipments, loading } }) => {
+const Shipments = ({ getShipments, updateShipment, shipment: { shipments, loading, error } }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
   const [filteredData, setFilteredData] = useState([]);
 
   useEffect(() => {
-    getShipments();
+    const fetchData = async () => {
+      try {
+        await getShipments();
+      } catch (err) {
+        console.error('Error fetching shipments:', err);
+      }
+    };
+    
+    fetchData();
   }, [getShipments]);
 
   // Filter shipments when data changes
   useEffect(() => {
-    if (!shipments) return;
-    
-    console.log('Current shipments data:', shipments);
-    
-    const filtered = shipments.filter(shipment => {
-      // Skip null/undefined shipments
-      if (!shipment) return false;
-      
-      try {
-        // Get customer name safely - handle both string and object customer references
-        const customerName = typeof shipment.customer === 'object' 
-          ? (shipment.customer?.name || '') 
-          : (shipment.customer || '');
-        
-        // Get AWB numbers from legs or from direct properties
-        let awbNumbers = '';
-        if (shipment.legs && shipment.legs.length > 0) {
-          awbNumbers = shipment.legs.map(leg => leg.awbNumber || '').join(' ');
-        } else if (shipment.awbNumber1) {
-          awbNumbers = shipment.awbNumber1;
-          if (shipment.awbNumber2) awbNumbers += ' ' + shipment.awbNumber2;
-        }
-        
-        // Search in customer name and AWB numbers
-        const searchLower = searchTerm.toLowerCase();
-        const customerMatches = customerName.toLowerCase().includes(searchLower);
-        const awbMatches = awbNumbers.toLowerCase().includes(searchLower);
-        
-        return (searchTerm === '' || customerMatches || awbMatches) &&
-              (filterStatus === '' || shipment.shipmentStatus === filterStatus);
-      } catch (err) {
-        console.error('Error filtering shipment:', err, shipment);
-        return false;
-      }
+    console.log('Shipments data changed, current state:', { 
+      shipments: shipments || 'null/undefined', 
+      loading, 
+      shipmentLength: shipments ? shipments.length : 0 
     });
     
-    setFilteredData(filtered);
-    console.log('Filtered shipments:', filtered);
-  }, [shipments, searchTerm, filterStatus]);
+    if (!shipments) return;
+    
+    try {
+      const filtered = shipments.filter(shipment => {
+        // Skip null/undefined shipments
+        if (!shipment) return false;
+        
+        try {
+          // Get customer name safely - handle both string and object customer references
+          const customerName = typeof shipment.customer === 'object' 
+            ? (shipment.customer?.name || '') 
+            : (shipment.customer || '');
+          
+          // Get AWB numbers from legs or from direct properties
+          let awbNumbers = '';
+          if (shipment.legs && shipment.legs.length > 0) {
+            awbNumbers = shipment.legs.map(leg => leg.awbNumber || '').join(' ');
+          } else if (shipment.awbNumber1) {
+            awbNumbers = shipment.awbNumber1;
+            if (shipment.awbNumber2) awbNumbers += ' ' + shipment.awbNumber2;
+          }
+          
+          // Search in customer name and AWB numbers
+          const searchLower = searchTerm.toLowerCase();
+          const customerMatches = customerName.toLowerCase().includes(searchLower);
+          const awbMatches = awbNumbers.toLowerCase().includes(searchLower);
+          
+          return (searchTerm === '' || customerMatches || awbMatches) &&
+                (filterStatus === '' || shipment.shipmentStatus === filterStatus);
+        } catch (err) {
+          console.error('Error filtering shipment:', err, shipment);
+          return false;
+        }
+      });
+      
+      setFilteredData(filtered);
+      console.log('Filtered shipments:', filtered.length, 'out of', shipments.length);
+    } catch (err) {
+      console.error('Error in filtering effect:', err);
+    }
+  }, [shipments, searchTerm, filterStatus, loading]);
 
   const handleStatusChange = async (shipmentId, newStatus) => {
     await updateShipment(shipmentId, { shipmentStatus: newStatus });
@@ -103,14 +120,25 @@ const Shipments = ({ getShipments, updateShipment, shipment: { shipments, loadin
     downloadCSV(csvContent, fileName);
   };
 
-  return loading ? (
-    <Spinner />
-  ) : (
-    <section className="container">
-      <h1 className="large text-primary">Shipments</h1>
+  return (
+    <div className="shipments-container">
+      <h1 className="text-primary">Shipments</h1>
       <p className="lead">
-        <i className="fas fa-shipping-fast"></i> View and manage shipments
+        <i className="fas fa-shipping-fast"></i> View and manage all shipments
       </p>
+      
+      {error && (
+        <Alert variant="warning" className="mb-4">
+          <i className="fas fa-exclamation-triangle mr-2"></i>
+          There was an issue loading the shipments. {error.msg}
+          {error.status === 503 && " Database connection unavailable."}
+          Showing limited information.
+        </Alert>
+      )}
+      
+      <Link to="/shipments/new" className="btn btn-primary mb-3">
+        <i className="fas fa-plus"></i> Add New Shipment
+      </Link>
       
       <div className="shipment-controls">
         <div className="search-filter">
@@ -258,7 +286,7 @@ const Shipments = ({ getShipments, updateShipment, shipment: { shipments, loadin
           </tbody>
         </table>
       </div>
-    </section>
+    </div>
   );
 };
 
