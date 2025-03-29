@@ -5,6 +5,7 @@ import PropTypes from 'prop-types';
 import Moment from 'react-moment';
 import { getShipment, clearShipment } from '../../actions/shipment';
 import Spinner from '../layout/Spinner';
+import ShipmentLegs from './ShipmentLegs';
 
 const ShipmentDetail = ({
   getShipment,
@@ -188,6 +189,40 @@ const ShipmentDetail = ({
               </div>
             </div>
           </div>
+        </div>
+
+        <h2 className="shipment-detail-heading">Shipment Details</h2>
+        <div className="shipment-header">
+          <h3>AWB: {shipment.awbNumber1}</h3>
+          <p className={`status-badge ${shipment.shipmentStatus.toLowerCase()}`}>
+            {shipment.shipmentStatus}
+          </p>
+        </div>
+
+        <div className="shipment-info">
+          <div className="column">
+            <p><strong>Customer:</strong> {shipment.customer?.name || 'Unknown'}</p>
+            <p><strong>Origin:</strong> {shipment.from}</p>
+            <p><strong>Destination:</strong> {shipment.to}</p>
+            <p><strong>Date Added:</strong> <Moment format="DD/MM/YYYY">{shipment.dateAdded}</Moment></p>
+            <p><strong>Weight:</strong> {shipment.weight || 'N/A'} kg</p>
+          </div>
+          <div className="column">
+            <p><strong>Order Status:</strong> {shipment.orderStatus}</p>
+            <p><strong>Scheduled Arrival:</strong> <Moment format="DD/MM/YYYY">{shipment.scheduledArrival}</Moment></p>
+            <p><strong>Routing:</strong> {shipment.routing}</p>
+            <p><strong>Flight Number:</strong> {shipment.flightNumber || 'N/A'}</p>
+            <p><strong>Package Count:</strong> {shipment.packageCount || 'N/A'}</p>
+          </div>
+        </div>
+
+        {/* Add ShipmentLegs component to show legs */}
+        <div className="shipment-legs-section">
+          <ShipmentLegs shipmentId={id} readOnly={true} />
+        </div>
+
+        <div className="action-buttons">
+          {/* ... existing code ... */}
         </div>
       </div>
     </section>

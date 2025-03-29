@@ -130,7 +130,7 @@ const Shipments = ({ getShipments, updateShipment, shipment: { shipments, loadin
                   <td>
                     <Moment format="DD/MM/YYYY">{shipment.dateAdded}</Moment>
                   </td>
-                  <td>{shipment.customer}</td>
+                  <td>{shipment.customer?.name || 'Unknown'}</td>
                   <td>{shipment.awbNumber1}</td>
                   <td>{shipment.flightNumber}</td>
                   <td>{shipment.routing}</td>

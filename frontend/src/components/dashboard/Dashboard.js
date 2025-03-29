@@ -168,22 +168,6 @@ const Dashboard = ({
               )}
             </div>
           </div>
-
-          {/* Shipment Movement Map */}
-          <div className="map-container">
-            <h2 className="text-primary">Shipment Movement Map</h2>
-            <div className="shipment-map">
-              <iframe 
-                src="https://www.google.com/maps/embed?pb=!1m14!1m12!1m3!1d4717349.033462952!2d-83.99559065!3d41.05350745!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!5e0!3m2!1sen!2sus!4v1711646528096!5m2!1sen!2sus" 
-                width="100%" 
-                height="450" 
-                style={{ border: 0 }} 
-                allowFullScreen="" 
-                loading="lazy" 
-                referrerPolicy="no-referrer-when-downgrade">
-              </iframe>
-            </div>
-          </div>
         </div>
       )}
 
