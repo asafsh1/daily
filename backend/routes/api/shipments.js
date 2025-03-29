@@ -10,7 +10,7 @@ const Shipment = require('../../models/Shipment');
 // @access  Public
 router.get('/', async (req, res) => {
   try {
-    console.log('Processing shipments request');
+    console.log('Processing shipments request - FIXED DIRECT VERSION');
     
     // Check database connection - if not connected, return empty data
     if (mongoose.connection.readyState !== 1) {
@@ -27,61 +27,86 @@ router.get('/', async (req, res) => {
       });
     }
     
-    // Add debug logging
-    console.log('MongoDB connection is ready, querying shipments...');
+    console.log('Database connected, fetching ALL shipments directly');
     
-    // Parse query parameters
-    const page = parseInt(req.query.page) || 1;
-    const limit = parseInt(req.query.limit) || 50; // Default to 50 items per page
-    const skip = (page - 1) * limit;
-    
-    // Get total count for pagination info - with debug
-    const totalCountStart = Date.now();
-    const totalShipments = await Shipment.countDocuments();
-    console.log(`Found ${totalShipments} total shipments in ${Date.now() - totalCountStart}ms`);
-    
-    // First get all shipments to debug
-    const allShipmentsStart = Date.now();
-    const allShipments = await Shipment.find().lean();
-    console.log(`Retrieved ${allShipments.length} shipments directly in ${Date.now() - allShipmentsStart}ms`);
-    console.log('Sample shipment data:', allShipments.length > 0 ? allShipments[0] : 'No shipments found');
-    
-    // Query with pagination and populate customer and legs
-    const queryStart = Date.now();
-    const shipments = await Shipment.find()
-      .sort({ dateAdded: -1 })
-      .skip(skip)
-      .limit(limit)
-      .populate('customer', 'name') // Populate customer with just the name field
-      .populate({
-        path: 'legs',
-        options: { sort: { legOrder: 1 } }, // Sort legs by order
-        select: 'awbNumber departureTime arrivalTime origin destination legOrder'
-      })
-      .lean(); // Use lean() for better performance
-    
-    console.log(`Retrieved ${shipments.length} paginated shipments in ${Date.now() - queryStart}ms`);
-    
-    // Return with pagination info
-    res.json({
-      shipments: allShipments, // Temporarily return all shipments directly to debug
-      pagination: {
-        total: totalShipments,
-        page,
-        pages: Math.ceil(totalShipments / limit)
+    try {
+      // Get all shipments WITHOUT POPULATE to avoid ObjectId casting errors
+      const allShipments = await Shipment.find()
+        .sort({ dateAdded: -1 })
+        .lean();
+      
+      console.log(`Directly found ${allShipments.length} shipments without populate`);
+      
+      // Process customers manually to handle both string names and ObjectIds
+      const processedShipments = allShipments.map(shipment => {
+        // If customer is a string (name), leave it as is
+        // Otherwise, it's already an ObjectId reference that would be populated
+        return {
+          ...shipment,
+          // Ensure customer is always presented in a consistent format
+          customer: typeof shipment.customer === 'string' 
+            ? { name: shipment.customer } // Convert string to object format
+            : shipment.customer // Keep as is for ObjectId references
+        };
+      });
+      
+      console.log(`Processed ${processedShipments.length} shipments for customer references`);
+      
+      // Get the count separately
+      const count = await Shipment.countDocuments();
+      console.log(`Count reports ${count} shipments`);
+      
+      // Return all shipments with simple pagination
+      return res.json({
+        shipments: processedShipments,
+        pagination: {
+          total: count,
+          page: 1,
+          pages: 1
+        }
+      });
+    } catch (queryErr) {
+      console.error('Error in direct shipment query:', queryErr);
+      
+      // If this is a customer ObjectId casting error, try a more direct approach
+      if (queryErr.message && queryErr.message.includes('Cast to ObjectId failed')) {
+        console.log('Detected ObjectId casting error, trying fallback approach...');
+        
+        try {
+          // Get all shipments with absolutely no filtering or population
+          const basicShipments = await Shipment.find({}, null, { lean: true });
+          console.log(`Fallback query found ${basicShipments.length} shipments`);
+          
+          // Format them minimally for display
+          const simpleShipments = basicShipments.map(ship => ({
+            ...ship,
+            customer: typeof ship.customer === 'string' 
+              ? { name: ship.customer } 
+              : (ship.customer || { name: 'Unknown' })
+          }));
+          
+          return res.json({
+            shipments: simpleShipments,
+            pagination: {
+              total: simpleShipments.length,
+              page: 1,
+              pages: 1
+            },
+            note: 'Using fallback data due to customer reference issues'
+          });
+        } catch (fallbackErr) {
+          console.error('Even fallback approach failed:', fallbackErr);
+          throw fallbackErr;
+        }
       }
-    });
+      
+      throw queryErr;
+    }
   } catch (err) {
-    console.error('Shipments route error:', err.message);
-    
-    // Return empty data with same structure instead of error
-    res.json({
-      shipments: [],
-      pagination: {
-        total: 0,
-        page: 1,
-        pages: 0
-      }
+    console.error('Error in shipments request:', err.message);
+    return res.status(500).json({
+      error: 'Error retrieving shipments',
+      message: err.message
     });
   }
 });
@@ -107,8 +132,8 @@ router.get('/:id', async (req, res) => {
       });
     }
     
+    // Get shipment without populating customer to avoid ObjectId casting errors
     const shipment = await Shipment.findById(req.params.id)
-      .populate('customer', 'name contactPerson email phone') // Populate with more customer details
       .populate({
         path: 'legs',
         options: { sort: { legOrder: 1 } }, // Sort legs by order
@@ -118,8 +143,33 @@ router.get('/:id', async (req, res) => {
     if (!shipment) {
       return res.status(404).json({ msg: 'Shipment not found' });
     }
+    
+    // Process customer field manually to handle both string and ObjectId references
+    let result = shipment.toObject();
+    
+    // If customer is a string (name), convert to object format
+    if (typeof result.customer === 'string') {
+      result.customer = { name: result.customer };
+    } 
+    // If customer is an ObjectId, try to populate it
+    else if (result.customer && mongoose.Types.ObjectId.isValid(result.customer)) {
+      try {
+        const customerDoc = await mongoose.model('customer').findById(result.customer);
+        if (customerDoc) {
+          result.customer = {
+            _id: customerDoc._id,
+            name: customerDoc.name,
+            contactPerson: customerDoc.contactPerson,
+            email: customerDoc.email,
+            phone: customerDoc.phone
+          };
+        }
+      } catch (err) {
+        console.error('Error populating customer:', err.message);
+      }
+    }
 
-    res.json(shipment);
+    res.json(result);
   } catch (err) {
     console.error('Error getting shipment by ID:', err.message);
     
