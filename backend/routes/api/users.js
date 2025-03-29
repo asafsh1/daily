@@ -119,7 +119,7 @@ router.get('/', auth, async (req, res) => {
   }
 });
 
-// @route   GET api/users
+// @route   GET api/users/test
 // @desc    Test route
 // @access  Public
 router.get('/test', (req, res) => {

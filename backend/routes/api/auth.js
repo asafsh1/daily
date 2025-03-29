@@ -18,10 +18,10 @@ const DEFAULT_ADMIN = {
   password: '$2a$10$yjCgV.GgaRwKaVcY9uc7B.Ai23JKz9Sm4UGaeMv3xSqcZIBDkzVlm' // bcrypt hash for 'admin123'
 };
 
-// @route   GET api/auth
+// @route   GET api/auth/test
 // @desc    Test auth route
 // @access  Public
-router.get('/', (req, res) => {
+router.get('/test', (req, res) => {
   res.json({ msg: 'Auth API Endpoint' });
 });
 
