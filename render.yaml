@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: daily-shipment-api
+    env: node
+    region: oregon
+    plan: free
+    buildCommand: cd backend && npm install
+    startCommand: cd backend && node server.js
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: MONGODB_URI
+        sync: false  # Let the user configure this via Render dashboard
+      - key: PORT
+        value: 10000  # Render will automatically use this for routing
+    healthCheckPath: /api/auth/test  # Use the test endpoint for health checks 
