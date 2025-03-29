@@ -27,15 +27,27 @@ router.get('/', async (req, res) => {
       });
     }
     
+    // Add debug logging
+    console.log('MongoDB connection is ready, querying shipments...');
+    
     // Parse query parameters
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 50; // Default to 50 items per page
     const skip = (page - 1) * limit;
     
-    // Get total count for pagination info
+    // Get total count for pagination info - with debug
+    const totalCountStart = Date.now();
     const totalShipments = await Shipment.countDocuments();
+    console.log(`Found ${totalShipments} total shipments in ${Date.now() - totalCountStart}ms`);
+    
+    // First get all shipments to debug
+    const allShipmentsStart = Date.now();
+    const allShipments = await Shipment.find().lean();
+    console.log(`Retrieved ${allShipments.length} shipments directly in ${Date.now() - allShipmentsStart}ms`);
+    console.log('Sample shipment data:', allShipments.length > 0 ? allShipments[0] : 'No shipments found');
     
     // Query with pagination and populate customer and legs
+    const queryStart = Date.now();
     const shipments = await Shipment.find()
       .sort({ dateAdded: -1 })
       .skip(skip)
@@ -48,9 +60,11 @@ router.get('/', async (req, res) => {
       })
       .lean(); // Use lean() for better performance
     
+    console.log(`Retrieved ${shipments.length} paginated shipments in ${Date.now() - queryStart}ms`);
+    
     // Return with pagination info
     res.json({
-      shipments,
+      shipments: allShipments, // Temporarily return all shipments directly to debug
       pagination: {
         total: totalShipments,
         page,
