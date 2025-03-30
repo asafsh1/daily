@@ -43,6 +43,9 @@ const Dashboard = ({
   
   const [diagnosticInfo, setDiagnosticInfo] = useState(null);
   const [diagnosticLoading, setDiagnosticLoading] = useState(false);
+  const [profitableShipments, setProfitableShipments] = useState([]);
+  const [lossShipments, setLossShipments] = useState([]);
+  const [activeTab, setActiveTab] = useState('all');
 
   // Run diagnostics first to check API/DB connectivity
   const runDiagnostics = async () => {
@@ -121,6 +124,30 @@ const Dashboard = ({
     
     if (error) {
       setErrorMsg(`Error loading dashboard: ${error.msg || 'Unknown error'}`);
+    }
+    
+    // Process financial data if summary exists
+    if (summary && summary.recentShipments && Array.isArray(summary.recentShipments)) {
+      // Calculate profit/loss for each shipment
+      const withProfit = summary.recentShipments.map(shipment => {
+        const cost = shipment.cost ? parseFloat(shipment.cost) : 0;
+        const receivables = shipment.receivables ? parseFloat(shipment.receivables) : 0;
+        const profit = receivables - cost;
+        return {
+          ...shipment,
+          profit,
+          isProfitable: profit > 0
+        };
+      });
+      
+      // Split into profitable and loss-making shipments
+      const profitable = withProfit.filter(s => s.isProfitable);
+      const loss = withProfit.filter(s => !s.isProfitable);
+      
+      setProfitableShipments(profitable);
+      setLossShipments(loss);
+      
+      console.log(`Processed ${profitable.length} profitable and ${loss.length} loss-making shipments`);
     }
   }, [summary, loading, error]);
 
@@ -286,58 +313,141 @@ const Dashboard = ({
         ))}
       </div>
 
+      {/* Financial summary section */}
+      <div className="financial-summary">
+        <h2 className="text-primary">Financial Summary</h2>
+        <div className="stats-row">
+          <div className="stats-card" onClick={() => handleSectionClick('total-cost', 'Total Cost')}>
+            <div className="stats-card-link">
+              <div className="stats-header">
+                <i className="fas fa-dollar-sign"></i>
+                <h3>Total Cost</h3>
+              </div>
+              <div className="stats-value">${summary?.totalCost ? summary.totalCost.toFixed(2) : '0.00'}</div>
+              <div className="stats-footer">All shipments</div>
+            </div>
+          </div>
+          
+          <div className="stats-card" onClick={() => handleSectionClick('total-receivables', 'Total Receivables')}>
+            <div className="stats-card-link">
+              <div className="stats-header">
+                <i className="fas fa-money-bill-wave"></i>
+                <h3>Total Receivables</h3>
+              </div>
+              <div className="stats-value">${summary?.totalReceivables ? summary.totalReceivables.toFixed(2) : '0.00'}</div>
+              <div className="stats-footer">All shipments</div>
+            </div>
+          </div>
+          
+          <div className="stats-card" onClick={() => handleSectionClick('total-profit', 'Total Profit')}>
+            <div className="stats-card-link">
+              <div className="stats-header">
+                <i className="fas fa-chart-line"></i>
+                <h3>Total Profit</h3>
+              </div>
+              <div className={`stats-value ${(summary?.totalProfit || 0) >= 0 ? 'text-success' : 'text-danger'}`}>
+                ${summary?.totalProfit ? Math.abs(summary.totalProfit).toFixed(2) : '0.00'}
+                {(summary?.totalProfit || 0) < 0 && ' (Loss)'}
+              </div>
+              <div className="stats-footer">All shipments</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <div className="dashboard-row">
         <div className="recent-shipments card">
           <div className="card-header">
             <h3>Recent Shipments</h3>
+            <div className="shipment-tabs">
+              <button 
+                className={`tab-button ${activeTab === 'all' ? 'active' : ''}`} 
+                onClick={() => setActiveTab('all')}
+              >
+                All
+              </button>
+              <button 
+                className={`tab-button ${activeTab === 'profitable' ? 'active' : ''}`} 
+                onClick={() => setActiveTab('profitable')}
+              >
+                Profitable
+              </button>
+              <button 
+                className={`tab-button ${activeTab === 'loss' ? 'active' : ''}`} 
+                onClick={() => setActiveTab('loss')}
+              >
+                Loss
+              </button>
+            </div>
             <Link to="/shipments" className="view-all">
               View All
             </Link>
           </div>
           
           <div className="card-body">
-            {recentShipments.length > 0 ? (
-              <div className="table-responsive">
-                <table className="table">
-                  <thead>
-                    <tr>
-                      <th>Date</th>
-                      <th>Customer</th>
-                      <th>Status</th>
-                      <th>Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {recentShipments.map(shipment => (
-                      <tr key={shipment._id}>
-                        <td>
-                          <Moment format="DD/MM/YYYY">
-                            {shipment.dateAdded}
-                          </Moment>
-                        </td>
-                        <td>
-                          {typeof shipment.customer === 'object' 
-                            ? (shipment.customer?.name || 'Unknown') 
-                            : (shipment.customer || 'Unknown')}
-                        </td>
-                        <td>
-                          <span className={`status-badge status-${shipment.shipmentStatus.toLowerCase().replace(/\s+/g, '-')}`}>
-                            {shipment.shipmentStatus}
-                          </span>
-                        </td>
-                        <td>
-                          <Link to={`/shipments/${shipment._id}`} className="btn btn-sm">
-                            View
-                          </Link>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            ) : (
-              <p>No recent shipments</p>
-            )}
+            {(() => {
+              let shipmentsToShow = [];
+              
+              if (activeTab === 'all') {
+                shipmentsToShow = recentShipments;
+              } else if (activeTab === 'profitable') {
+                shipmentsToShow = profitableShipments;
+              } else if (activeTab === 'loss') {
+                shipmentsToShow = lossShipments;
+              }
+              
+              if (shipmentsToShow.length > 0) {
+                return (
+                  <div className="table-responsive">
+                    <table className="table">
+                      <thead>
+                        <tr>
+                          <th>Date</th>
+                          <th>Customer</th>
+                          <th>Status</th>
+                          {activeTab !== 'all' && <th>Profit/Loss</th>}
+                          <th>Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {shipmentsToShow.map(shipment => (
+                          <tr key={shipment._id}>
+                            <td>
+                              <Moment format="DD/MM/YYYY">
+                                {shipment.dateAdded}
+                              </Moment>
+                            </td>
+                            <td>
+                              {typeof shipment.customer === 'object' 
+                                ? (shipment.customer?.name || 'Unknown') 
+                                : (shipment.customer || 'Unknown')}
+                            </td>
+                            <td>
+                              <span className={`status-badge status-${shipment.shipmentStatus.toLowerCase().replace(/\s+/g, '-')}`}>
+                                {shipment.shipmentStatus}
+                              </span>
+                            </td>
+                            {activeTab !== 'all' && (
+                              <td className={shipment.profit > 0 ? 'text-success' : 'text-danger'}>
+                                ${Math.abs(shipment.profit).toFixed(2)} 
+                                {shipment.profit < 0 && ' (Loss)'}
+                              </td>
+                            )}
+                            <td>
+                              <Link to={`/shipments/${shipment._id}`} className="btn btn-sm">
+                                View
+                              </Link>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                );
+              } else {
+                return <p>No shipments to display</p>;
+              }
+            })()}
           </div>
         </div>
 

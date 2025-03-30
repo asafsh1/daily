@@ -210,6 +210,14 @@ const ShipmentDetail = ({
             </div>
           </div>
 
+          {/* Shipment Legs section - moved higher in the layout as requested */}
+          <div className="shipment-info">
+            <h2>Shipment Legs</h2>
+            <div className="shipment-legs-container">
+              <ShipmentLegs shipmentId={id} readOnly={true} />
+            </div>
+          </div>
+
           <div className="shipment-info">
             <h2>Additional Information</h2>
             <div className="info-group">
@@ -260,11 +268,6 @@ const ShipmentDetail = ({
               shipment.legs.map(leg => leg.destination).join(' → ') : 'N/A'}</p>
             <p><strong>Package Count:</strong> {shipment.packageCount || 'N/A'}</p>
           </div>
-        </div>
-
-        {/* Shipment Legs section - placed before file information as requested */}
-        <div className="shipment-legs-section">
-          <ShipmentLegs shipmentId={id} readOnly={true} />
         </div>
 
         <div className="action-buttons">

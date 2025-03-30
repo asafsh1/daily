@@ -279,6 +279,15 @@ const Shipments = ({ getShipments, updateShipment, deleteShipment, shipment: { s
                       className={`status-badge status-${shipment.shipmentStatus.toLowerCase().split(' ')[0]}`}
                     >
                       {shipment.shipmentStatus}
+                      {shipment.legs && shipment.legs.length > 1 && (
+                        <span className="leg-info">
+                          (Leg {shipment.legs.findIndex(leg => 
+                            leg.status === 'active' || 
+                            leg.status === 'in progress' || 
+                            leg.legOrder === Math.max(...shipment.legs.map(l => l.completed ? 0 : l.legOrder))
+                          ) + 1}/{shipment.legs.length})
+                        </span>
+                      )}
                     </span>
                   </td>
                   <td>

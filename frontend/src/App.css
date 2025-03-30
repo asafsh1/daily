@@ -1745,4 +1745,248 @@ select:focus {
   font-size: 0.8rem;
   color: #6c757d;
   font-style: italic;
+}
+
+/* Dashboard styles */
+.dashboard {
+  padding: 20px 0;
+}
+
+.dashboard-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+  margin-bottom: 20px;
+}
+
+.stats-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 15px;
+  margin-bottom: 20px;
+}
+
+.stats-card {
+  background: #fff;
+  border-radius: 8px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+  padding: 20px;
+  transition: all 0.3s ease;
+  cursor: pointer;
+}
+
+.stats-card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+}
+
+.stats-card-link {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  text-decoration: none;
+  color: inherit;
+}
+
+.stats-header {
+  display: flex;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.stats-header i {
+  font-size: 24px;
+  margin-right: 10px;
+  color: #17a2b8;
+}
+
+.stats-header h3 {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 500;
+}
+
+.stats-value {
+  font-size: 1.8rem;
+  font-weight: 600;
+  margin: 10px 0;
+  color: #333;
+}
+
+.stats-footer {
+  font-size: 0.9rem;
+  color: #6c757d;
+  margin-top: auto;
+}
+
+/* Financial Summary Section */
+.financial-summary {
+  background-color: #f8f9fa;
+  border-radius: 8px;
+  padding: 20px;
+  margin-bottom: 20px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+}
+
+.financial-summary h2 {
+  margin-top: 0;
+  margin-bottom: 15px;
+  font-size: 1.5rem;
+}
+
+.financial-summary .stats-card {
+  background-color: white;
+}
+
+.text-success {
+  color: #28a745 !important;
+}
+
+.text-danger {
+  color: #dc3545 !important;
+}
+
+/* Dashboard Tabs */
+.shipment-tabs {
+  display: flex;
+  margin: 0 15px;
+}
+
+.tab-button {
+  background: none;
+  border: none;
+  padding: 8px 15px;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  font-weight: 500;
+  transition: all 0.2s ease;
+}
+
+.tab-button:hover {
+  background-color: #f1f1f1;
+}
+
+.tab-button.active {
+  border-bottom: 2px solid #17a2b8;
+  color: #17a2b8;
+}
+
+/* Improved Status Display */
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 5px 10px;
+  border-radius: 20px;
+  font-size: 0.85rem;
+  font-weight: 500;
+  text-transform: capitalize;
+  background-color: #eee;
+  line-height: 1;
+}
+
+.status-badge.status-pending {
+  background-color: #ffeeba;
+  color: #856404;
+}
+
+.status-badge.status-in-transit {
+  background-color: #b8e5ff;
+  color: #004085;
+}
+
+.status-badge.status-arrived {
+  background-color: #c3e6cb;
+  color: #155724;
+}
+
+.status-badge.status-delayed {
+  background-color: #f5c6cb;
+  color: #721c24;
+}
+
+.status-badge.status-canceled {
+  background-color: #d6d8db;
+  color: #383d41;
+}
+
+/* Status with leg info */
+.status-badge .leg-info {
+  margin-left: 5px;
+  font-size: 0.75rem;
+  opacity: 0.9;
+  font-style: italic;
+}
+
+/* Status items in dashboard */
+.status-distribution {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 10px;
+}
+
+.status-item {
+  display: flex;
+  align-items: center;
+  padding: 10px;
+  border-radius: 5px;
+  background-color: #f8f9fa;
+  text-decoration: none;
+  color: inherit;
+  transition: all 0.2s ease;
+}
+
+.status-item:hover {
+  background-color: #e9ecef;
+  transform: translateY(-2px);
+}
+
+.status-color {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  margin-right: 8px;
+}
+
+.status-color.status-pending {
+  background-color: #ffc107;
+}
+
+.status-color.status-in-transit {
+  background-color: #17a2b8;
+}
+
+.status-color.status-arrived {
+  background-color: #28a745;
+}
+
+.status-color.status-delayed {
+  background-color: #dc3545;
+}
+
+.status-color.status-canceled {
+  background-color: #6c757d;
+}
+
+.status-label {
+  flex-grow: 1;
+  font-size: 0.9rem;
+}
+
+.status-count {
+  font-weight: 600;
+  background-color: #e9ecef;
+  padding: 3px 8px;
+  border-radius: 10px;
+  font-size: 0.85rem;
+}
+
+/* Responsive adjustments */
+@media (max-width: 992px) {
+  .dashboard-row {
+    grid-template-columns: 1fr;
+  }
+  
+  .stats-row {
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  }
 } 
