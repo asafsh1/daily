@@ -205,7 +205,21 @@ const Shipments = ({ getShipments, updateShipment, shipment: { shipments, loadin
                       shipment.awbNumber1 || 'No AWBs'
                     )}
                   </td>
-                  <td>{shipment.routing || '-'}</td>
+                  <td>
+                    {shipment.legs && shipment.legs.length > 0 ? (
+                      // Calculate routing from legs
+                      <div className="routing">
+                        {shipment.legs.map((leg, index) => (
+                          <span key={index}>
+                            {index === 0 ? leg.origin : ""}
+                            {index >= 0 ? "-" + leg.destination : ""}
+                          </span>
+                        ))}
+                      </div>
+                    ) : (
+                      shipment.routing || '-'
+                    )}
+                  </td>
                   <td>
                     <span 
                       className={`status-badge order-status-${shipment.orderStatus ? shipment.orderStatus.replace(/\s+/g, '-').toLowerCase() : 'unknown'}`}

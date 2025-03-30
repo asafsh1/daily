@@ -60,179 +60,57 @@ router.get('/:shipmentId/:legId', async (req, res) => {
 });
 
 // @route    POST api/shipment-legs/:shipmentId
-// @desc     Add a leg to a shipment
+// @desc     Add a new leg to a shipment
 // @access   Public
-router.post(
-  '/:shipmentId',
-  [
-    [
-      check('origin', 'Origin is required').not().isEmpty(),
-      check('destination', 'Destination is required').not().isEmpty(),
-      check('flightNumber', 'Flight number is required').not().isEmpty(),
-      check('mawbNumber', 'MAWB number is required').not().isEmpty(),
-      check('departureTime', 'Departure time is required').isISO8601(),
-      check('arrivalTime', 'Arrival time is required').isISO8601()
-    ]
-  ],
-  async (req, res) => {
-    try {
-      console.log('-- Starting shipment leg creation --');
-      console.log('Shipment ID:', req.params.shipmentId);
-      console.log('Request body:', JSON.stringify(req.body));
-      
-      const errors = validationResult(req);
-      if (!errors.isEmpty()) {
-        console.log('Validation errors:', errors.array());
-        return res.status(400).json({ errors: errors.array() });
-      }
-
-      // Check if ID is valid
-      if (!mongoose.Types.ObjectId.isValid(req.params.shipmentId)) {
-        console.log('Invalid shipment ID format:', req.params.shipmentId);
-        return res.status(400).json({ 
-          errors: [{ msg: 'Invalid shipment ID format' }]
-        });
-      }
-      
-      // Check if shipment exists
-      let shipment;
-      try {
-        shipment = await Shipment.findById(req.params.shipmentId);
-        console.log('Found shipment:', shipment ? 'yes' : 'no');
-      } catch (err) {
-        console.error('Error finding shipment:', err.message);
-        return res.status(500).json({ 
-          msg: 'Error finding shipment', 
-          error: err.message 
-        });
-      }
-      
-      if (!shipment) {
-        console.log('Shipment not found with ID:', req.params.shipmentId);
-        return res.status(404).json({ msg: 'Shipment not found' });
-      }
-
-      // Initialize legs array if not present
-      if (!shipment.legs) {
-        console.log('Creating legs array - it was not defined');
-        shipment.legs = [];
-        await shipment.save();
-      }
-
-      // Auto-assign legOrder if not specified
-      let legOrder = req.body.legOrder;
-      if (!legOrder) {
-        // Find the max leg order and add 1
-        const existingLegs = await ShipmentLeg.find({ shipmentId: req.params.shipmentId })
-          .sort({ legOrder: -1 })
-          .limit(1);
-          
-        legOrder = existingLegs.length > 0 ? existingLegs[0].legOrder + 1 : 1;
-        console.log('Auto-assigned leg order:', legOrder);
-      } else {
-        // Check if a leg with the same order already exists
-        const existingLeg = await ShipmentLeg.findOne({
-          shipmentId: req.params.shipmentId,
-          legOrder: req.body.legOrder
-        });
-
-        if (existingLeg) {
-          console.log('Leg with order', req.body.legOrder, 'already exists');
-          return res.status(400).json({ 
-            errors: [{ msg: `Leg ${req.body.legOrder} already exists for this shipment` }] 
-          });
-        }
-      }
-
-      // Extract leg data from request
-      const {
-        origin,
-        destination,
-        flightNumber,
-        mawbNumber,
-        departureTime,
-        arrivalTime,
-        status,
-        notes
-      } = req.body;
-
-      console.log('Creating new ShipmentLeg document with:');
-      console.log('- shipmentId:', req.params.shipmentId);
-      console.log('- legOrder:', legOrder);
-      console.log('- origin:', origin);
-      console.log('- destination:', destination);
-      console.log('- departure:', departureTime);
-      console.log('- arrival:', arrivalTime);
-
-      // Create new leg document
-      const shipmentLeg = new ShipmentLeg({
-        shipmentId: req.params.shipmentId,
-        legOrder,
-        origin,
-        destination,
-        flightNumber,
-        mawbNumber,
-        departureTime,
-        arrivalTime,
-        status: status || 'Pending',
-        notes
-      });
-      
-      let savedLeg;
-      try {
-        savedLeg = await shipmentLeg.save();
-        console.log('Successfully saved leg with ID:', savedLeg._id);
-      } catch (err) {
-        console.error('Error saving shipment leg:', err.message, err.stack);
-        return res.status(500).json({ 
-          msg: 'Error saving shipment leg', 
-          error: err.message 
-        });
-      }
-      
-      // Add the leg to the shipment's legs array if not already there
-      if (!shipment.legs.includes(savedLeg._id)) {
-        console.log('Adding leg ID to shipment legs array');
-        shipment.legs.push(savedLeg._id);
-        
-        try {
-          await shipment.save();
-          console.log('Updated shipment with new leg reference');
-        } catch (err) {
-          console.error('Error updating shipment with leg reference:', err.message);
-          // Continue even if this fails - we've already saved the leg
-        }
-      } else {
-        console.log('Leg already in shipment legs array');
-      }
-
-      // Update the shipment routing
-      try {
-        await updateShipmentRouting(req.params.shipmentId);
-      } catch (err) {
-        console.error('Error updating shipment routing:', err.message);
-        // Continue even if this fails
-      }
-      
-      // Update the shipment status based on legs
-      try {
-        await updateShipmentStatus(req.params.shipmentId);
-      } catch (err) {
-        console.error('Error updating shipment status:', err.message);
-        // Continue even if this fails
-      }
-
-      console.log('Shipment leg creation completed successfully');
-      res.json(savedLeg);
-    } catch (err) {
-      console.error('Error creating shipment leg:', err.message, err.stack);
-      res.status(500).json({
-        msg: 'Server Error', 
-        error: err.message
-      });
+router.post('/:shipmentId', async (req, res) => {
+  try {
+    const shipmentId = req.params.shipmentId;
+    console.log(`Adding leg to shipment ${shipmentId}`, req.body);
+    
+    // Check if shipment exists
+    const shipment = await Shipment.findById(shipmentId);
+    if (!shipment) {
+      return res.status(404).json({ errors: [{ msg: 'Shipment not found' }] });
     }
+    
+    // Find highest leg order for this shipment
+    const highestOrderLeg = await ShipmentLeg.findOne({ shipmentId })
+      .sort({ legOrder: -1 })
+      .limit(1);
+      
+    // Determine the leg order
+    let legOrder = req.body.legOrder;
+    if (!legOrder) {
+      legOrder = highestOrderLeg ? highestOrderLeg.legOrder + 1 : 1;
+    }
+
+    // Create the new leg
+    const legData = {
+      ...req.body,
+      shipmentId,
+      legOrder
+    };
+    
+    const leg = new ShipmentLeg(legData);
+    await leg.save();
+    
+    // Add leg to shipment's legs array if not already there
+    if (!shipment.legs.includes(leg._id)) {
+      shipment.legs.push(leg._id);
+    }
+    
+    // Update shipment status based on legs
+    await updateShipmentStatusFromLegs(shipmentId);
+    
+    // Save shipment
+    await shipment.save();
+    
+    res.json(leg);
+  } catch (err) {
+    console.error('Error adding shipment leg:', err.message);
+    res.status(500).json({ errors: [{ msg: 'Server error adding shipment leg' }] });
   }
-);
+});
 
 // @route    PUT api/shipment-legs/:shipmentId/:legId
 // @desc     Update a shipment leg
@@ -301,7 +179,7 @@ router.put(
       await updateShipmentRouting(req.params.shipmentId);
       
       // Update the shipment status based on legs
-      await updateShipmentStatus(req.params.shipmentId);
+      await updateShipmentStatusFromLegs(req.params.shipmentId);
 
       res.json(shipmentLeg);
     } catch (err) {
@@ -346,7 +224,7 @@ router.delete('/:shipmentId/:legId', async (req, res) => {
     await updateShipmentRouting(req.params.shipmentId);
     
     // Update the shipment status based on legs
-    await updateShipmentStatus(req.params.shipmentId);
+    await updateShipmentStatusFromLegs(req.params.shipmentId);
 
     res.json({ msg: 'Shipment leg removed' });
   } catch (err) {
@@ -415,47 +293,59 @@ async function updateShipmentRouting(shipmentId) {
   }
 }
 
-// Helper function to update shipment status based on leg statuses
-async function updateShipmentStatus(shipmentId) {
+// Helper function to update shipment status based on legs
+async function updateShipmentStatusFromLegs(shipmentId) {
   try {
-    // Get all legs for this shipment in order
+    // Find all legs for this shipment, sorted by leg order
     const legs = await ShipmentLeg.find({ shipmentId }).sort({ legOrder: 1 });
     
-    if (legs.length === 0) {
+    // Get the shipment
+    const shipment = await Shipment.findById(shipmentId);
+    if (!shipment) {
+      console.error(`Shipment ${shipmentId} not found for status update`);
       return;
     }
-
-    // Determine the shipment status based on the legs
-    let shipmentStatus = 'Pending';
-    const lastLeg = legs[legs.length - 1];
-    const firstLeg = legs[0];
     
-    // If the last leg is arrived, the whole shipment is arrived
-    if (lastLeg.status === 'Arrived') {
-      shipmentStatus = 'Arrived';
-    }
-    // If any leg is in transit, the shipment is in transit
-    else if (legs.some(leg => leg.status === 'In Transit')) {
-      // Check which leg is in transit to provide more specific status
-      const inTransitLeg = legs.find(leg => leg.status === 'In Transit');
-      shipmentStatus = `In Transit (Leg ${inTransitLeg.legOrder})`;
-    }
-    // If any leg is delayed, the shipment is delayed
-    else if (legs.some(leg => leg.status === 'Delayed')) {
-      const delayedLeg = legs.find(leg => leg.status === 'Delayed');
-      shipmentStatus = `Delayed (Leg ${delayedLeg.legOrder})`;
-    }
-    // If any leg is canceled, the shipment is canceled
-    else if (legs.some(leg => leg.status === 'Canceled')) {
-      shipmentStatus = 'Canceled';
+    // Determine status based on legs
+    let newStatus = 'Pending';
+    
+    if (legs.length === 0) {
+      newStatus = 'Pending';
+    } else {
+      // Check if all legs have arrived
+      const allLegsArrived = legs.every(leg => leg.status === 'Arrived');
+      
+      // Check if any leg is in transit
+      const anyLegInTransit = legs.some(leg => leg.status === 'In Transit');
+      
+      // Check if any leg is delayed
+      const anyLegDelayed = legs.some(leg => leg.status === 'Delayed');
+      
+      if (allLegsArrived) {
+        newStatus = 'Arrived';
+      } else if (anyLegDelayed) {
+        newStatus = 'Delayed';
+      } else if (anyLegInTransit) {
+        newStatus = 'In Transit';
+      }
+      
+      // If multiple legs, show which leg is active
+      if (legs.length > 1 && !allLegsArrived) {
+        // Find the active leg (first non-arrived leg)
+        const activeLegIndex = legs.findIndex(leg => leg.status !== 'Arrived');
+        if (activeLegIndex !== -1) {
+          newStatus = `${newStatus} (Leg ${legs[activeLegIndex].legOrder})`;
+        }
+      }
     }
     
-    // Update the shipment status
-    await Shipment.findByIdAndUpdate(shipmentId, { shipmentStatus });
+    // Update shipment status
+    shipment.shipmentStatus = newStatus;
+    await shipment.save();
     
-    console.log(`Updated shipment ${shipmentId} status to ${shipmentStatus}`);
+    console.log(`Updated shipment ${shipmentId} status to ${newStatus}`);
   } catch (err) {
-    console.error('Error updating shipment status:', err);
+    console.error('Error updating shipment status from legs:', err.message);
   }
 }
 
