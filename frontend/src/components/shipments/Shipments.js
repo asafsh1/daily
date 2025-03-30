@@ -198,13 +198,31 @@ const Shipments = ({ getShipments, updateShipment, deleteShipment, shipment: { s
     });
     
     // Convert the map to an array with formatted AWB strings
-    return Array.from(awbMap.values()).map(data => {
-      // If AWB appears in multiple legs, show leg numbers
-      if (data.legNumbers.length > 1) {
-        return `${data.awb} (Leg ${data.legNumbers.join('/')})`;
+    return Array.from(awbMap.values());
+  };
+  
+  // Helper function to normalize shipment status
+  const normalizeShipmentStatus = (status) => {
+    if (!status) return 'Unknown';
+    
+    // Remove any leg information from the status
+    const baseStatusMap = {
+      'pending': 'Pending',
+      'in transit': 'In Transit',
+      'arrived': 'Arrived',
+      'delayed': 'Delayed',
+      'canceled': 'Canceled'
+    };
+    
+    // Find which base status this starts with
+    const statusLower = status.toLowerCase();
+    for (const [key, value] of Object.entries(baseStatusMap)) {
+      if (statusLower.startsWith(key)) {
+        return value;
       }
-      return data.awb;
-    });
+    }
+    
+    return status;
   };
 
   return loading ? (
@@ -286,9 +304,12 @@ const Shipments = ({ getShipments, updateShipment, deleteShipment, shipment: { s
                   <td>
                     {shipment.legs && shipment.legs.length > 0 ? (
                       <div className="awb-list">
-                        {getUniqueAWBs(shipment).map((awb, index) => (
+                        {getUniqueAWBs(shipment).map((data, index) => (
                           <div key={index} className="leg-awb">
-                            {awb}
+                            {data.legNumbers.length > 1 
+                              ? `${data.awb} (Leg ${data.legNumbers.join('/')})`
+                              : data.awb
+                            }
                           </div>
                         ))}
                         {shipment.legs.some(leg => leg.mawbNumber) && (
@@ -325,9 +346,9 @@ const Shipments = ({ getShipments, updateShipment, deleteShipment, shipment: { s
                   </td>
                   <td>
                     <span 
-                      className={`status-badge status-${shipment.shipmentStatus.toLowerCase().split(' ')[0]}`}
+                      className={`status-badge status-${normalizeShipmentStatus(shipment.shipmentStatus).toLowerCase().replace(/\s+/g, '-')}`}
                     >
-                      {shipment.shipmentStatus}
+                      {normalizeShipmentStatus(shipment.shipmentStatus)}
                       {shipment.legs && shipment.legs.length > 1 && (
                         <span className="leg-info">
                           (Leg {shipment.legs.findIndex(leg => 
