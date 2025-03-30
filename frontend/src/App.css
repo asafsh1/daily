@@ -1915,6 +1915,12 @@ select:focus {
   font-size: 0.75rem;
   opacity: 0.9;
   font-style: italic;
+  color: #333;
+  background-color: rgba(255, 255, 255, 0.7);
+  border-radius: 3px;
+  padding: 1px 4px;
+  display: inline-block;
+  margin-top: 2px;
 }
 
 /* Status items in dashboard */
@@ -1989,4 +1995,45 @@ select:focus {
   .stats-row {
     grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
   }
+}
+
+/* Shipment detail view spacing */
+.shipment-info {
+  margin-bottom: 20px;
+  padding: 15px;
+  background-color: #fff;
+  border-radius: 8px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.shipment-legs-container {
+  margin-bottom: 15px;
+}
+
+/* Fix for the financial data table */
+.financial-data-table {
+  margin-top: 20px;
+  background-color: white;
+  border-radius: 8px;
+  padding: 15px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.financial-data-table h3 {
+  margin-top: 0;
+  margin-bottom: 15px;
+  font-size: 1.3rem;
+  color: #333;
+}
+
+.active-leg-route {
+  margin-top: 5px;
+  color: #666;
+  font-size: 0.85rem;
+}
+
+.active-leg-route small {
+  display: block;
+  padding-left: 5px;
+  border-left: 2px solid rgba(0, 0, 0, 0.1);
 } 

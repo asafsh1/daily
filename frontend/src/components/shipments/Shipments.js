@@ -289,6 +289,29 @@ const Shipments = ({ getShipments, updateShipment, deleteShipment, shipment: { s
                         </span>
                       )}
                     </span>
+                    {shipment.legs && shipment.legs.length > 0 && (
+                      <div className="active-leg-route">
+                        {(() => {
+                          // Find the active leg index
+                          const activeLegIndex = shipment.legs.findIndex(leg => 
+                            leg.status === 'active' || 
+                            leg.status === 'in progress' || 
+                            leg.legOrder === Math.max(...shipment.legs.map(l => l.completed ? 0 : l.legOrder))
+                          );
+                          
+                          // If active leg found, show its route
+                          if (activeLegIndex >= 0 && activeLegIndex < shipment.legs.length) {
+                            const activeLeg = shipment.legs[activeLegIndex];
+                            return (
+                              <small>
+                                {activeLeg.origin} → {activeLeg.destination}
+                              </small>
+                            );
+                          }
+                          return null;
+                        })()}
+                      </div>
+                    )}
                   </td>
                   <td>
                     {shipment.legs && shipment.legs.length > 0 ? (

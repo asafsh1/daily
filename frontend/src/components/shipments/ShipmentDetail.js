@@ -240,9 +240,11 @@ const ShipmentDetail = ({
         <h2 className="shipment-detail-heading">Shipment Details</h2>
         <div className="shipment-header">
           <h3>
-            AWB: {shipment.legs && shipment.legs.length > 0 
-              ? shipment.legs.map(leg => leg.awbNumber).filter(Boolean).join(', ') 
-              : 'No AWB'}
+            {shipment.legs && shipment.legs.length > 0 && shipment.legs.some(leg => leg.awbNumber) ? (
+              <>
+                AWB: {shipment.legs.map(leg => leg.awbNumber).filter(Boolean).join(', ')}
+              </>
+            ) : null}
           </h3>
           <p className={`status-badge ${shipment.shipmentStatus.toLowerCase()}`}>
             {shipment.shipmentStatus}
