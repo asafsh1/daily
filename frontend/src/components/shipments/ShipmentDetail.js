@@ -209,30 +209,31 @@ const ShipmentDetail = ({
               </div>
             </div>
           </div>
+        </div>
 
-          {/* Shipment Legs section - moved higher in the layout as requested */}
-          <div className="shipment-info">
-            <h2>Shipment Legs</h2>
-            <div className="shipment-legs-container">
-              <ShipmentLegs shipmentId={id} readOnly={true} />
-            </div>
+        {/* Shipment Legs section - placed in its own container outside the grid */}
+        <div className="shipment-section">
+          <h2>Shipment Legs</h2>
+          <div className="shipment-legs-container">
+            <ShipmentLegs shipmentId={id} readOnly={true} />
           </div>
+        </div>
 
-          <div className="shipment-info">
-            <h2>Additional Information</h2>
-            <div className="info-group">
-              <div className="info-item">
-                <span className="info-label">Comments:</span>
-                <span className="info-value">{shipment.comments || 'N/A'}</span>
-              </div>
-              <div className="info-item">
-                <span className="info-label">Last Updated:</span>
-                <span className="info-value">
-                  <Moment format="DD/MM/YYYY HH:mm">
-                    {shipment.updatedAt}
-                  </Moment>
-                </span>
-              </div>
+        {/* Additional Information in its own container */}
+        <div className="shipment-section">
+          <h2>Additional Information</h2>
+          <div className="info-group">
+            <div className="info-item">
+              <span className="info-label">Comments:</span>
+              <span className="info-value">{shipment.comments || 'N/A'}</span>
+            </div>
+            <div className="info-item">
+              <span className="info-label">Last Updated:</span>
+              <span className="info-value">
+                <Moment format="DD/MM/YYYY HH:mm">
+                  {shipment.updatedAt}
+                </Moment>
+              </span>
             </div>
           </div>
         </div>

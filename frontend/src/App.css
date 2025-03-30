@@ -1679,59 +1679,207 @@ select:focus {
   color: #6c757d;
 }
 
-/* Status badge styles */
+/* Improved Status Badge Styling */
 .status-badge {
-  display: inline-block;
-  padding: 0.25em 0.6em;
-  font-size: 0.75em;
-  font-weight: 700;
-  line-height: 1;
-  color: #fff;
-  text-align: center;
-  white-space: normal;
-  vertical-align: baseline;
-  border-radius: 0.25rem;
+  display: inline-flex;
+  align-items: center;
+  padding: 5px 10px;
+  border-radius: 20px;
+  font-size: 0.85rem;
+  font-weight: 500;
   text-transform: capitalize;
-  max-width: 150px;
-  word-wrap: break-word;
+  background-color: #eee;
+  color: #333; /* Default dark text for light backgrounds */
+  line-height: 1;
 }
 
-.status-in {
+.status-badge.status-pending {
+  background-color: #ffc107; /* Amber */
+  color: #000000; /* Black text for contrast */
+}
+
+.status-badge.status-in-transit {
+  background-color: #0277bd; /* Dark blue */
+  color: #ffffff; /* White text */
+}
+
+.status-badge.status-arrived {
+  background-color: #2e7d32; /* Dark green */
+  color: #ffffff; /* White text */
+}
+
+.status-badge.status-delayed {
+  background-color: #c62828; /* Dark red */
+  color: #ffffff; /* White text */
+}
+
+.status-badge.status-canceled {
+  background-color: #616161; /* Dark grey */
+  color: #ffffff; /* White text */
+}
+
+/* Status with leg info */
+.status-badge .leg-info {
+  margin-left: 5px;
+  font-size: 0.75rem;
+  opacity: 0.9;
+  font-style: italic;
+  color: #333; /* Darker text color for better visibility */
+  background-color: rgba(255, 255, 255, 0.8); /* More opaque white background */
+  border-radius: 3px;
+  padding: 2px 5px;
+  display: inline-block;
+  margin-top: 2px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+}
+
+.active-leg-route {
+  margin-top: 5px;
+  color: #333; /* Darker text color */
+  font-size: 0.85rem;
+  background-color: rgba(255, 255, 255, 0.7);
+  border-radius: 3px;
+  padding: 2px 4px;
+}
+
+.active-leg-route small {
+  display: block;
+  padding-left: 5px;
+  border-left: 2px solid rgba(0, 0, 0, 0.2); /* Darker border */
+}
+
+/* Status items in dashboard */
+.status-distribution {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 10px;
+}
+
+.status-item {
+  display: flex;
+  align-items: center;
+  padding: 10px;
+  border-radius: 5px;
+  background-color: #f8f9fa;
+  text-decoration: none;
+  color: inherit;
+  transition: all 0.2s ease;
+}
+
+.status-item:hover {
+  background-color: #e9ecef;
+  transform: translateY(-2px);
+}
+
+.status-color {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  margin-right: 8px;
+}
+
+.status-color.status-pending {
+  background-color: #ffc107;
+}
+
+.status-color.status-in-transit {
   background-color: #17a2b8;
 }
 
-.status-delayed {
-  background-color: #ffc107;
-  color: #212529;
-}
-
-.status-arrived {
+.status-color.status-arrived {
   background-color: #28a745;
 }
 
-.status-pending {
+.status-color.status-delayed {
+  background-color: #dc3545;
+}
+
+.status-color.status-canceled {
   background-color: #6c757d;
 }
 
-.status-canceled {
-  background-color: #dc3545;
+.status-label {
+  flex-grow: 1;
+  font-size: 0.9rem;
 }
 
-/* Order status badge styles */
-.order-status-planned {
-  background-color: #007bff;
+.status-count {
+  font-weight: 600;
+  background-color: #e9ecef;
+  padding: 3px 8px;
+  border-radius: 10px;
+  font-size: 0.85rem;
 }
 
-.order-status-confirmed {
-  background-color: #6610f2;
+/* Responsive adjustments */
+@media (max-width: 992px) {
+  .dashboard-row {
+    grid-template-columns: 1fr;
+  }
+  
+  .stats-row {
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  }
 }
 
-.order-status-done {
-  background-color: #28a745;
+/* Shipment detail view spacing */
+.shipment-section {
+  margin-bottom: 30px;
+  padding: 20px;
+  background-color: #fff;
+  border-radius: 8px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  width: 100%;
+  clear: both;
 }
 
-.order-status-canceled {
-  background-color: #dc3545;
+.shipment-section h2 {
+  margin-top: 0;
+  margin-bottom: 15px;
+  color: #333;
+  font-size: 1.5rem;
+}
+
+.shipment-info {
+  margin-bottom: 20px;
+  padding: 15px;
+  background-color: #fff;
+  border-radius: 8px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+/* Improved status badge contrast */
+.status-badge.status-in-transit {
+  background-color: #0277bd; /* Darker blue */
+  color: #ffffff; /* White text */
+}
+
+/* Fix for the financial data table */
+.financial-data-table {
+  margin-top: 20px;
+  background-color: white;
+  border-radius: 8px;
+  padding: 15px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.financial-data-table h3 {
+  margin-top: 0;
+  margin-bottom: 15px;
+  font-size: 1.3rem;
+  color: #333;
+}
+
+.active-leg-route {
+  margin-top: 5px;
+  color: #666;
+  font-size: 0.85rem;
+}
+
+.active-leg-route small {
+  display: block;
+  padding-left: 5px;
+  border-left: 2px solid rgba(0, 0, 0, 0.1);
 }
 
 /* Invoice info in shipments table */
@@ -1871,169 +2019,23 @@ select:focus {
   color: #17a2b8;
 }
 
-/* Improved Status Display */
-.status-badge {
-  display: inline-flex;
-  align-items: center;
-  padding: 5px 10px;
-  border-radius: 20px;
-  font-size: 0.85rem;
-  font-weight: 500;
-  text-transform: capitalize;
-  background-color: #eee;
-  line-height: 1;
+/* Order status badge styles */
+.order-status-planned {
+  background-color: #007bff;
+  color: #ffffff;
 }
 
-.status-badge.status-pending {
-  background-color: #ffeeba;
-  color: #856404;
+.order-status-confirmed {
+  background-color: #6610f2;
+  color: #ffffff;
 }
 
-.status-badge.status-in-transit {
-  background-color: #b8e5ff;
-  color: #004085;
-}
-
-.status-badge.status-arrived {
-  background-color: #c3e6cb;
-  color: #155724;
-}
-
-.status-badge.status-delayed {
-  background-color: #f5c6cb;
-  color: #721c24;
-}
-
-.status-badge.status-canceled {
-  background-color: #d6d8db;
-  color: #383d41;
-}
-
-/* Status with leg info */
-.status-badge .leg-info {
-  margin-left: 5px;
-  font-size: 0.75rem;
-  opacity: 0.9;
-  font-style: italic;
-  color: #333;
-  background-color: rgba(255, 255, 255, 0.7);
-  border-radius: 3px;
-  padding: 1px 4px;
-  display: inline-block;
-  margin-top: 2px;
-}
-
-/* Status items in dashboard */
-.status-distribution {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-  gap: 10px;
-}
-
-.status-item {
-  display: flex;
-  align-items: center;
-  padding: 10px;
-  border-radius: 5px;
-  background-color: #f8f9fa;
-  text-decoration: none;
-  color: inherit;
-  transition: all 0.2s ease;
-}
-
-.status-item:hover {
-  background-color: #e9ecef;
-  transform: translateY(-2px);
-}
-
-.status-color {
-  width: 12px;
-  height: 12px;
-  border-radius: 50%;
-  margin-right: 8px;
-}
-
-.status-color.status-pending {
-  background-color: #ffc107;
-}
-
-.status-color.status-in-transit {
-  background-color: #17a2b8;
-}
-
-.status-color.status-arrived {
+.order-status-done {
   background-color: #28a745;
+  color: #ffffff;
 }
 
-.status-color.status-delayed {
+.order-status-canceled {
   background-color: #dc3545;
-}
-
-.status-color.status-canceled {
-  background-color: #6c757d;
-}
-
-.status-label {
-  flex-grow: 1;
-  font-size: 0.9rem;
-}
-
-.status-count {
-  font-weight: 600;
-  background-color: #e9ecef;
-  padding: 3px 8px;
-  border-radius: 10px;
-  font-size: 0.85rem;
-}
-
-/* Responsive adjustments */
-@media (max-width: 992px) {
-  .dashboard-row {
-    grid-template-columns: 1fr;
-  }
-  
-  .stats-row {
-    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-  }
-}
-
-/* Shipment detail view spacing */
-.shipment-info {
-  margin-bottom: 20px;
-  padding: 15px;
-  background-color: #fff;
-  border-radius: 8px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-}
-
-.shipment-legs-container {
-  margin-bottom: 15px;
-}
-
-/* Fix for the financial data table */
-.financial-data-table {
-  margin-top: 20px;
-  background-color: white;
-  border-radius: 8px;
-  padding: 15px;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
-}
-
-.financial-data-table h3 {
-  margin-top: 0;
-  margin-bottom: 15px;
-  font-size: 1.3rem;
-  color: #333;
-}
-
-.active-leg-route {
-  margin-top: 5px;
-  color: #666;
-  font-size: 0.85rem;
-}
-
-.active-leg-route small {
-  display: block;
-  padding-left: 5px;
-  border-left: 2px solid rgba(0, 0, 0, 0.1);
+  color: #ffffff;
 } 

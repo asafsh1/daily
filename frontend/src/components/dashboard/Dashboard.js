@@ -348,8 +348,12 @@ const Dashboard = ({
                 ${activeTab === 'all' 
                   ? (summary?.totalCost ? summary.totalCost.toFixed(2) : '0.00')
                   : activeTab === 'profitable'
-                    ? (profitableShipments.reduce((total, s) => total + (s.cost || 0), 0)).toFixed(2)
-                    : (lossShipments.reduce((total, s) => total + (s.cost || 0), 0)).toFixed(2)
+                    ? (Array.isArray(profitableShipments) && profitableShipments.length > 0 
+                        ? profitableShipments.reduce((total, s) => total + (parseFloat(s.cost || 0)), 0).toFixed(2) 
+                        : '0.00')
+                    : (Array.isArray(lossShipments) && lossShipments.length > 0 
+                        ? lossShipments.reduce((total, s) => total + (parseFloat(s.cost || 0)), 0).toFixed(2) 
+                        : '0.00')
                 }
               </div>
               <div className="stats-footer">
@@ -369,8 +373,12 @@ const Dashboard = ({
                 ${activeTab === 'all' 
                   ? (summary?.totalReceivables ? summary.totalReceivables.toFixed(2) : '0.00')
                   : activeTab === 'profitable'
-                    ? (profitableShipments.reduce((total, s) => total + (s.receivables || 0), 0)).toFixed(2)
-                    : (lossShipments.reduce((total, s) => total + (s.receivables || 0), 0)).toFixed(2)
+                    ? (Array.isArray(profitableShipments) && profitableShipments.length > 0 
+                        ? profitableShipments.reduce((total, s) => total + (parseFloat(s.receivables || 0)), 0).toFixed(2) 
+                        : '0.00')
+                    : (Array.isArray(lossShipments) && lossShipments.length > 0 
+                        ? lossShipments.reduce((total, s) => total + (parseFloat(s.receivables || 0)), 0).toFixed(2) 
+                        : '0.00')
                 }
               </div>
               <div className="stats-footer">
@@ -392,8 +400,20 @@ const Dashboard = ({
                 ${activeTab === 'all' 
                   ? (summary?.totalProfit ? Math.abs(summary.totalProfit).toFixed(2) : '0.00')
                   : activeTab === 'profitable'
-                    ? (profitableShipments.reduce((total, s) => total + ((s.receivables || 0) - (s.cost || 0)), 0)).toFixed(2)
-                    : Math.abs(lossShipments.reduce((total, s) => total + ((s.receivables || 0) - (s.cost || 0)), 0)).toFixed(2)
+                    ? (Array.isArray(profitableShipments) && profitableShipments.length > 0 
+                        ? profitableShipments.reduce((total, s) => {
+                            const receivables = parseFloat(s.receivables || 0);
+                            const cost = parseFloat(s.cost || 0);
+                            return total + (receivables - cost);
+                          }, 0).toFixed(2) 
+                        : '0.00')
+                    : (Array.isArray(lossShipments) && lossShipments.length > 0 
+                        ? Math.abs(lossShipments.reduce((total, s) => {
+                            const receivables = parseFloat(s.receivables || 0);
+                            const cost = parseFloat(s.cost || 0);
+                            return total + (receivables - cost);
+                          }, 0)).toFixed(2) 
+                        : '0.00')
                 }
                 {activeTab === 'loss' && ' (Loss)'}
                 {activeTab === 'all' && (summary?.totalProfit || 0) < 0 && ' (Loss)'}
