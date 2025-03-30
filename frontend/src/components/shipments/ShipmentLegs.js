@@ -3,6 +3,7 @@ import PropTypes from 'prop-types';
 import axios from '../../utils/axiosConfig';
 import { toast } from 'react-toastify';
 import Moment from 'react-moment';
+import { getTrackingUrl, hasTracking } from '../../utils/trackingUtils';
 
 // Define initialState to fix the reference errors
 const initialState = {
@@ -211,10 +212,29 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
     setEditMode(true);  // Set editMode to true to indicate we're editing
   };
 
-  // Get the AWB number to display
+  // Helper function to get AWB display for a leg
   const getDisplayAwb = (leg) => {
-    // Display MAWB number only
-    return leg.mawbNumber || 'N/A';
+    if (!leg) return 'N/A';
+    
+    // Check various possible AWB fields
+    const awb = leg.awbNumber || leg.mawbNumber || leg.awb || 'N/A';
+    
+    if (awb === 'N/A' || !hasTracking(awb)) {
+      return awb;
+    }
+    
+    // If we have a tracking URL, return a clickable link
+    return (
+      <a 
+        href={getTrackingUrl(awb)} 
+        target="_blank" 
+        rel="noopener noreferrer"
+        className="awb-tracking-link"
+        title="Track shipment"
+      >
+        {awb} <i className="fas fa-external-link-alt fa-xs"></i>
+      </a>
+    );
   };
 
   // Validate form inputs

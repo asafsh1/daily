@@ -6,6 +6,7 @@ import Moment from 'react-moment';
 import { getShipment, clearShipment } from '../../actions/shipment';
 import Spinner from '../layout/Spinner';
 import ShipmentLegs from './ShipmentLegs';
+import { getTrackingUrl, hasTracking } from '../../utils/trackingUtils';
 
 const ShipmentDetail = ({
   getShipment,
@@ -80,11 +81,42 @@ const ShipmentDetail = ({
                   {shipment.legs && shipment.legs.length > 0 ? (
                     <div className="awb-list">
                       {shipment.legs.map((leg, index) => (
-                        leg.awbNumber && <div key={index}>{leg.awbNumber}</div>
+                        leg.awbNumber && (
+                          <div key={index}>
+                            {hasTracking(leg.awbNumber) ? (
+                              <a 
+                                href={getTrackingUrl(leg.awbNumber)} 
+                                target="_blank" 
+                                rel="noopener noreferrer"
+                                className="awb-tracking-link"
+                                title="Track shipment"
+                              >
+                                {leg.awbNumber} <i className="fas fa-external-link-alt fa-xs"></i>
+                              </a>
+                            ) : (
+                              leg.awbNumber
+                            )}
+                            {leg.legOrder && ` (Leg ${leg.legOrder})`}
+                          </div>
+                        )
                       ))}
                     </div>
                   ) : (
-                    'No AWBs'
+                    shipment.awbNumber1 ? (
+                      hasTracking(shipment.awbNumber1) ? (
+                        <a 
+                          href={getTrackingUrl(shipment.awbNumber1)} 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          className="awb-tracking-link"
+                          title="Track shipment"
+                        >
+                          {shipment.awbNumber1} <i className="fas fa-external-link-alt fa-xs"></i>
+                        </a>
+                      ) : (
+                        shipment.awbNumber1
+                      )
+                    ) : 'No AWBs'
                   )}
                 </span>
               </div>
@@ -243,7 +275,27 @@ const ShipmentDetail = ({
           <h3>
             {shipment.legs && shipment.legs.length > 0 && shipment.legs.some(leg => leg.awbNumber) ? (
               <>
-                AWB: {shipment.legs.map(leg => leg.awbNumber).filter(Boolean).join(', ')}
+                AWB: {shipment.legs.map(leg => {
+                  if (!leg.awbNumber) return null;
+                  
+                  return hasTracking(leg.awbNumber) ? (
+                    <a 
+                      key={leg._id || leg.legOrder}
+                      href={getTrackingUrl(leg.awbNumber)} 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      className="awb-tracking-link"
+                      title="Track shipment"
+                      style={{ marginRight: '8px' }}
+                    >
+                      {leg.awbNumber} <i className="fas fa-external-link-alt fa-xs"></i>
+                    </a>
+                  ) : (
+                    <span key={leg._id || leg.legOrder} style={{ marginRight: '8px' }}>
+                      {leg.awbNumber}
+                    </span>
+                  );
+                }).filter(Boolean)}
               </>
             ) : null}
           </h3>

@@ -7,6 +7,7 @@ import { getShipments, updateShipment, deleteShipment } from '../../actions/ship
 import Spinner from '../layout/Spinner';
 import { convertToCSV, downloadCSV } from '../../utils/exportUtils';
 import { toast } from 'react-toastify';
+import { getTrackingUrl, hasTracking } from '../../utils/trackingUtils';
 
 const Shipments = ({ getShipments, updateShipment, deleteShipment, shipment: { shipments, loading } }) => {
   const [searchTerm, setSearchTerm] = useState('');
@@ -384,13 +385,42 @@ const Shipments = ({ getShipments, updateShipment, deleteShipment, shipment: { s
                           getUniqueAWBs(shipment).map((data, index) => (
                             <div key={index} className="leg-awb" style={{marginBottom: '3px'}}>
                               {data.isMawb ? (
-                                <span><small>MAWB:</small> {data.awb}</span>
+                                <span><small>MAWB:</small> {' '}
+                                  {hasTracking(data.awb) ? (
+                                    <a 
+                                      href={getTrackingUrl(data.awb)} 
+                                      target="_blank" 
+                                      rel="noopener noreferrer"
+                                      className="awb-tracking-link"
+                                      title="Track shipment"
+                                    >
+                                      {data.awb} <i className="fas fa-external-link-alt fa-xs"></i>
+                                    </a>
+                                  ) : (
+                                    data.awb
+                                  )}
+                                </span>
                               ) : (
-                                data.legNumbers.length > 1 
-                                  ? `${data.awb} (Leg ${data.legNumbers.join('/')})`
-                                  : data.legNumbers.length === 1
-                                    ? `${data.awb} (Leg ${data.legNumbers[0]})`
-                                    : data.awb
+                                <span>
+                                  {hasTracking(data.awb) ? (
+                                    <a 
+                                      href={getTrackingUrl(data.awb)} 
+                                      target="_blank" 
+                                      rel="noopener noreferrer"
+                                      className="awb-tracking-link"
+                                      title="Track shipment"
+                                    >
+                                      {data.awb} <i className="fas fa-external-link-alt fa-xs"></i>
+                                    </a>
+                                  ) : (
+                                    data.awb
+                                  )}
+                                  {data.legNumbers.length > 1 
+                                    ? ` (Leg ${data.legNumbers.join('/')})`
+                                    : data.legNumbers.length === 1
+                                      ? ` (Leg ${data.legNumbers[0]})`
+                                      : ''}
+                                </span>
                               )}
                             </div>
                           ))
@@ -399,7 +429,21 @@ const Shipments = ({ getShipments, updateShipment, deleteShipment, shipment: { s
                         )}
                       </div>
                     ) : (
-                      shipment.awbNumber1 || 'No AWBs'
+                      shipment.awbNumber1 ? (
+                        hasTracking(shipment.awbNumber1) ? (
+                          <a 
+                            href={getTrackingUrl(shipment.awbNumber1)} 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            className="awb-tracking-link"
+                            title="Track shipment"
+                          >
+                            {shipment.awbNumber1} <i className="fas fa-external-link-alt fa-xs"></i>
+                          </a>
+                        ) : (
+                          shipment.awbNumber1
+                        )
+                      ) : 'No AWBs'
                     )}
                   </td>
                   <td>

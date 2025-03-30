@@ -2088,4 +2088,41 @@ select:focus {
 /* Add spacing between AWB numbers */
 .awb-list .leg-awb {
   margin-bottom: 3px;
+}
+
+/* AWB tracking links styling */
+.awb-tracking-link {
+  display: inline-flex;
+  align-items: center;
+  color: #0366d6;
+  text-decoration: none;
+  transition: all 0.2s ease;
+}
+
+.awb-tracking-link:hover {
+  color: #0056b3;
+  text-decoration: underline;
+}
+
+.awb-tracking-link .fa-external-link-alt {
+  margin-left: 4px;
+  font-size: 0.75rem;
+  opacity: 0.7;
+}
+
+.awb-tracking-link:hover .fa-external-link-alt {
+  opacity: 1;
+}
+
+/* Style for tracking links list */
+.awb-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.leg-awb {
+  display: flex;
+  align-items: center;
+  margin-bottom: 3px;
 } 

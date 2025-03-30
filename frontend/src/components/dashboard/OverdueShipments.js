@@ -2,6 +2,7 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import Moment from 'react-moment';
 import PropTypes from 'prop-types';
+import { getTrackingUrl, hasTracking } from '../../utils/trackingUtils';
 
 const OverdueShipments = ({ shipments }) => {
   // Helper function to get unique AWBs from shipment legs
@@ -80,6 +81,63 @@ const OverdueShipments = ({ shipments }) => {
     return awbList.join(', ') || 'No AWBs found';
   };
   
+  // Create a new helper function to make AWB numbers clickable
+  const renderAwbWithTracking = (awbData) => {
+    // Handle array of AWB objects
+    if (Array.isArray(awbData)) {
+      if (awbData.length === 0) return 'No AWBs';
+      
+      return (
+        <div className="awb-list">
+          {awbData.map((data, idx) => {
+            const formattedAwb = data.isMawb 
+              ? `MAWB: ${data.awb}` 
+              : data.legNumbers.length > 0 
+                ? `${data.awb} (Leg ${data.legNumbers.join('/')})`
+                : data.awb;
+                
+            return (
+              <div key={idx} className="leg-awb">
+                {hasTracking(data.awb) ? (
+                  <a 
+                    href={getTrackingUrl(data.awb)} 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="awb-tracking-link"
+                    title="Track shipment"
+                  >
+                    {formattedAwb} <i className="fas fa-external-link-alt fa-xs"></i>
+                  </a>
+                ) : (
+                  formattedAwb
+                )}
+              </div>
+            );
+          })}
+        </div>
+      );
+    }
+    
+    // Handle simple string AWB
+    if (typeof awbData === 'string') {
+      return hasTracking(awbData) ? (
+        <a 
+          href={getTrackingUrl(awbData)} 
+          target="_blank" 
+          rel="noopener noreferrer"
+          className="awb-tracking-link"
+          title="Track shipment"
+        >
+          {awbData} <i className="fas fa-external-link-alt fa-xs"></i>
+        </a>
+      ) : (
+        awbData
+      );
+    }
+    
+    return 'No AWBs found';
+  };
+  
   return (
     <div className="overdue-shipments">
       <h3 className="text-danger mb-3">Overdue Non-Invoiced Shipments</h3>
@@ -123,7 +181,7 @@ const OverdueShipments = ({ shipments }) => {
                       <Moment format="DD/MM/YYYY">{shipment.dateAdded}</Moment>
                     </td>
                     <td>{customerName}</td>
-                    <td>{awbDisplay}</td>
+                    <td>{renderAwbWithTracking(awbDisplay)}</td>
                     <td>
                       <Moment format="DD/MM/YYYY">{shipment.scheduledArrival}</Moment>
                     </td>
