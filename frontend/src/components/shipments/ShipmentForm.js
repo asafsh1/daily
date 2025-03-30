@@ -194,10 +194,15 @@ const ShipmentForm = ({
 
   const onSubmit = async e => {
     e.preventDefault();
+    console.log('Form submission attempted with data:', formData);
     
     if (!validateForm()) {
+      console.error('Form validation failed. Validation errors:', errors);
+      window.alert('Please fix the validation errors before submitting.');
       return;
     }
+    
+    console.log('Form validation passed, preparing shipment data');
 
     // Filter out undefined fields and handle special data types
     const shipmentFields = {};
@@ -206,15 +211,50 @@ const ShipmentForm = ({
         shipmentFields[key] = formData[key];
       }
     }
+    
+    console.log('Prepared shipment fields for submission:', shipmentFields);
 
     try {
       if (isEditMode) {
-        // Update existing shipment
-        await updateShipment(id, shipmentFields);
-        navigate(`/shipments/${id}`);
+        console.log('Updating existing shipment with ID:', id);
+        
+        // Show processing indicator
+        document.querySelector('button[type="submit"]').disabled = true;
+        document.querySelector('button[type="submit"]').textContent = 'Processing...';
+        
+        try {
+          // Use a direct API call for debugging
+          const config = {
+            headers: {
+              'Content-Type': 'application/json'
+            }
+          };
+          console.log('Making direct API call to debug issue');
+          const directApiResult = await axios.put(`/api/shipments/${id}`, shipmentFields, config);
+          console.log('Direct API Response:', directApiResult);
+          
+          if (directApiResult.status === 200) {
+            console.log('Direct API call successful, now dispatching action');
+            await updateShipment(id, shipmentFields, navigate);
+            console.log('Update action dispatched');
+          }
+        } catch (apiError) {
+          console.error('Direct API call failed:', apiError.response || apiError);
+          throw apiError;
+        }
+        
+        // Ensure navigation happens
+        setTimeout(() => {
+          console.log('Forcing navigation to shipment details');
+          document.querySelector('button[type="submit"]').disabled = false;
+          document.querySelector('button[type="submit"]').textContent = 'Update';
+          navigate(`/shipments/${id}`);
+        }, 1000);
       } else {
         // Create new shipment
+        console.log('Creating new shipment');
         const res = await addShipment(shipmentFields);
+        console.log('New shipment created:', res);
         
         // If there are temporary legs, assign them to the new shipment
         if (tempShipmentId && res && res._id) {
@@ -227,11 +267,26 @@ const ShipmentForm = ({
           }
         }
         
+        console.log('Navigating to shipments list');
         navigate('/shipments');
       }
     } catch (err) {
       console.error('Error saving shipment:', err);
-      setErrors({ submit: 'Error saving shipment. Please try again.' });
+      document.querySelector('button[type="submit"]').disabled = false;
+      document.querySelector('button[type="submit"]').textContent = isEditMode ? 'Update' : 'Submit';
+      
+      // Extract and display detailed error message
+      let errorMessage = 'Error saving shipment. Please try again.';
+      if (err.response && err.response.data) {
+        if (err.response.data.msg) {
+          errorMessage = `Server error: ${err.response.data.msg}`;
+        } else if (err.response.data.errors && err.response.data.errors.length > 0) {
+          errorMessage = err.response.data.errors.map(e => e.msg).join(', ');
+        }
+      }
+      
+      setErrors({ submit: errorMessage });
+      window.alert(errorMessage);
     }
   };
 
