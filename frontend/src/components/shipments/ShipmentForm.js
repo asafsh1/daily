@@ -157,14 +157,25 @@ const ShipmentForm = ({
   const validateForm = () => {
     const newErrors = {};
     
+    console.log('Validating form fields:', {
+      dateAdded,
+      orderStatus,
+      customer,
+      shipmentStatus,
+      createdBy,
+      invoiceStatus
+    });
+    
     if (!dateAdded) newErrors.dateAdded = 'Date added is required';
     if (!orderStatus) newErrors.orderStatus = 'Order status is required';
     if (!['done', 'confirmed', 'planned', 'canceled'].includes(orderStatus)) {
       newErrors.orderStatus = 'Invalid order status';
     }
     if (!customer) newErrors.customer = 'Customer is required';
-    if (!['Pending', 'Arrived', 'Delayed', 'Canceled', 'In Transit'].includes(shipmentStatus)) {
-      newErrors.shipmentStatus = 'Invalid shipment status';
+    if (!shipmentStatus) {
+      newErrors.shipmentStatus = 'Shipment status is required';
+    } else if (!['Pending', 'Arrived', 'Delayed', 'Canceled', 'In Transit'].includes(shipmentStatus)) {
+      newErrors.shipmentStatus = `Invalid shipment status: '${shipmentStatus}'`;
     }
     if (!createdBy) newErrors.createdBy = 'Created By is required';
     if (invoiceStatus && !['Confirmed', 'Pending', 'Paid'].includes(invoiceStatus)) {
@@ -180,6 +191,7 @@ const ShipmentForm = ({
       newErrors.packageCount = 'Package count must be a number';
     }
 
+    console.log('Validation errors:', newErrors);
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -196,9 +208,20 @@ const ShipmentForm = ({
     e.preventDefault();
     console.log('Form submission attempted with data:', formData);
     
-    if (!validateForm()) {
+    // Pre-validate and display errors clearly
+    const validationResult = validateForm();
+    if (!validationResult) {
       console.error('Form validation failed. Validation errors:', errors);
-      window.alert('Please fix the validation errors before submitting.');
+      
+      // Display all validation errors in alert for better visibility
+      const errorMessages = Object.values(errors).join('\n• ');
+      window.alert(`Please fix the following errors:\n\n• ${errorMessages}`);
+      
+      // Highlight all invalid fields
+      document.querySelectorAll('.is-invalid').forEach(field => {
+        field.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      });
+      
       return;
     }
     
@@ -207,9 +230,14 @@ const ShipmentForm = ({
     // Filter out undefined fields and handle special data types
     const shipmentFields = {};
     for (const key in formData) {
-      if (formData[key] !== undefined && key !== 'shipmentStatus') {
+      if (formData[key] !== undefined) {
         shipmentFields[key] = formData[key];
       }
+    }
+    
+    // Ensure shipmentStatus is included in the update
+    if (shipmentStatus && !shipmentFields.shipmentStatus) {
+      shipmentFields.shipmentStatus = shipmentStatus;
     }
     
     console.log('Prepared shipment fields for submission:', shipmentFields);

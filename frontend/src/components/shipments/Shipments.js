@@ -171,6 +171,21 @@ const Shipments = ({ getShipments, updateShipment, deleteShipment, shipment: { s
     downloadCSV(csvContent, fileName);
   };
 
+  // Helper function to get unique AWBs from shipment legs
+  const getUniqueAWBs = (shipment) => {
+    if (!shipment.legs || !Array.isArray(shipment.legs) || shipment.legs.length === 0) {
+      return shipment.awbNumber1 ? [shipment.awbNumber1] : [];
+    }
+    
+    // Get all non-empty AWB numbers from legs
+    const awbNumbers = shipment.legs
+      .filter(leg => leg && leg.awbNumber)
+      .map(leg => leg.awbNumber);
+    
+    // Remove duplicates by using Set
+    return [...new Set(awbNumbers)];
+  };
+
   return loading ? (
     <Spinner />
   ) : (
@@ -250,20 +265,16 @@ const Shipments = ({ getShipments, updateShipment, deleteShipment, shipment: { s
                   <td>
                     {shipment.legs && shipment.legs.length > 0 ? (
                       <div className="awb-list">
-                        {shipment.legs.map((leg, index) => (
-                          leg.awbNumber && (
-                            <div key={index} className="leg-awb">
-                              <small className="text-muted">Leg {leg.legOrder}:</small> {leg.awbNumber}
-                            </div>
-                          )
+                        {getUniqueAWBs(shipment).map((awb, index) => (
+                          <div key={index} className="leg-awb">
+                            {awb}
+                          </div>
                         ))}
-                        {shipment.legs.map((leg, index) => (
-                          leg.mawbNumber && (
-                            <div key={`mawb-${index}`} className="leg-mawb">
-                              <small className="text-muted">MAWB:</small> {leg.mawbNumber}
-                            </div>
-                          )
-                        ))}
+                        {shipment.legs.some(leg => leg.mawbNumber) && (
+                          <div className="leg-mawb">
+                            <small className="text-muted">MAWB:</small> {shipment.legs.find(leg => leg.mawbNumber)?.mawbNumber}
+                          </div>
+                        )}
                       </div>
                     ) : (
                       shipment.awbNumber1 || 'No AWBs'
