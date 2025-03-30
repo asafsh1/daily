@@ -272,6 +272,35 @@ const Shipments = ({ getShipments, updateShipment, deleteShipment, shipment: { s
     return status;
   };
 
+  // Add this helper function near the other helper functions
+  const getActiveLegIndex = (shipment) => {
+    if (!shipment.legs || !Array.isArray(shipment.legs) || shipment.legs.length === 0) {
+      return -1;
+    }
+    
+    // First, look for any leg with "In Transit" status (regardless of case)
+    const inTransitIndex = shipment.legs.findIndex(leg => 
+      leg.status && leg.status.toLowerCase() === 'in transit'
+    );
+    
+    // If we found an "In Transit" leg, return that
+    if (inTransitIndex >= 0) {
+      return inTransitIndex;
+    }
+    
+    // If no leg is in transit, find the highest leg that is not "Pending"
+    // Start from the highest leg order and go down
+    for (let i = shipment.legs.length - 1; i >= 0; i--) {
+      const leg = shipment.legs[i];
+      if (leg.status && leg.status.toLowerCase() !== 'pending') {
+        return i;
+      }
+    }
+    
+    // If all legs are pending or no legs have status, return the first leg
+    return 0;
+  };
+
   return loading ? (
     <Spinner />
   ) : (
@@ -402,23 +431,15 @@ const Shipments = ({ getShipments, updateShipment, deleteShipment, shipment: { s
                       {normalizeShipmentStatus(shipment.shipmentStatus)}
                       {shipment.legs && shipment.legs.length > 1 && (
                         <span className="leg-info">
-                          (Leg {shipment.legs.findIndex(leg => 
-                            leg.status === 'active' || 
-                            leg.status === 'in progress' || 
-                            leg.legOrder === Math.max(...shipment.legs.map(l => l.completed ? 0 : l.legOrder))
-                          ) + 1}/{shipment.legs.length})
+                          (Leg {getActiveLegIndex(shipment) + 1}/{shipment.legs.length})
                         </span>
                       )}
                     </span>
                     {shipment.legs && shipment.legs.length > 0 && (
                       <div className="active-leg-route">
                         {(() => {
-                          // Find the active leg index
-                          const activeLegIndex = shipment.legs.findIndex(leg => 
-                            leg.status === 'active' || 
-                            leg.status === 'in progress' || 
-                            leg.legOrder === Math.max(...shipment.legs.map(l => l.completed ? 0 : l.legOrder))
-                          );
+                          // Use the active leg index from our helper function
+                          const activeLegIndex = getActiveLegIndex(shipment);
                           
                           // If active leg found, show its route
                           if (activeLegIndex >= 0 && activeLegIndex < shipment.legs.length) {
