@@ -17,30 +17,39 @@ const RecentShipments = ({ shipments }) => {
           </tr>
         </thead>
         <tbody>
-          {shipments.map(shipment => (
-            <tr key={shipment._id}>
-              <td>
-                <Moment format="DD/MM/YYYY">{shipment.dateAdded}</Moment>
-              </td>
-              <td>{shipment.customer}</td>
-              <td>{shipment.awbNumber1}</td>
-              <td>
-                <span
-                  className={`status-badge status-${shipment.shipmentStatus.toLowerCase()}`}
-                >
-                  {shipment.shipmentStatus}
-                </span>
-              </td>
-              <td>
-                <Link
-                  to={`/shipments/${shipment._id}`}
-                  className="btn btn-sm"
-                >
-                  View
-                </Link>
-              </td>
-            </tr>
-          ))}
+          {shipments.map(shipment => {
+            // Handle customer display
+            const customerName = shipment.customer 
+              ? (typeof shipment.customer === 'string' 
+                ? shipment.customer 
+                : (shipment.customer.name || 'Unknown'))
+              : 'Unknown';
+              
+            return (
+              <tr key={shipment._id}>
+                <td>
+                  <Moment format="DD/MM/YYYY">{shipment.dateAdded}</Moment>
+                </td>
+                <td>{customerName}</td>
+                <td>{shipment.awbNumber1}</td>
+                <td>
+                  <span
+                    className={`status-badge status-${shipment.shipmentStatus?.toLowerCase() || 'unknown'}`}
+                  >
+                    {shipment.shipmentStatus || 'Unknown'}
+                  </span>
+                </td>
+                <td>
+                  <Link
+                    to={`/shipments/${shipment._id}`}
+                    className="btn btn-sm"
+                  >
+                    View
+                  </Link>
+                </td>
+              </tr>
+            );
+          })}
         </tbody>
       </table>
     </div>

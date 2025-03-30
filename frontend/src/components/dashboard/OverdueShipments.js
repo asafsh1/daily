@@ -31,12 +31,19 @@ const OverdueShipments = ({ shipments }) => {
                 const arrivalDate = new Date(shipment.scheduledArrival);
                 const daysOverdue = Math.floor((today - arrivalDate) / (1000 * 60 * 60 * 24));
                 
+                // Handle customer display
+                const customerName = shipment.customer 
+                  ? (typeof shipment.customer === 'string' 
+                    ? shipment.customer 
+                    : (shipment.customer.name || 'Unknown'))
+                  : 'Unknown';
+                
                 return (
                   <tr key={shipment._id}>
                     <td>
                       <Moment format="DD/MM/YYYY">{shipment.dateAdded}</Moment>
                     </td>
-                    <td>{shipment.customer}</td>
+                    <td>{customerName}</td>
                     <td>{shipment.awbNumber1}</td>
                     <td>
                       <Moment format="DD/MM/YYYY">{shipment.scheduledArrival}</Moment>
