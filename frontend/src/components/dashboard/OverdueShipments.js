@@ -4,6 +4,82 @@ import Moment from 'react-moment';
 import PropTypes from 'prop-types';
 
 const OverdueShipments = ({ shipments }) => {
+  // Helper function to get unique AWBs from shipment legs
+  const getUniqueAWBs = (shipment) => {
+    if (!shipment.legs || !Array.isArray(shipment.legs) || shipment.legs.length === 0) {
+      // For shipments without legs, return any direct AWB numbers
+      const awbs = [];
+      if (shipment.awbNumber1) awbs.push({awb: shipment.awbNumber1, legNumbers: []});
+      if (shipment.awbNumber2) awbs.push({awb: shipment.awbNumber2, legNumbers: []});
+      return awbs.length > 0 ? awbs.map(data => data.awb).join(', ') : 'No AWBs';
+    }
+    
+    // Create a map to store AWBs with their corresponding leg numbers
+    const awbMap = new Map();
+    
+    // Process all legs and their AWBs
+    shipment.legs.forEach(leg => {
+      if (!leg) return;
+      
+      // Check for all possible AWB fields in the leg
+      const awbFields = ['awbNumber', 'awb', 'awbNumber1', 'awbNumber2'];
+      let foundAwb = false;
+      
+      awbFields.forEach(field => {
+        const awbValue = leg[field];
+        if (awbValue && typeof awbValue === 'string' && awbValue.trim() !== '') {
+          foundAwb = true;
+          // If this AWB is already in the map, add this leg number to the list
+          if (awbMap.has(awbValue)) {
+            const existingData = awbMap.get(awbValue);
+            existingData.legNumbers.push(leg.legOrder || 'unknown');
+          } else {
+            // Otherwise create a new entry
+            awbMap.set(awbValue, {
+              awb: awbValue,
+              legNumbers: [leg.legOrder || 'unknown']
+            });
+          }
+        }
+      });
+      
+      // If no AWB was found but there's a MAWB, use the MAWB as the AWB
+      if (!foundAwb && leg.mawbNumber && typeof leg.mawbNumber === 'string' && leg.mawbNumber.trim() !== '') {
+        if (awbMap.has(leg.mawbNumber)) {
+          const existingData = awbMap.get(leg.mawbNumber);
+          existingData.legNumbers.push(leg.legOrder || 'unknown');
+        } else {
+          awbMap.set(leg.mawbNumber, {
+            awb: leg.mawbNumber,
+            legNumbers: [leg.legOrder || 'unknown'],
+            isMawb: true
+          });
+        }
+      }
+    });
+    
+    // Also check for direct AWB properties on the shipment itself
+    if (shipment.awbNumber1 && !awbMap.has(shipment.awbNumber1)) {
+      awbMap.set(shipment.awbNumber1, {awb: shipment.awbNumber1, legNumbers: []});
+    }
+    if (shipment.awbNumber2 && !awbMap.has(shipment.awbNumber2)) {
+      awbMap.set(shipment.awbNumber2, {awb: shipment.awbNumber2, legNumbers: []});
+    }
+    
+    // Convert the map to an array with formatted AWB strings
+    const awbList = Array.from(awbMap.values()).map(data => {
+      if (data.isMawb) {
+        return `MAWB: ${data.awb}`;
+      } else if (data.legNumbers.length > 0) {
+        return `${data.awb} (Leg ${data.legNumbers.join('/')})`;
+      } else {
+        return data.awb;
+      }
+    });
+    
+    return awbList.join(', ') || 'No AWBs found';
+  };
+  
   return (
     <div className="overdue-shipments">
       <h3 className="text-danger mb-3">Overdue Non-Invoiced Shipments</h3>
@@ -38,13 +114,16 @@ const OverdueShipments = ({ shipments }) => {
                     : (shipment.customer.name || 'Unknown'))
                   : 'Unknown';
                 
+                // Get unique AWB numbers
+                const awbDisplay = getUniqueAWBs(shipment);
+                
                 return (
                   <tr key={shipment._id}>
                     <td>
                       <Moment format="DD/MM/YYYY">{shipment.dateAdded}</Moment>
                     </td>
                     <td>{customerName}</td>
-                    <td>{shipment.awbNumber1}</td>
+                    <td>{awbDisplay}</td>
                     <td>
                       <Moment format="DD/MM/YYYY">{shipment.scheduledArrival}</Moment>
                     </td>

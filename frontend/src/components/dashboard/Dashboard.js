@@ -493,42 +493,7 @@ const Dashboard = ({
           <div className="card-body">
             {recentShipments.length > 0 ? (
               <div className="table-responsive">
-                <table className="table">
-                  <thead>
-                    <tr>
-                      <th>Date</th>
-                      <th>Customer</th>
-                      <th>Status</th>
-                      <th>Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {recentShipments.map(shipment => (
-                      <tr key={shipment._id}>
-                        <td>
-                          <Moment format="DD/MM/YYYY">
-                            {shipment.dateAdded}
-                          </Moment>
-                        </td>
-                        <td>
-                          {typeof shipment.customer === 'object' 
-                            ? (shipment.customer?.name || 'Unknown') 
-                            : (shipment.customer || 'Unknown')}
-                        </td>
-                        <td>
-                          <span className={`status-badge status-${shipment.shipmentStatus.toLowerCase().replace(/\s+/g, '-')}`}>
-                            {shipment.shipmentStatus}
-                          </span>
-                        </td>
-                        <td>
-                          <Link to={`/shipments/${shipment._id}`} className="btn btn-sm">
-                            View
-                          </Link>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                <RecentShipments shipments={recentShipments} />
               </div>
             ) : (
               <p>No recent shipments</p>
@@ -545,9 +510,9 @@ const Dashboard = ({
               {Object.entries(shipmentsByStatus).length > 0 ? (
                 Object.entries(shipmentsByStatus).map(([status, count]) => (
                   <Link to={`/shipments?status=${status}`} key={status} className="status-item">
-                    <div className={`status-color status-${status.toLowerCase().replace(/\s+/g, '-')}`}></div>
-                    <div className="status-label">{status}</div>
-                    <div className="status-count">{count}</div>
+                    <div className={`status-badge status-compact status-${status.toLowerCase().replace(/\s+/g, '-')}`}>
+                      {status} <span className="status-count-badge">{count}</span>
+                    </div>
                   </Link>
                 ))
               ) : (
