@@ -33,73 +33,185 @@ router.get('/summary', async (req, res) => {
       });
     }
     
+    console.log('Database connected, fetching dashboard data');
+    
     // Get total shipments count
     const totalShipments = await Shipment.countDocuments();
+    console.log('Total shipments:', totalShipments);
     
-    // Get recent shipments with customer data
+    // Get recent shipments with customer data - handle both ObjectId and string customer references
     const recentShipments = await Shipment.find()
       .sort({ dateAdded: -1 })
       .limit(5)
-      .populate('customer', 'name')
-      .populate({
-        path: 'legs',
-        options: { sort: { legOrder: 1 } },
-        select: 'awbNumber departureTime arrivalTime origin destination'
-      })
       .lean();
+    
+    // Process customers for each shipment
+    const processedShipments = await Promise.all(recentShipments.map(async (shipment) => {
+      try {
+        // Process customer field
+        if (shipment.customer) {
+          // Check if it's an ObjectId
+          if (mongoose.Types.ObjectId.isValid(shipment.customer)) {
+            try {
+              const customerDoc = await Customer.findById(shipment.customer).lean();
+              if (customerDoc) {
+                shipment.customer = { 
+                  _id: customerDoc._id, 
+                  name: customerDoc.name 
+                };
+              } else {
+                shipment.customer = { name: 'Unknown' };
+              }
+            } catch (err) {
+              console.error('Error finding customer:', err.message);
+              shipment.customer = { name: 'Unknown' };
+            }
+          } else if (typeof shipment.customer === 'string') {
+            // If it's already a string name, format it as an object
+            shipment.customer = { name: shipment.customer };
+          }
+        } else {
+          shipment.customer = { name: 'Unknown' };
+        }
+        
+        // Get legs data
+        if (shipment._id) {
+          const legs = await ShipmentLeg.find({ shipmentId: shipment._id })
+            .sort({ legOrder: 1 })
+            .lean();
+          
+          shipment.legs = legs;
+        }
+        
+        return shipment;
+      } catch (err) {
+        console.error('Error processing shipment:', err);
+        return shipment;
+      }
+    }));
     
     // Get shipments by status
     const shipmentStatusCounts = await Shipment.aggregate([
       { $group: { _id: '$shipmentStatus', count: { $sum: 1 } } }
     ]);
     
-    const shipmentsByStatus = {};
+    const shipmentsByStatus = {
+      'Pending': 0,
+      'In Transit': 0,
+      'Arrived': 0,
+      'Delayed': 0,
+      'Canceled': 0
+    };
+    
     shipmentStatusCounts.forEach(status => {
-      shipmentsByStatus[status._id] = status.count;
+      if (status._id) {
+        // Handle compound statuses like "In Transit (Leg 1)"
+        const baseStatus = status._id.split(' ')[0] + (status._id.includes('Transit') ? ' Transit' : '');
+        
+        if (shipmentsByStatus[baseStatus] !== undefined) {
+          shipmentsByStatus[baseStatus] += status.count;
+        } else if (status._id.includes('Transit')) {
+          shipmentsByStatus['In Transit'] += status.count;
+        } else {
+          shipmentsByStatus[status._id] = status.count;
+        }
+      }
     });
+    
+    console.log('Shipments by status:', shipmentsByStatus);
     
     // Get non-invoiced shipments count
     const totalNonInvoiced = await Shipment.countDocuments({ invoiced: false });
+    console.log('Non-invoiced shipments:', totalNonInvoiced);
     
-    // Get shipments by customer
-    const shipmentsByCustomer = await Shipment.aggregate([
-      { $group: { _id: '$customer', count: { $sum: 1 } } },
-      { $sort: { count: -1 } },
-      { $limit: 5 }
-    ]);
+    // Get shipments by customer - handle mixed customer references
+    let shipmentsByCustomer = [];
     
-    // Get customer names
-    const customerIds = shipmentsByCustomer.map(item => item._id);
-    const customers = await Customer.find({ _id: { $in: customerIds } }).select('name');
+    try {
+      // First try to get customers that are ObjectIds
+      const shipmentsByCustomerId = await Shipment.aggregate([
+        { 
+          $match: { 
+            customer: { 
+              $type: 'objectId' 
+            } 
+          } 
+        },
+        { 
+          $group: { 
+            _id: '$customer', 
+            count: { $sum: 1 } 
+          } 
+        },
+        { $sort: { count: -1 } },
+        { $limit: 5 }
+      ]);
+      
+      // Get customer names for ObjectId references
+      const customerIds = shipmentsByCustomerId.map(item => item._id);
+      const customers = await Customer.find({ 
+        _id: { $in: customerIds } 
+      }).select('name').lean();
+      
+      const customerMap = {};
+      customers.forEach(customer => {
+        customerMap[customer._id.toString()] = customer.name;
+      });
+      
+      shipmentsByCustomer = shipmentsByCustomerId.map(item => ({
+        customer: customerMap[item._id.toString()] || 'Unknown',
+        count: item.count
+      }));
+      
+      // Add any string-based customer groupings
+      const shipmentsByCustomerString = await Shipment.aggregate([
+        { 
+          $match: { 
+            customer: { 
+              $type: 'string' 
+            } 
+          } 
+        },
+        { 
+          $group: { 
+            _id: '$customer', 
+            count: { $sum: 1 } 
+          } 
+        },
+        { $sort: { count: -1 } },
+        { $limit: 5 }
+      ]);
+      
+      const stringCustomers = shipmentsByCustomerString.map(item => ({
+        customer: item._id || 'Unknown',
+        count: item.count
+      }));
+      
+      // Combine results
+      shipmentsByCustomer = [...shipmentsByCustomer, ...stringCustomers];
+      
+      // Sort and limit
+      shipmentsByCustomer.sort((a, b) => b.count - a.count);
+      shipmentsByCustomer = shipmentsByCustomer.slice(0, 5);
+      
+    } catch (err) {
+      console.error('Error getting shipments by customer:', err.message);
+    }
     
-    const customerMap = {};
-    customers.forEach(customer => {
-      customerMap[customer._id] = customer.name;
-    });
-    
-    const formattedShipmentsByCustomer = shipmentsByCustomer.map(item => ({
-      customer: customerMap[item._id] || 'Unknown',
-      count: item.count
-    }));
+    console.log('Shipments by customer:', shipmentsByCustomer);
     
     const response = {
       totalShipments,
-      recentShipments,
+      recentShipments: processedShipments,
       shipmentsByStatus,
       totalNonInvoiced,
-      shipmentsByCustomer: formattedShipmentsByCustomer
+      shipmentsByCustomer
     };
     
-    console.log('Dashboard summary prepared:', {
-      totalShipments,
-      recentShipmentsCount: recentShipments.length,
-      statusCounts: shipmentsByStatus,
-      nonInvoicedCount: totalNonInvoiced
-    });
-    
+    console.log('Dashboard summary prepared');
     res.json(response);
   } catch (err) {
-    console.error('Dashboard summary error:', err.message);
+    console.error('Dashboard summary error:', err.message, err.stack);
     
     // Return empty data with same structure instead of error
     res.json({
@@ -202,6 +314,8 @@ router.get('/stats', async (req, res) => {
 // @access  Public
 router.get('/monthly-stats', async (req, res) => {
   try {
+    console.log('Processing monthly statistics request');
+    
     // Check database connection - if not connected, return empty data
     if (mongoose.connection.readyState !== 1) {
       console.error('Database connection is not ready. Current state:', mongoose.connection.readyState);
@@ -213,15 +327,25 @@ router.get('/monthly-stats', async (req, res) => {
       })));
     }
     
-    const currentYear = new Date().getFullYear();
+    console.log('Database connected, fetching monthly stats');
+    
+    // Get the current year or use the one from query parameter
+    const year = req.query.year ? parseInt(req.query.year) : new Date().getFullYear();
+    console.log('Getting monthly stats for year:', year);
+    
+    // Create date range for the year
+    const startDate = new Date(`${year}-01-01T00:00:00.000Z`);
+    const endDate = new Date(`${year}-12-31T23:59:59.999Z`);
+    
+    console.log('Date range:', startDate, 'to', endDate);
     
     // Use aggregation to get monthly counts in a single query
     const monthlyStats = await Shipment.aggregate([
       {
         $match: {
           dateAdded: {
-            $gte: new Date(`${currentYear}-01-01`),
-            $lte: new Date(`${currentYear}-12-31`)
+            $gte: startDate,
+            $lte: endDate
           }
         }
       },
@@ -243,6 +367,8 @@ router.get('/monthly-stats', async (req, res) => {
       }
     ]);
     
+    console.log('Monthly stats query result:', monthlyStats);
+    
     // Fill in missing months with zero counts
     const monthlyData = Array.from({ length: 12 }, (_, i) => ({
       month: i + 1,
@@ -251,12 +377,15 @@ router.get('/monthly-stats', async (req, res) => {
     
     // Update with actual data
     monthlyStats.forEach(stat => {
-      monthlyData[stat.month - 1].count = stat.count;
+      if (stat.month >= 1 && stat.month <= 12) {
+        monthlyData[stat.month - 1].count = stat.count;
+      }
     });
     
+    console.log('Monthly stats prepared');
     res.json(monthlyData);
   } catch (err) {
-    console.error('Monthly stats error:', err.message);
+    console.error('Monthly stats error:', err.message, err.stack);
     
     // Return empty monthly data
     res.json(Array.from({ length: 12 }, (_, i) => ({
@@ -271,28 +400,110 @@ router.get('/monthly-stats', async (req, res) => {
 // @access  Public
 router.get('/overdue-non-invoiced', async (req, res) => {
   try {
+    console.log('Processing overdue non-invoiced request');
+    
     // Check database connection - if not connected, return empty data
     if (mongoose.connection.readyState !== 1) {
       console.error('Database connection is not ready. Current state:', mongoose.connection.readyState);
       return res.json([]);
     }
     
+    console.log('Database connected, fetching overdue shipments');
+    
     const currentDate = new Date();
+    console.log('Current date:', currentDate);
     
     // Find shipments where:
-    // 1. Scheduled arrival date has passed
+    // 1. Any of these conditions are met:
+    //    a. Scheduled arrival date has passed
+    //    b. The last leg arrival date has passed
+    //    c. The shipment status is "Arrived"
     // 2. Either not invoiced or invoice not sent
-    const overdueShipments = await Shipment.find({
-      scheduledArrival: { $lt: currentDate },
+    const baseQuery = {
       $or: [
         { invoiced: false },
         { invoiceSent: false }
       ]
-    }).sort({ scheduledArrival: 1 });
+    };
     
-    res.json(overdueShipments);
+    // Get all potential overdue shipments
+    const shipments = await Shipment.find(baseQuery)
+      .sort({ dateAdded: -1 })
+      .lean();
+    
+    console.log(`Found ${shipments.length} potential overdue shipments`);
+    
+    // Process shipments to include customer data and check arrival
+    const overdueShipments = await Promise.all(shipments.map(async (shipment) => {
+      try {
+        // Process customer - handle both ObjectId and string references
+        if (shipment.customer) {
+          if (mongoose.Types.ObjectId.isValid(shipment.customer)) {
+            try {
+              const customerDoc = await Customer.findById(shipment.customer).lean();
+              if (customerDoc) {
+                shipment.customer = { 
+                  _id: customerDoc._id, 
+                  name: customerDoc.name 
+                };
+              } else {
+                shipment.customer = { name: 'Unknown' };
+              }
+            } catch (err) {
+              console.error('Error finding customer:', err.message);
+              shipment.customer = { name: 'Unknown' };
+            }
+          } else if (typeof shipment.customer === 'string') {
+            shipment.customer = { name: shipment.customer };
+          }
+        } else {
+          shipment.customer = { name: 'Unknown' };
+        }
+        
+        // Get shipment legs
+        if (shipment._id) {
+          const legs = await ShipmentLeg.find({ shipmentId: shipment._id })
+            .sort({ legOrder: 1 })
+            .lean();
+          
+          shipment.legs = legs;
+        }
+        
+        return shipment;
+      } catch (err) {
+        console.error('Error processing shipment:', err);
+        return shipment;
+      }
+    }));
+    
+    // Now filter to only include truly overdue shipments
+    const filteredOverdue = overdueShipments.filter(shipment => {
+      // Check if shipment status is "Arrived"
+      if (shipment.shipmentStatus && shipment.shipmentStatus.includes('Arrived')) {
+        return true;
+      }
+      
+      // Check scheduled arrival date
+      if (shipment.scheduledArrival && new Date(shipment.scheduledArrival) < currentDate) {
+        return true;
+      }
+      
+      // Check if the last leg has arrived
+      if (shipment.legs && shipment.legs.length > 0) {
+        const lastLeg = shipment.legs[shipment.legs.length - 1];
+        if (lastLeg.arrivalTime && new Date(lastLeg.arrivalTime) < currentDate) {
+          return true;
+        }
+      }
+      
+      return false;
+    });
+    
+    console.log(`Filtered to ${filteredOverdue.length} truly overdue shipments`);
+    
+    res.json(filteredOverdue);
   } catch (err) {
-    console.error('Overdue shipments error:', err.message);
+    console.error('Overdue shipments error:', err.message, err.stack);
     res.json([]);
   }
 });
