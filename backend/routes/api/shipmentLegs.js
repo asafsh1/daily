@@ -324,17 +324,19 @@ async function updateShipmentStatusFromLegs(shipmentId) {
       if (allLegsArrived) {
         newStatus = 'Arrived';
       } else if (anyLegDelayed) {
-        newStatus = 'Delayed';
+        // Find the first delayed leg
+        const delayedLeg = legs.find(leg => leg.status === 'Delayed');
+        newStatus = `Delayed Leg${delayedLeg.legOrder} ${delayedLeg.origin}-${delayedLeg.destination}`;
       } else if (anyLegInTransit) {
-        newStatus = 'In Transit';
-      }
-      
-      // If multiple legs, show which leg is active
-      if (legs.length > 1 && !allLegsArrived) {
-        // Find the active leg (first non-arrived leg)
+        // Find the first leg in transit
+        const transitLeg = legs.find(leg => leg.status === 'In Transit');
+        newStatus = `In Transit Leg${transitLeg.legOrder} ${transitLeg.origin}-${transitLeg.destination}`;
+      } else {
+        // If no specific status found but there are legs, find the first non-arrived leg
         const activeLegIndex = legs.findIndex(leg => leg.status !== 'Arrived');
         if (activeLegIndex !== -1) {
-          newStatus = `${newStatus} (Leg ${legs[activeLegIndex].legOrder})`;
+          const activeLeg = legs[activeLegIndex];
+          newStatus = `${activeLeg.status} Leg${activeLeg.legOrder} ${activeLeg.origin}-${activeLeg.destination}`;
         }
       }
     }

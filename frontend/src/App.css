@@ -1636,4 +1636,100 @@ button {
 .status-badge.order-status-canceled {
   background-color: #f5c6cb;
   color: #721c24;
+}
+
+/* Fix dropdown z-index issues */
+select.form-control {
+  z-index: 1;
+  position: relative;
+  background-color: #fff;
+}
+
+.form-group {
+  position: relative;
+  z-index: 2;
+}
+
+/* Ensure dropdowns appear above other elements */
+select:focus {
+  z-index: 10;
+}
+
+.shipment-legs-section {
+  position: relative;
+  z-index: 1;  /* Lower than form groups */
+}
+
+/* Shipment table AWB list styles */
+.awb-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.leg-awb, .leg-mawb {
+  display: flex;
+  align-items: center;
+  white-space: nowrap;
+}
+
+.leg-awb small, .leg-mawb small {
+  margin-right: 5px;
+  font-size: 0.75rem;
+  color: #6c757d;
+}
+
+/* Status badge styles */
+.status-badge {
+  display: inline-block;
+  padding: 0.25em 0.6em;
+  font-size: 0.75em;
+  font-weight: 700;
+  line-height: 1;
+  color: #fff;
+  text-align: center;
+  white-space: normal;
+  vertical-align: baseline;
+  border-radius: 0.25rem;
+  text-transform: capitalize;
+  max-width: 150px;
+  word-wrap: break-word;
+}
+
+.status-in {
+  background-color: #17a2b8;
+}
+
+.status-delayed {
+  background-color: #ffc107;
+  color: #212529;
+}
+
+.status-arrived {
+  background-color: #28a745;
+}
+
+.status-pending {
+  background-color: #6c757d;
+}
+
+.status-canceled {
+  background-color: #dc3545;
+}
+
+/* Order status badge styles */
+.order-status-planned {
+  background-color: #007bff;
+}
+
+.order-status-confirmed {
+  background-color: #6610f2;
+}
+
+.order-status-done {
+  background-color: #28a745;
+}
+
+.order-status-canceled {
+  background-color: #dc3545;
 } 

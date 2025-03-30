@@ -198,7 +198,18 @@ const Shipments = ({ getShipments, updateShipment, shipment: { shipments, loadin
                     {shipment.legs && shipment.legs.length > 0 ? (
                       <div className="awb-list">
                         {shipment.legs.map((leg, index) => (
-                          leg.awbNumber && <div key={index}>{leg.awbNumber}</div>
+                          leg.awbNumber && (
+                            <div key={index} className="leg-awb">
+                              <small className="text-muted">Leg {leg.legOrder}:</small> {leg.awbNumber}
+                            </div>
+                          )
+                        ))}
+                        {shipment.legs.map((leg, index) => (
+                          leg.mawbNumber && (
+                            <div key={`mawb-${index}`} className="leg-mawb">
+                              <small className="text-muted">MAWB:</small> {leg.mawbNumber}
+                            </div>
+                          )
                         ))}
                       </div>
                     ) : (
@@ -229,7 +240,7 @@ const Shipments = ({ getShipments, updateShipment, shipment: { shipments, loadin
                   </td>
                   <td>
                     <span 
-                      className={`status-badge status-${shipment.shipmentStatus.split(' ')[0].toLowerCase().replace(/\s+/g, '-')}`}
+                      className={`status-badge status-${shipment.shipmentStatus.toLowerCase().split(' ')[0]}`}
                     >
                       {shipment.shipmentStatus}
                     </span>

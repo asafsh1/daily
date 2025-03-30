@@ -87,6 +87,47 @@ const ShipmentSchema = new Schema(
   }
 );
 
+// Pre-save hook to auto-generate serial numbers
+ShipmentSchema.pre('save', async function(next) {
+  try {
+    console.log('Running pre-save hook for serial number generation');
+    // Only generate serial number if it doesn't already exist
+    if (this.serialNumber) {
+      console.log('Shipment already has serial number:', this.serialNumber);
+      return next();
+    }
+    
+    console.log('Generating new serial number for shipment');
+    
+    // Generate serial number (format: SHP-YYYY-XXXX)
+    const currentYear = new Date().getFullYear();
+    
+    // Find the highest serial number for this year
+    const latestShipment = await this.constructor.findOne(
+      { serialNumber: new RegExp(`SHP-${currentYear}-\\d+`) },
+      { serialNumber: 1 }
+    ).sort({ serialNumber: -1 });
+    
+    let nextNumber = 1;
+    if (latestShipment && latestShipment.serialNumber) {
+      console.log('Found existing highest serial number:', latestShipment.serialNumber);
+      const parts = latestShipment.serialNumber.split('-');
+      if (parts.length === 3) {
+        nextNumber = parseInt(parts[2], 10) + 1;
+      }
+    }
+    
+    // Format with leading zeros (e.g., SHP-2023-0001)
+    this.serialNumber = `SHP-${currentYear}-${nextNumber.toString().padStart(4, '0')}`;
+    console.log('Generated new serial number:', this.serialNumber);
+    
+    next();
+  } catch (err) {
+    console.error('Error generating serial number:', err);
+    next(err);
+  }
+});
+
 // Add a virtual property to get routing from legs
 ShipmentSchema.virtual('routing').get(function() {
   if (!this.legs || this.legs.length === 0) {
