@@ -174,8 +174,14 @@ const ShipmentForm = ({
     if (!customer) newErrors.customer = 'Customer is required';
     if (!shipmentStatus) {
       newErrors.shipmentStatus = 'Shipment status is required';
-    } else if (!['Pending', 'Arrived', 'Delayed', 'Canceled', 'In Transit'].includes(shipmentStatus)) {
-      newErrors.shipmentStatus = `Invalid shipment status: '${shipmentStatus}'`;
+    } else {
+      // Allow extended status values that start with valid statuses
+      const baseStatuses = ['Pending', 'Arrived', 'Delayed', 'Canceled', 'In Transit'];
+      const isValidStatus = baseStatuses.some(status => shipmentStatus.startsWith(status));
+      
+      if (!isValidStatus) {
+        newErrors.shipmentStatus = `Invalid shipment status: '${shipmentStatus}'`;
+      }
     }
     if (!createdBy) newErrors.createdBy = 'Created By is required';
     if (invoiceStatus && !['Confirmed', 'Pending', 'Paid'].includes(invoiceStatus)) {

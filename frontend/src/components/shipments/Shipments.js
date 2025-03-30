@@ -177,13 +177,34 @@ const Shipments = ({ getShipments, updateShipment, deleteShipment, shipment: { s
       return shipment.awbNumber1 ? [shipment.awbNumber1] : [];
     }
     
-    // Get all non-empty AWB numbers from legs
-    const awbNumbers = shipment.legs
-      .filter(leg => leg && leg.awbNumber)
-      .map(leg => leg.awbNumber);
+    // Create a map to store AWBs with their corresponding leg numbers
+    const awbMap = new Map();
     
-    // Remove duplicates by using Set
-    return [...new Set(awbNumbers)];
+    // Process all legs and their AWBs
+    shipment.legs.forEach(leg => {
+      if (leg && leg.awbNumber) {
+        // If this AWB is already in the map, add this leg number to the list
+        if (awbMap.has(leg.awbNumber)) {
+          const existingData = awbMap.get(leg.awbNumber);
+          existingData.legNumbers.push(leg.legOrder || 'unknown');
+        } else {
+          // Otherwise create a new entry
+          awbMap.set(leg.awbNumber, {
+            awb: leg.awbNumber,
+            legNumbers: [leg.legOrder || 'unknown']
+          });
+        }
+      }
+    });
+    
+    // Convert the map to an array with formatted AWB strings
+    return Array.from(awbMap.values()).map(data => {
+      // If AWB appears in multiple legs, show leg numbers
+      if (data.legNumbers.length > 1) {
+        return `${data.awb} (Leg ${data.legNumbers.join('/')})`;
+      }
+      return data.awb;
+    });
   };
 
   return loading ? (
