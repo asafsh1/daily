@@ -184,15 +184,29 @@ const Shipments = ({ getShipments, updateShipment, deleteShipment, shipment: { s
     // Create a map to store AWBs with their corresponding leg numbers
     const awbMap = new Map();
     
+    // DEBUG: Log leg data to see what fields are available
+    console.log('Leg data for shipment', shipment.serialNumber, ':', shipment.legs.map(leg => {
+      if (!leg) return 'null leg';
+      return {
+        legOrder: leg.legOrder,
+        awbNumber: leg.awbNumber,
+        mawbNumber: leg.mawbNumber,
+        awb: leg.awb
+      };
+    }));
+    
     // Process all legs and their AWBs
     shipment.legs.forEach(leg => {
       if (!leg) return;
       
       // Check for all possible AWB fields in the leg
       const awbFields = ['awbNumber', 'awb', 'awbNumber1', 'awbNumber2'];
+      let foundAwb = false;
+      
       awbFields.forEach(field => {
         const awbValue = leg[field];
         if (awbValue && typeof awbValue === 'string' && awbValue.trim() !== '') {
+          foundAwb = true;
           // If this AWB is already in the map, add this leg number to the list
           if (awbMap.has(awbValue)) {
             const existingData = awbMap.get(awbValue);
@@ -206,6 +220,20 @@ const Shipments = ({ getShipments, updateShipment, deleteShipment, shipment: { s
           }
         }
       });
+      
+      // If no AWB was found but there's a MAWB, use the MAWB as the AWB
+      if (!foundAwb && leg.mawbNumber && typeof leg.mawbNumber === 'string' && leg.mawbNumber.trim() !== '') {
+        if (awbMap.has(leg.mawbNumber)) {
+          const existingData = awbMap.get(leg.mawbNumber);
+          existingData.legNumbers.push(leg.legOrder || 'unknown');
+        } else {
+          awbMap.set(leg.mawbNumber, {
+            awb: leg.mawbNumber,
+            legNumbers: [leg.legOrder || 'unknown'],
+            isMawb: true
+          });
+        }
+      }
     });
     
     // Also check for direct AWB properties on the shipment itself
@@ -215,8 +243,6 @@ const Shipments = ({ getShipments, updateShipment, deleteShipment, shipment: { s
     if (shipment.awbNumber2 && !awbMap.has(shipment.awbNumber2)) {
       awbMap.set(shipment.awbNumber2, {awb: shipment.awbNumber2, legNumbers: []});
     }
-    
-    console.log('AWB Map for shipment:', shipment.serialNumber, Array.from(awbMap.values()));
     
     // Convert the map to an array with formatted AWB strings
     return Array.from(awbMap.values());
@@ -328,21 +354,19 @@ const Shipments = ({ getShipments, updateShipment, deleteShipment, shipment: { s
                         {getUniqueAWBs(shipment).length > 0 ? (
                           getUniqueAWBs(shipment).map((data, index) => (
                             <div key={index} className="leg-awb" style={{marginBottom: '3px'}}>
-                              {data.legNumbers.length > 1 
-                                ? `${data.awb} (Leg ${data.legNumbers.join('/')})`
-                                : data.legNumbers.length === 1
-                                  ? `${data.awb} (Leg ${data.legNumbers[0]})`
-                                  : data.awb
-                              }
+                              {data.isMawb ? (
+                                <span><small>MAWB:</small> {data.awb}</span>
+                              ) : (
+                                data.legNumbers.length > 1 
+                                  ? `${data.awb} (Leg ${data.legNumbers.join('/')})`
+                                  : data.legNumbers.length === 1
+                                    ? `${data.awb} (Leg ${data.legNumbers[0]})`
+                                    : data.awb
+                              )}
                             </div>
                           ))
                         ) : (
                           <div>No AWBs found</div>
-                        )}
-                        {shipment.legs.some(leg => leg.mawbNumber) && (
-                          <div className="leg-mawb" style={{marginTop: '5px', color: '#666'}}>
-                            <small>MAWB:</small> {shipment.legs.find(leg => leg.mawbNumber)?.mawbNumber}
-                          </div>
                         )}
                       </div>
                     ) : (
