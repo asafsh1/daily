@@ -1,5 +1,5 @@
 import React from 'react';
-import { Bar } from 'react-chartjs-2';
+import { Line } from 'react-chartjs-2';
 import PropTypes from 'prop-types';
 import {
   Chart as ChartJS,
@@ -52,10 +52,10 @@ const processDataByDay = (data) => {
   const dailyData = [];
   const today = new Date();
   const startDate = new Date();
-  startDate.setDate(today.getDate() - 14); // Last 14 days for better readability
+  startDate.setDate(today.getDate() - 30); // Last 30 days
 
-  // Generate entries for the last 14 days
-  for (let i = 0; i < 15; i++) {
+  // Generate entries for the last 30 days
+  for (let i = 0; i < 31; i++) {
     const date = new Date(startDate);
     date.setDate(startDate.getDate() + i);
     const dateStr = date.toISOString().split('T')[0];
@@ -113,15 +113,19 @@ const ShipmentsByDateChart = ({ data }) => {
       {
         label: 'Number of Shipments',
         data: dailyData.map(item => item.count),
-        backgroundColor: dailyData.map(item => {
+        fill: false,
+        backgroundColor: 'rgba(75, 192, 192, 0.2)',
+        borderColor: 'rgba(75, 192, 192, 1)',
+        tension: 0.4,
+        pointBackgroundColor: dailyData.map(item => {
           const date = new Date(item.date);
           const isWeekend = date.getDay() === 0 || date.getDay() === 6;
           return isWeekend ? 
-            'rgba(54, 162, 235, 0.4)' : 
-            'rgba(54, 162, 235, 0.7)';
+            'rgba(54, 162, 235, 0.7)' : 
+            'rgba(75, 192, 192, 1)';
         }),
-        borderColor: 'rgba(54, 162, 235, 1)',
-        borderWidth: 1
+        pointRadius: 4,
+        pointHoverRadius: 6
       }
     ]
   };
@@ -135,7 +139,7 @@ const ShipmentsByDateChart = ({ data }) => {
       },
       title: {
         display: true,
-        text: 'Shipments by Day (Last 14 Days)'
+        text: 'Shipments by Day (Last 30 Days)'
       },
       tooltip: {
         callbacks: {
@@ -163,7 +167,11 @@ const ShipmentsByDateChart = ({ data }) => {
       x: {
         ticks: {
           maxRotation: 45,
-          minRotation: 45
+          minRotation: 45,
+          callback: function(val, index) {
+            // Show fewer labels for better readability
+            return index % 3 === 0 ? this.getLabelForValue(val) : '';
+          }
         },
         title: {
           display: true,
@@ -175,7 +183,7 @@ const ShipmentsByDateChart = ({ data }) => {
 
   return (
     <div style={{ height: '400px' }}>
-      <Bar data={chartData} options={options} />
+      <Line data={chartData} options={options} />
     </div>
   );
 };

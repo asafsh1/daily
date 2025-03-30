@@ -1,9 +1,47 @@
 /**
  * Utility functions for generating airline tracking URLs
  */
+import axios from './axiosConfig';
 
-// Mapping of airline codes to tracking URL generators
-const AIRLINE_TRACKING = {
+// Cache for airline data to reduce API calls
+let airlineCache = {};
+let cacheExpiration = null;
+const CACHE_DURATION = 30 * 60 * 1000; // 30 minutes
+
+/**
+ * Loads airline data from the API and caches it
+ * @returns {Promise<Object>} A map of airline codes to their data
+ */
+export const loadAirlines = async (forceRefresh = false) => {
+  // Check if we have a valid cache
+  const now = new Date().getTime();
+  if (!forceRefresh && cacheExpiration && now < cacheExpiration && Object.keys(airlineCache).length > 0) {
+    return airlineCache;
+  }
+  
+  try {
+    const res = await axios.get('/api/airlines');
+    
+    // Transform the array to a map keyed by airline code
+    airlineCache = res.data.reduce((map, airline) => {
+      if (airline.active) {
+        map[airline.code] = airline;
+      }
+      return map;
+    }, {});
+    
+    // Set cache expiration
+    cacheExpiration = now + CACHE_DURATION;
+    
+    return airlineCache;
+  } catch (err) {
+    console.error('Error loading airline data:', err);
+    return {};
+  }
+};
+
+// Keep backward compatibility with hardcoded tracking URLs
+const HARDCODED_TRACKING = {
   // El Al Airlines
   '114': (awb) => {
     // Extract the number part without the prefix
@@ -62,11 +100,30 @@ export const getAirlineCode = (awb) => {
 };
 
 /**
+ * Generates a tracking URL for an AWB number using the template from the database
+ * @param {string} awb - The AWB number (e.g., "114-12345678")
+ * @param {Object} airline - The airline data object
+ * @returns {string} The generated tracking URL
+ */
+export const generateTrackingUrl = (awb, airline) => {
+  if (!awb || !airline || !airline.trackingUrlTemplate) return null;
+  
+  // Clean up the AWB
+  const cleanAwb = awb.trim();
+  
+  // Extract just the number part (after the prefix) if it has a dash
+  const awbNumber = cleanAwb.includes('-') ? cleanAwb.split('-')[1] : cleanAwb;
+  
+  // Create the tracking URL by replacing the placeholder in the template
+  return airline.trackingUrlTemplate.replace(/{awbNumber}/g, awbNumber);
+};
+
+/**
  * Generates a tracking URL for an AWB number
  * @param {string} awb - The AWB number (e.g., "114-12345678")
  * @returns {string|null} The tracking URL or null if the airline is not supported
  */
-export const getTrackingUrl = (awb) => {
+export const getTrackingUrl = async (awb) => {
   if (!awb || typeof awb !== 'string') return null;
   
   // Clean up the AWB by removing any spaces
@@ -74,14 +131,46 @@ export const getTrackingUrl = (awb) => {
   
   // Extract the airline code
   const airlineCode = getAirlineCode(cleanAwb);
+  if (!airlineCode) return null;
   
-  // If we have a handler for this airline, generate the URL
-  if (airlineCode && AIRLINE_TRACKING[airlineCode]) {
-    return AIRLINE_TRACKING[airlineCode](cleanAwb);
+  // Try to get airline data from cache or API
+  const airlines = await loadAirlines();
+  
+  // If we have airline data in the database, use its template
+  if (airlines[airlineCode]) {
+    return generateTrackingUrl(cleanAwb, airlines[airlineCode]);
   }
   
-  // Default fallback for unknown airlines - use a generic tracker
-  // This could be replaced with any default tracking service
+  // Fall back to hardcoded tracking if available
+  if (HARDCODED_TRACKING[airlineCode]) {
+    return HARDCODED_TRACKING[airlineCode](cleanAwb);
+  }
+  
+  // No tracking available
+  return null;
+};
+
+/**
+ * Synchronous version of getTrackingUrl that only uses the cache
+ * Used for rendering components where async may not be practical
+ */
+export const getTrackingUrlSync = (awb) => {
+  if (!awb || typeof awb !== 'string') return null;
+  
+  const cleanAwb = awb.trim();
+  const airlineCode = getAirlineCode(cleanAwb);
+  if (!airlineCode) return null;
+  
+  // Try from cache first
+  if (airlineCache[airlineCode]) {
+    return generateTrackingUrl(cleanAwb, airlineCache[airlineCode]);
+  }
+  
+  // Fall back to hardcoded
+  if (HARDCODED_TRACKING[airlineCode]) {
+    return HARDCODED_TRACKING[airlineCode](cleanAwb);
+  }
+  
   return null;
 };
 
@@ -94,11 +183,22 @@ export const hasTracking = (awb) => {
   if (!awb || typeof awb !== 'string') return false;
   
   const airlineCode = getAirlineCode(awb);
-  return Boolean(airlineCode && AIRLINE_TRACKING[airlineCode]);
+  if (!airlineCode) return false;
+  
+  // Check if we have this airline in cache
+  if (airlineCache[airlineCode]) return true;
+  
+  // Fall back to hardcoded
+  return Boolean(HARDCODED_TRACKING[airlineCode]);
 };
+
+// Load airlines on module initialization
+loadAirlines();
 
 export default {
   getTrackingUrl,
+  getTrackingUrlSync,
   hasTracking,
-  getAirlineCode
+  getAirlineCode,
+  loadAirlines
 }; 

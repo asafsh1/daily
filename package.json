@@ -17,5 +17,8 @@
   "devDependencies": {
     "concurrently": "^8.2.1",
     "nodemon": "^3.0.1"
+  },
+  "dependencies": {
+    "chartjs-plugin-datalabels": "^2.2.0"
   }
-} 
+}

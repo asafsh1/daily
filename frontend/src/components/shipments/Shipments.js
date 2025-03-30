@@ -7,7 +7,7 @@ import { getShipments, updateShipment, deleteShipment } from '../../actions/ship
 import Spinner from '../layout/Spinner';
 import { convertToCSV, downloadCSV } from '../../utils/exportUtils';
 import { toast } from 'react-toastify';
-import { getTrackingUrl, hasTracking } from '../../utils/trackingUtils';
+import { getTrackingUrlSync, hasTracking } from '../../utils/trackingUtils';
 
 const Shipments = ({ getShipments, updateShipment, deleteShipment, shipment: { shipments, loading } }) => {
   const [searchTerm, setSearchTerm] = useState('');
@@ -388,7 +388,7 @@ const Shipments = ({ getShipments, updateShipment, deleteShipment, shipment: { s
                                 <span><small>MAWB:</small> {' '}
                                   {hasTracking(data.awb) ? (
                                     <a 
-                                      href={getTrackingUrl(data.awb)} 
+                                      href={getTrackingUrlSync(data.awb)} 
                                       target="_blank" 
                                       rel="noopener noreferrer"
                                       className="awb-tracking-link"
@@ -404,7 +404,7 @@ const Shipments = ({ getShipments, updateShipment, deleteShipment, shipment: { s
                                 <span>
                                   {hasTracking(data.awb) ? (
                                     <a 
-                                      href={getTrackingUrl(data.awb)} 
+                                      href={getTrackingUrlSync(data.awb)} 
                                       target="_blank" 
                                       rel="noopener noreferrer"
                                       className="awb-tracking-link"
@@ -432,7 +432,7 @@ const Shipments = ({ getShipments, updateShipment, deleteShipment, shipment: { s
                       shipment.awbNumber1 ? (
                         hasTracking(shipment.awbNumber1) ? (
                           <a 
-                            href={getTrackingUrl(shipment.awbNumber1)} 
+                            href={getTrackingUrlSync(shipment.awbNumber1)} 
                             target="_blank" 
                             rel="noopener noreferrer"
                             className="awb-tracking-link"

@@ -23,9 +23,9 @@ const Navbar = () => {
           </Link>
         </li>
         <li>
-          <Link to="/customers">
-            <i className="fas fa-users"></i>{' '}
-            <span className="hide-sm">Customers</span>
+          <Link to="/admin">
+            <i className="fas fa-cogs"></i>{' '}
+            <span className="hide-sm">Admin Panel</span>
           </Link>
         </li>
       </ul>

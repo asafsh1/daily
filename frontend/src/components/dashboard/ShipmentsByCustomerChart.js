@@ -11,6 +11,7 @@ import {
   Tooltip,
   Legend
 } from 'chart.js';
+import ChartDataLabels from 'chartjs-plugin-datalabels';
 
 ChartJS.register(
   CategoryScale,
@@ -19,7 +20,8 @@ ChartJS.register(
   ArcElement,
   Title,
   Tooltip,
-  Legend
+  Legend,
+  ChartDataLabels
 );
 
 const ShipmentsByCustomerChart = ({ data }) => {
@@ -116,7 +118,19 @@ const ShipmentsByCustomerChart = ({ data }) => {
             return `Shipments: ${value} (${percentage}% of total)`;
           }
         }
-      }
+      },
+      datalabels: chartType === 'pie' ? {
+        formatter: (value, context) => {
+          return value; // Show the value directly on the pie
+        },
+        color: '#fff',
+        font: {
+          weight: 'bold',
+          size: 12
+        },
+        textStrokeColor: '#000',
+        textStrokeWidth: 1
+      } : false
     },
     scales: chartType === 'bar' ? {
       y: {

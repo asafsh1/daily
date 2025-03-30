@@ -3,7 +3,7 @@ import PropTypes from 'prop-types';
 import axios from '../../utils/axiosConfig';
 import { toast } from 'react-toastify';
 import Moment from 'react-moment';
-import { getTrackingUrl, hasTracking } from '../../utils/trackingUtils';
+import { getTrackingUrlSync, hasTracking } from '../../utils/trackingUtils';
 
 // Define initialState to fix the reference errors
 const initialState = {
@@ -226,7 +226,7 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
     // If we have a tracking URL, return a clickable link
     return (
       <a 
-        href={getTrackingUrl(awb)} 
+        href={getTrackingUrlSync(awb)} 
         target="_blank" 
         rel="noopener noreferrer"
         className="awb-tracking-link"

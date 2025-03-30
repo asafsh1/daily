@@ -2,7 +2,7 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import Moment from 'react-moment';
 import PropTypes from 'prop-types';
-import { getTrackingUrl, hasTracking } from '../../utils/trackingUtils';
+import { getTrackingUrlSync, hasTracking } from '../../utils/trackingUtils';
 
 const OverdueShipments = ({ shipments }) => {
   // Helper function to get unique AWBs from shipment legs
@@ -100,7 +100,7 @@ const OverdueShipments = ({ shipments }) => {
               <div key={idx} className="leg-awb">
                 {hasTracking(data.awb) ? (
                   <a 
-                    href={getTrackingUrl(data.awb)} 
+                    href={getTrackingUrlSync(data.awb)} 
                     target="_blank" 
                     rel="noopener noreferrer"
                     className="awb-tracking-link"
@@ -122,7 +122,7 @@ const OverdueShipments = ({ shipments }) => {
     if (typeof awbData === 'string') {
       return hasTracking(awbData) ? (
         <a 
-          href={getTrackingUrl(awbData)} 
+          href={getTrackingUrlSync(awbData)} 
           target="_blank" 
           rel="noopener noreferrer"
           className="awb-tracking-link"

@@ -2,7 +2,7 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import Moment from 'react-moment';
 import PropTypes from 'prop-types';
-import { getTrackingUrl, hasTracking } from '../../utils/trackingUtils';
+import { getTrackingUrlSync, hasTracking } from '../../utils/trackingUtils';
 
 const RecentShipments = ({ shipments }) => {
   // Helper function to normalize shipment status and add leg info
@@ -89,7 +89,7 @@ const RecentShipments = ({ shipments }) => {
                   {shipment.awbNumber1 ? (
                     hasTracking(shipment.awbNumber1) ? (
                       <a 
-                        href={getTrackingUrl(shipment.awbNumber1)} 
+                        href={getTrackingUrlSync(shipment.awbNumber1)} 
                         target="_blank" 
                         rel="noopener noreferrer"
                         className="awb-tracking-link"
@@ -104,7 +104,7 @@ const RecentShipments = ({ shipments }) => {
                     shipment.legs && shipment.legs.length > 0 && shipment.legs[0].awbNumber ? (
                       hasTracking(shipment.legs[0].awbNumber) ? (
                         <a 
-                          href={getTrackingUrl(shipment.legs[0].awbNumber)} 
+                          href={getTrackingUrlSync(shipment.legs[0].awbNumber)} 
                           target="_blank" 
                           rel="noopener noreferrer"
                           className="awb-tracking-link"

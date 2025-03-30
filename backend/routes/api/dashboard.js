@@ -486,11 +486,11 @@ router.get('/monthly-stats', async (req, res) => {
 });
 
 // @route   GET api/dashboard/overdue-non-invoiced
-// @desc    Get shipments with passed arrival dates that aren't invoiced
+// @desc    Get overdue shipments that are not invoiced
 // @access  Public
 router.get('/overdue-non-invoiced', async (req, res) => {
   try {
-    console.log('Processing overdue non-invoiced request');
+    console.log('Processing overdue non-invoiced shipments request');
     
     // Check database connection - if not connected, return empty data
     if (mongoose.connection.readyState !== 1) {
@@ -503,17 +503,21 @@ router.get('/overdue-non-invoiced', async (req, res) => {
     const currentDate = new Date();
     console.log('Current date:', currentDate);
     
+    // Calculate date threshold for shipments older than 1 day
+    const oneDayAgo = new Date();
+    oneDayAgo.setDate(oneDayAgo.getDate() - 1);
+    console.log('One day ago threshold:', oneDayAgo);
+    
     // Find shipments where:
-    // 1. Any of these conditions are met:
+    // 1. Created more than 1 day ago
+    // 2. Not invoiced
+    // 3. Any of these conditions are met:
     //    a. Scheduled arrival date has passed
     //    b. The last leg arrival date has passed
     //    c. The shipment status is "Arrived"
-    // 2. Either not invoiced or invoice not sent
     const baseQuery = {
-      $or: [
-        { invoiced: false },
-        { invoiceSent: false }
-      ]
+      dateAdded: { $lt: oneDayAgo },  // Created more than 1 day ago
+      invoiced: false                 // Not invoiced
     };
     
     // Get all potential overdue shipments
@@ -521,7 +525,7 @@ router.get('/overdue-non-invoiced', async (req, res) => {
       .sort({ dateAdded: -1 })
       .lean();
     
-    console.log(`Found ${shipments.length} potential overdue shipments`);
+    console.log(`Found ${shipments.length} potential overdue shipments created more than 1 day ago and not invoiced`);
     
     // Process shipments to include customer data and check arrival
     const overdueShipments = await Promise.all(shipments.map(async (shipment) => {

@@ -43,6 +43,7 @@ app.use('/api/customers', require('./routes/api/customers'));
 app.use('/api/shipments', require('./routes/api/shipments'));
 app.use('/api/shipment-legs', require('./routes/api/shipmentLegs'));
 app.use('/api/dashboard', require('./routes/api/dashboard'));
+app.use('/api/airlines', require('./routes/api/airlines'));
 
 // Health check endpoint
 app.get('/health', (req, res) => {

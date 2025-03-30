@@ -6,7 +6,7 @@ import Moment from 'react-moment';
 import { getShipment, clearShipment } from '../../actions/shipment';
 import Spinner from '../layout/Spinner';
 import ShipmentLegs from './ShipmentLegs';
-import { getTrackingUrl, hasTracking } from '../../utils/trackingUtils';
+import { getTrackingUrlSync, hasTracking } from '../../utils/trackingUtils';
 
 const ShipmentDetail = ({
   getShipment,
@@ -85,7 +85,7 @@ const ShipmentDetail = ({
                           <div key={index}>
                             {hasTracking(leg.awbNumber) ? (
                               <a 
-                                href={getTrackingUrl(leg.awbNumber)} 
+                                href={getTrackingUrlSync(leg.awbNumber)} 
                                 target="_blank" 
                                 rel="noopener noreferrer"
                                 className="awb-tracking-link"
@@ -105,7 +105,7 @@ const ShipmentDetail = ({
                     shipment.awbNumber1 ? (
                       hasTracking(shipment.awbNumber1) ? (
                         <a 
-                          href={getTrackingUrl(shipment.awbNumber1)} 
+                          href={getTrackingUrlSync(shipment.awbNumber1)} 
                           target="_blank" 
                           rel="noopener noreferrer"
                           className="awb-tracking-link"
@@ -281,7 +281,7 @@ const ShipmentDetail = ({
                   return hasTracking(leg.awbNumber) ? (
                     <a 
                       key={leg._id || leg.legOrder}
-                      href={getTrackingUrl(leg.awbNumber)} 
+                      href={getTrackingUrlSync(leg.awbNumber)} 
                       target="_blank" 
                       rel="noopener noreferrer"
                       className="awb-tracking-link"
