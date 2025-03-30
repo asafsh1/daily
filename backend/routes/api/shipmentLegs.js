@@ -164,9 +164,27 @@ router.put(
       if (mawbNumber) legFields.mawbNumber = mawbNumber;
       if (departureTime) legFields.departureTime = departureTime;
       if (arrivalTime) legFields.arrivalTime = arrivalTime;
-      if (status) legFields.status = status;
       if (notes !== undefined) legFields.notes = notes;
       legFields.updatedAt = Date.now();
+      
+      // Only track status changes if status is different
+      if (status && status !== shipmentLeg.status) {
+        legFields.status = status;
+        
+        // Add to status history if not using $set
+        if (!shipmentLeg.statusHistory) {
+          shipmentLeg.statusHistory = [];
+        }
+        
+        shipmentLeg.statusHistory.push({
+          status: status,
+          timestamp: new Date()
+        });
+        
+        legFields.statusHistory = shipmentLeg.statusHistory;
+        
+        console.log(`Leg ${shipmentLeg._id} status changed from ${shipmentLeg.status} to ${status}`);
+      }
 
       // Update
       shipmentLeg = await ShipmentLeg.findByIdAndUpdate(

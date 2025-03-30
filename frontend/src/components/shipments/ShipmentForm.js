@@ -204,6 +204,9 @@ const ShipmentForm = ({
 
   const onChange = e => {
     const { name, value, type, checked } = e.target;
+    // Don't allow changes to dateAdded
+    if (name === 'dateAdded') return;
+    
     setFormData(prevState => ({
       ...prevState,
       [name]: type === 'checkbox' ? checked : value
@@ -353,6 +356,7 @@ const ShipmentForm = ({
             value={dateAdded}
             onChange={onChange}
             className={errors.dateAdded ? 'form-control is-invalid' : 'form-control'}
+            disabled
           />
           {errors.dateAdded && <div className="invalid-feedback">{errors.dateAdded}</div>}
         </div>

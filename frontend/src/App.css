@@ -2249,4 +2249,80 @@ select:focus {
   .chart-controls {
     justify-content: center;
   }
+}
+
+/* Status history styles */
+.status-history {
+  margin-top: 10px;
+  border-left: 2px solid #ccc;
+  padding-left: 10px;
+}
+
+.status-history-title {
+  font-size: 0.9rem;
+  color: #666;
+  margin-bottom: 5px;
+}
+
+.status-history-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.status-history-item {
+  display: flex;
+  align-items: center;
+  margin-bottom: 5px;
+  font-size: 0.85rem;
+}
+
+.status-history-item .status-badge {
+  margin-right: 8px;
+  font-size: 0.75rem;
+  padding: 2px 5px;
+}
+
+.status-timestamp {
+  color: #666;
+}
+
+/* Mobile responsive styles for edit shipment */
+@media (max-width: 768px) {
+  .shipment-form .form-row {
+    flex-direction: column;
+  }
+  
+  .shipment-form .form-group {
+    width: 100%;
+    margin-right: 0;
+  }
+  
+  .shipment-legs-table th,
+  .shipment-legs-table td {
+    padding: 8px 5px;
+    font-size: 0.85rem;
+  }
+  
+  .leg-actions {
+    display: flex;
+    flex-direction: column;
+  }
+  
+  .leg-actions button {
+    margin-bottom: 5px;
+  }
+  
+  /* Fix overlapping issues on mobile */
+  .shipment-form input,
+  .shipment-form select,
+  .shipment-form textarea {
+    max-width: 100%;
+  }
+  
+  /* Ensure buttons are properly sized on mobile */
+  .shipment-form .btn {
+    margin-right: 5px;
+    margin-bottom: 5px;
+  }
 } 

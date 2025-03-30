@@ -45,6 +45,19 @@ const ShipmentLegSchema = new mongoose.Schema({
     enum: ['Pending', 'In Transit', 'Arrived', 'Delayed', 'Canceled'],
     default: 'Pending'
   },
+  statusHistory: [
+    {
+      status: {
+        type: String,
+        enum: ['Pending', 'In Transit', 'Arrived', 'Delayed', 'Canceled'],
+        required: true
+      },
+      timestamp: {
+        type: Date,
+        default: Date.now
+      }
+    }
+  ],
   notes: {
     type: String
   },
@@ -83,6 +96,19 @@ ShipmentLegSchema.pre('save', async function(next) {
   } catch (err) {
     next(err);
   }
+});
+
+// Pre-save hook to track status changes
+ShipmentLegSchema.pre('save', function(next) {
+  // If this is a new document or status has been modified
+  if (this.isNew || this.isModified('status')) {
+    // Add current status to history
+    this.statusHistory.push({
+      status: this.status,
+      timestamp: new Date()
+    });
+  }
+  next();
 });
 
 module.exports = mongoose.model('shipmentLeg', ShipmentLegSchema); 

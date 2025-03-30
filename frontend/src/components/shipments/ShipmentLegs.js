@@ -475,13 +475,51 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
                   </td>
                   {!readOnly && (
                     <td>
-                      <button
-                        onClick={() => handleDeleteLeg(leg._id)}
-                        className="btn btn-danger btn-sm"
-                        title="Delete Leg"
-                      >
-                        <i className="fas fa-trash"></i>
-                      </button>
+                      <div className="leg-details">
+                        <div className="leg-status">
+                          <span className={`status-badge status-${leg.status.toLowerCase().replace(/\s+/g, '-')}`}>
+                            {leg.status}
+                          </span>
+                        </div>
+                        
+                        <div className="leg-actions">
+                          <button 
+                            type="button" 
+                            onClick={() => handleEditLeg(leg)}
+                            className="btn btn-sm btn-primary"
+                          >
+                            <i className="fas fa-edit"></i> Edit
+                          </button>
+                          <button 
+                            type="button" 
+                            onClick={() => handleDeleteLeg(leg._id)}
+                            className="btn btn-sm btn-danger"
+                          >
+                            <i className="fas fa-trash"></i> Delete
+                          </button>
+                        </div>
+                      </div>
+                      
+                      {/* Status History Log */}
+                      {leg.statusHistory && leg.statusHistory.length > 0 && (
+                        <div className="status-history">
+                          <h5 className="status-history-title">Status History</h5>
+                          <ul className="status-history-list">
+                            {[...leg.statusHistory].reverse().map((history, idx) => (
+                              <li key={idx} className="status-history-item">
+                                <span className={`status-badge small status-${history.status.toLowerCase().replace(/\s+/g, '-')}`}>
+                                  {history.status}
+                                </span>
+                                <span className="status-timestamp">
+                                  <Moment format="DD/MM/YYYY HH:mm">
+                                    {history.timestamp}
+                                  </Moment>
+                                </span>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
                     </td>
                   )}
                 </tr>
