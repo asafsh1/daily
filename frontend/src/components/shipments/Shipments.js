@@ -3,14 +3,18 @@ import { Link } from 'react-router-dom';
 import { connect } from 'react-redux';
 import PropTypes from 'prop-types';
 import Moment from 'react-moment';
-import { getShipments, updateShipment } from '../../actions/shipment';
+import { getShipments, updateShipment, deleteShipment } from '../../actions/shipment';
 import Spinner from '../layout/Spinner';
 import { convertToCSV, downloadCSV } from '../../utils/exportUtils';
+import { toast } from 'react-toastify';
 
-const Shipments = ({ getShipments, updateShipment, shipment: { shipments, loading } }) => {
+const Shipments = ({ getShipments, updateShipment, deleteShipment, shipment: { shipments, loading } }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
   const [filteredData, setFilteredData] = useState([]);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deletePassword, setDeletePassword] = useState('');
+  const [shipmentToDelete, setShipmentToDelete] = useState(null);
 
   useEffect(() => {
     console.log('Calling getShipments()...');
@@ -75,6 +79,38 @@ const Shipments = ({ getShipments, updateShipment, shipment: { shipments, loadin
 
   const handleStatusChange = async (shipmentId, newStatus) => {
     await updateShipment(shipmentId, { shipmentStatus: newStatus });
+  };
+
+  // Delete modal handlers
+  const handleDeleteClick = (shipment) => {
+    setShipmentToDelete(shipment);
+    setDeletePassword('');
+    setShowDeleteModal(true);
+  };
+
+  const handleCloseModal = () => {
+    setShowDeleteModal(false);
+    setShipmentToDelete(null);
+    setDeletePassword('');
+  };
+
+  const handlePasswordChange = (e) => {
+    setDeletePassword(e.target.value);
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (deletePassword === 'Admin1212') {
+      try {
+        await deleteShipment(shipmentToDelete._id);
+        toast.success('Shipment deleted successfully');
+        handleCloseModal();
+      } catch (err) {
+        toast.error('Error deleting shipment');
+        console.error('Error deleting shipment:', err);
+      }
+    } else {
+      toast.error('Incorrect password');
+    }
   };
 
   // Handle export to CSV
@@ -285,17 +321,68 @@ const Shipments = ({ getShipments, updateShipment, shipment: { shipments, loadin
                     >
                       Edit
                     </Link>
+                    <button
+                      className="btn btn-sm btn-danger"
+                      onClick={() => handleDeleteClick(shipment)}
+                    >
+                      Delete
+                    </button>
                   </td>
                 </tr>
               ))
             ) : (
               <tr>
-                <td colSpan="10">No shipments found</td>
+                <td colSpan="11">No shipments found</td>
               </tr>
             )}
           </tbody>
         </table>
       </div>
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteModal && (
+        <div className="modal-backdrop">
+          <div className="modal-content" style={{ maxWidth: '500px' }}>
+            <div className="modal-header">
+              <h2>Confirm Delete</h2>
+              <button className="btn-close" onClick={handleCloseModal}>×</button>
+            </div>
+            <div className="modal-body">
+              <p>Are you sure you want to delete this shipment?</p>
+              {shipmentToDelete && (
+                <div className="delete-info">
+                  <p><strong>Serial:</strong> {shipmentToDelete.serialNumber || 'N/A'}</p>
+                  <p><strong>Customer:</strong> {
+                    typeof shipmentToDelete.customer === 'object' 
+                      ? shipmentToDelete.customer?.name 
+                      : shipmentToDelete.customer
+                  }</p>
+                </div>
+              )}
+              <div className="form-group" style={{ marginTop: '20px' }}>
+                <label htmlFor="deletePassword">Enter Admin Password:</label>
+                <input
+                  type="password"
+                  id="deletePassword"
+                  value={deletePassword}
+                  onChange={handlePasswordChange}
+                  className="form-control"
+                  placeholder="Enter password"
+                  style={{ marginTop: '10px' }}
+                />
+              </div>
+            </div>
+            <div className="modal-footer">
+              <button className="btn btn-danger" onClick={handleDeleteConfirm}>
+                Delete
+              </button>
+              <button className="btn btn-light" onClick={handleCloseModal}>
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </section>
   );
 };
@@ -303,6 +390,7 @@ const Shipments = ({ getShipments, updateShipment, shipment: { shipments, loadin
 Shipments.propTypes = {
   getShipments: PropTypes.func.isRequired,
   updateShipment: PropTypes.func.isRequired,
+  deleteShipment: PropTypes.func.isRequired,
   shipment: PropTypes.object.isRequired
 };
 
@@ -310,4 +398,4 @@ const mapStateToProps = state => ({
   shipment: state.shipment
 });
 
-export default connect(mapStateToProps, { getShipments, updateShipment })(Shipments); 
+export default connect(mapStateToProps, { getShipments, updateShipment, deleteShipment })(Shipments); 

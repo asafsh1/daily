@@ -96,9 +96,13 @@ const ShipmentForm = ({
               shipmentData[key] = formatDate(shipment[key]);
             } else if (key === 'scheduledArrival') {
               shipmentData[key] = formatDateTime(shipment[key]);
-            } else if (key === 'customer' && typeof shipment[key] === 'object') {
+            } else if (key === 'customer') {
               // Handle customer object versus ID
-              shipmentData[key] = shipment[key]._id || shipment[key];
+              if (typeof shipment[key] === 'object' && shipment[key] !== null) {
+                shipmentData[key] = shipment[key]._id || shipment[key];
+              } else {
+                shipmentData[key] = shipment[key];
+              }
             } else {
               shipmentData[key] = shipment[key];
             }
@@ -195,63 +199,39 @@ const ShipmentForm = ({
       return;
     }
 
-    // Preserve the form data to prevent it from being reset
-    const submittingData = {...formData};
-    
-    const shipmentData = {
-      ...submittingData,
-      dateAdded: new Date(dateAdded).toISOString(),
-      fileCreatedDate: fileCreatedDate ? new Date(fileCreatedDate).toISOString() : undefined,
-      cost: cost ? Number(cost) : undefined,
-      weight: weight ? Number(weight) : undefined,
-      packageCount: packageCount ? Number(packageCount) : undefined
-    };
-
-    console.log('Submitting shipment data:', shipmentData);
+    // Filter out undefined fields and handle special data types
+    const shipmentFields = {};
+    for (const key in formData) {
+      if (formData[key] !== undefined && key !== 'shipmentStatus') {
+        shipmentFields[key] = formData[key];
+      }
+    }
 
     try {
       if (isEditMode) {
-        await updateShipment(id, shipmentData, navigate);
+        // Update existing shipment
+        await updateShipment(id, shipmentFields);
+        navigate(`/shipments/${id}`);
       } else {
-        // For new shipment with legs, we'll need to associate the legs with the new shipment
-        const newShipment = await addShipment(shipmentData);
+        // Create new shipment
+        const res = await addShipment(shipmentFields);
         
-        // Only proceed if the shipment was created successfully
-        if (newShipment && newShipment._id) {
-          // If we have temp legs, we need to update the legs
-          if (tempShipmentId) {
-            try {
-              // Update legs that were associated with the temp ID
-              await axios.put(`/api/shipment-legs/reassign/${tempShipmentId}/${newShipment._id}`);
-              console.log('Successfully reassigned legs to new shipment');
-            } catch (err) {
-              console.error('Error reassigning legs:', err);
-              setErrors(prev => ({
-                ...prev,
-                submit: 'Shipment created but there was an error associating the legs. Please check the shipment details.'
-              }));
-              // Still navigate but after a delay so the user sees the error
-              setTimeout(() => navigate(`/shipments/${newShipment._id}`), 3000);
-              return;
-            }
+        // If there are temporary legs, assign them to the new shipment
+        if (tempShipmentId && res && res._id) {
+          const newShipmentId = res._id;
+          try {
+            console.log(`Reassigning legs from temp ID ${tempShipmentId} to new shipment ID ${newShipmentId}`);
+            await axios.put(`/api/shipment-legs/reassign/${tempShipmentId}/${newShipmentId}`);
+          } catch (err) {
+            console.error('Error reassigning temp legs:', err);
           }
-          
-          // Only navigate if everything succeeded
-          navigate('/shipments');
-        } else {
-          // Don't navigate if there was an error creating the shipment
-          setErrors(prev => ({
-            ...prev,
-            submit: 'Failed to create shipment. Please check your form entries and try again.'
-          }));
         }
+        
+        navigate('/shipments');
       }
     } catch (err) {
-      console.error('Error submitting form:', err);
-      setErrors(prev => ({
-        ...prev,
-        submit: 'Error submitting form. Please try again.'
-      }));
+      console.error('Error saving shipment:', err);
+      setErrors({ submit: 'Error saving shipment. Please try again.' });
     }
   };
 
@@ -289,26 +269,26 @@ const ShipmentForm = ({
         </div>
         
         <div className="form-group">
-          <label htmlFor="customer">Customer</label>
-          <select
-            id="customer"
-            name="customer"
-            value={customer}
-            onChange={onChange}
-            className={errors.customer ? 'form-control is-invalid' : 'form-control'}
-            required
-          >
-            <option value="">Select a customer</option>
-            {customers.map(cust => (
-              <option key={cust._id} value={cust._id}>
-                {cust.name}
-              </option>
-            ))}
-          </select>
+          <label htmlFor="customer">Customer*</label>
+          {customersLoading ? (
+            <p>Loading customers...</p>
+          ) : (
+            <select
+              id="customer"
+              name="customer"
+              value={customer}
+              onChange={onChange}
+              className={errors.customer ? 'form-control is-invalid' : 'form-control'}
+            >
+              <option value="">Select Customer</option>
+              {customers.map(cust => (
+                <option key={cust._id} value={cust._id}>
+                  {cust.name}
+                </option>
+              ))}
+            </select>
+          )}
           {errors.customer && <div className="invalid-feedback">{errors.customer}</div>}
-          <small className="form-text">
-            <Link to="/customers">Manage customers</Link>
-          </small>
         </div>
         
         <div className="form-group">
@@ -326,24 +306,6 @@ const ShipmentForm = ({
             <option value="canceled">Canceled</option>
           </select>
           {errors.orderStatus && <div className="invalid-feedback">{errors.orderStatus}</div>}
-        </div>
-        
-        <div className="form-group">
-          <label htmlFor="shipmentStatus">Shipment Status</label>
-          <select
-            id="shipmentStatus"
-            name="shipmentStatus"
-            value={shipmentStatus}
-            onChange={onChange}
-            className={errors.shipmentStatus ? 'form-control is-invalid' : 'form-control'}
-          >
-            <option value="Pending">Pending</option>
-            <option value="In Transit">In Transit</option>
-            <option value="Arrived">Arrived</option>
-            <option value="Delayed">Delayed</option>
-            <option value="Canceled">Canceled</option>
-          </select>
-          {errors.shipmentStatus && <div className="invalid-feedback">{errors.shipmentStatus}</div>}
         </div>
         
         <div className="form-row">

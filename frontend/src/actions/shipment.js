@@ -195,22 +195,25 @@ export const updateShipment = (id, formData, navigate) => async dispatch => {
 
 // Delete shipment
 export const deleteShipment = id => async dispatch => {
-  if (window.confirm('Are you sure you want to delete this shipment?')) {
-    try {
-      await axios.delete(`/api/shipments/${id}`);
+  try {
+    await axios.delete(`/api/shipments/${id}`);
 
-      dispatch({
-        type: DELETE_SHIPMENT,
-        payload: id
-      });
+    dispatch({
+      type: DELETE_SHIPMENT,
+      payload: id
+    });
 
-      dispatch(setAlert('Shipment Removed', 'success'));
-    } catch (err) {
-      dispatch({
-        type: SHIPMENT_ERROR,
-        payload: { msg: err.response.statusText, status: err.response.status }
-      });
-    }
+    dispatch(setAlert('Shipment Removed', 'success'));
+    return true;
+  } catch (err) {
+    dispatch({
+      type: SHIPMENT_ERROR,
+      payload: { 
+        msg: err.response?.statusText || 'Server Error', 
+        status: err.response?.status || 500 
+      }
+    });
+    return false;
   }
 };
 
