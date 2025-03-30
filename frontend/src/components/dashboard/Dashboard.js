@@ -6,12 +6,14 @@ import {
   getDashboardSummary, 
   getShipmentsByCustomer, 
   getShipmentsByDate,
-  getOverdueNonInvoiced
+  getOverdueNonInvoiced,
+  getDetailedShipments
 } from '../../actions/dashboard';
 import Spinner from '../layout/Spinner';
 import DashboardSummary from './DashboardSummary';
 import ShipmentsByCustomerChart from './ShipmentsByCustomerChart';
 import ShipmentsByDateChart from './ShipmentsByDateChart';
+import ShipmentsByOriginChart from './ShipmentsByOriginChart';
 import RecentShipments from './RecentShipments';
 import OverdueShipments from './OverdueShipments';
 import DashboardDetailModal from './DashboardDetailModal';
@@ -24,6 +26,7 @@ const Dashboard = ({
   getShipmentsByCustomer,
   getShipmentsByDate,
   getOverdueNonInvoiced,
+  getDetailedShipments,
   dashboard: { 
     summary, 
     shipmentsByCustomer, 
@@ -46,6 +49,7 @@ const Dashboard = ({
   const [profitableShipments, setProfitableShipments] = useState([]);
   const [lossShipments, setLossShipments] = useState([]);
   const [activeTab, setActiveTab] = useState('all');
+  const [detailedShipments, setDetailedShipments] = useState([]);
 
   // Run diagnostics first to check API/DB connectivity
   const runDiagnostics = async () => {
@@ -100,6 +104,11 @@ const Dashboard = ({
         await getOverdueNonInvoiced();
         console.log('Overdue non-invoiced fetched successfully');
         
+        // Get detailed shipments for origin chart
+        const shipmentsDetails = await getDetailedShipments();
+        console.log('Detailed shipments fetched successfully');
+        setDetailedShipments(shipmentsDetails || []);
+        
       } catch (err) {
         console.error('Error fetching dashboard data:', err.message, err);
         toast.error('Error loading dashboard data. Please try refreshing the page.');
@@ -117,7 +126,7 @@ const Dashboard = ({
     return () => {
       clearInterval(refreshInterval);
     };
-  }, [getDashboardSummary, getShipmentsByCustomer, getShipmentsByDate, getOverdueNonInvoiced]);
+  }, [getDashboardSummary, getShipmentsByCustomer, getShipmentsByDate, getOverdueNonInvoiced, getDetailedShipments]);
 
   useEffect(() => {
     console.log('Dashboard data state:', { summary, loading, error });
@@ -564,6 +573,15 @@ const Dashboard = ({
           )}
         </div>
       </div>
+      
+      <div className="chart-container mt-4">
+        <h2 className="text-primary">Shipments and Profit by Origin</h2>
+        {detailedShipments && detailedShipments.length > 0 ? (
+          <ShipmentsByOriginChart data={detailedShipments} />
+        ) : (
+          <p>No data available</p>
+        )}
+      </div>
 
       <DashboardDetailModal
         isOpen={modalData.isOpen}
@@ -581,6 +599,7 @@ Dashboard.propTypes = {
   getShipmentsByCustomer: PropTypes.func.isRequired,
   getShipmentsByDate: PropTypes.func.isRequired,
   getOverdueNonInvoiced: PropTypes.func.isRequired,
+  getDetailedShipments: PropTypes.func.isRequired,
   dashboard: PropTypes.object.isRequired
 };
 
@@ -590,5 +609,5 @@ const mapStateToProps = state => ({
 
 export default connect(
   mapStateToProps,
-  { getDashboardSummary, getShipmentsByCustomer, getShipmentsByDate, getOverdueNonInvoiced }
+  { getDashboardSummary, getShipmentsByCustomer, getShipmentsByDate, getOverdueNonInvoiced, getDetailedShipments }
 )(Dashboard); 

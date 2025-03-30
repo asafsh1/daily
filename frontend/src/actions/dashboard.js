@@ -199,4 +199,29 @@ export const getOverdueNonInvoiced = () => async dispatch => {
       }
     });
   }
+};
+
+// Get detailed shipments including leg data for origin chart
+export const getDetailedShipments = () => async dispatch => {
+  try {
+    const res = await axios.get('/api/shipments?includeLegs=true&limit=100');
+    
+    console.log('Detailed shipments fetched successfully', res.data);
+    
+    // Return the data directly to be used by the component
+    return res.data;
+  } catch (err) {
+    console.error('Error fetching detailed shipments:', err);
+    
+    dispatch({
+      type: DASHBOARD_ERROR,
+      payload: {
+        msg: err.response?.statusText || 'Unknown error',
+        status: err.response?.status || 500,
+        error: 'Failed to load detailed shipment data'
+      }
+    });
+    
+    return [];
+  }
 }; 
