@@ -224,23 +224,45 @@ export const updateShipment = (id, formData, navigate) => async dispatch => {
 // Delete shipment
 export const deleteShipment = id => async dispatch => {
   try {
-    await axios.delete(`/api/shipments/${id}`);
-
-    dispatch({
-      type: DELETE_SHIPMENT,
-      payload: id
-    });
-
-    dispatch(setAlert('Shipment Removed', 'success'));
-    return true;
+    console.log(`Attempting to delete shipment with ID: ${id}`);
+    
+    const res = await axios.delete(`/api/shipments/${id}`);
+    console.log('Delete API response:', res.data);
+    
+    if (res.data && res.data.id) {
+      console.log(`Successfully deleted shipment with ID: ${id}`);
+      
+      // Dispatch the deletion action to update the Redux store
+      dispatch({
+        type: DELETE_SHIPMENT,
+        payload: id
+      });
+      
+      dispatch(setAlert('Shipment Removed', 'success'));
+      return true;
+    } else {
+      console.warn('Delete API returned success but without expected data format:', res.data);
+      dispatch(setAlert('Shipment may not have been fully removed', 'warning'));
+      return false;
+    }
   } catch (err) {
+    console.error('Error deleting shipment:', err);
+    
+    // Extract detailed error info if available
+    const errorMsg = err.response?.data?.msg || err.message || 'Unknown error';
+    const errorStatus = err.response?.status || 500;
+    
+    console.error(`Delete error (${errorStatus}): ${errorMsg}`);
+    
     dispatch({
       type: SHIPMENT_ERROR,
       payload: { 
-        msg: err.response?.statusText || 'Server Error', 
-        status: err.response?.status || 500 
+        msg: errorMsg,
+        status: errorStatus 
       }
     });
+    
+    dispatch(setAlert(`Error deleting shipment: ${errorMsg}`, 'danger'));
     return false;
   }
 };

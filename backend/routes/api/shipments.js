@@ -459,21 +459,47 @@ router.put('/:id', async (req, res) => {
 // @access  Public
 router.delete('/:id', async (req, res) => {
   try {
+    console.log(`Deleting shipment with ID: ${req.params.id}`);
+    
+    // Check database connection
+    if (mongoose.connection.readyState !== 1) {
+      console.error('Database connection is not ready. Current state:', mongoose.connection.readyState);
+      return res.status(503).json({ msg: 'Database connection is not ready' });
+    }
+    
+    // First check if the shipment exists
     const shipment = await Shipment.findById(req.params.id);
-
     if (!shipment) {
+      console.log(`Shipment with ID ${req.params.id} not found`);
       return res.status(404).json({ msg: 'Shipment not found' });
     }
-
-    await shipment.remove();
-
-    res.json({ msg: 'Shipment removed' });
+    
+    // Delete associated shipment legs first
+    const legDeleteResult = await ShipmentLeg.deleteMany({ shipmentId: req.params.id });
+    console.log(`Deleted ${legDeleteResult.deletedCount} legs associated with shipment ${req.params.id}`);
+    
+    // Delete the shipment using findByIdAndDelete (preferred over remove which is deprecated)
+    const deleteResult = await Shipment.findByIdAndDelete(req.params.id);
+    
+    if (!deleteResult) {
+      console.error(`Shipment with ID ${req.params.id} not deleted - findByIdAndDelete returned null`);
+      return res.status(500).json({ msg: 'Failed to delete shipment' });
+    }
+    
+    console.log(`Successfully deleted shipment with ID: ${req.params.id}`);
+    res.json({ msg: 'Shipment removed', id: req.params.id });
   } catch (err) {
-    console.error(err.message);
+    console.error('Error deleting shipment:', err);
+    
     if (err.kind === 'ObjectId') {
-      return res.status(404).json({ msg: 'Shipment not found' });
+      return res.status(404).json({ msg: 'Shipment not found - invalid ObjectId' });
     }
-    res.status(500).send('Server Error');
+    
+    res.status(500).json({ 
+      msg: 'Server Error', 
+      error: err.message,
+      stack: process.env.NODE_ENV === 'production' ? undefined : err.stack
+    });
   }
 });
 

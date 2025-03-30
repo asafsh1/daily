@@ -101,8 +101,25 @@ const Shipments = ({ getShipments, updateShipment, deleteShipment, shipment: { s
   const handleDeleteConfirm = async () => {
     if (deletePassword === 'Admin1212') {
       try {
-        await deleteShipment(shipmentToDelete._id);
-        toast.success('Shipment deleted successfully');
+        console.log('Deleting shipment with ID:', shipmentToDelete._id);
+        const success = await deleteShipment(shipmentToDelete._id);
+        
+        if (success) {
+          toast.success('Shipment deleted successfully');
+          // Force refresh the shipments list to ensure UI is updated
+          await getShipments();
+          
+          // Remove the deleted shipment from the filtered data as well
+          setFilteredData(prevData => 
+            prevData.filter(item => item._id !== shipmentToDelete._id)
+          );
+          
+          console.log('Shipment removed from list. Current filtered data length:', 
+            filteredData.filter(item => item._id !== shipmentToDelete._id).length);
+        } else {
+          toast.error('Error deleting shipment - server returned failure');
+        }
+        
         handleCloseModal();
       } catch (err) {
         toast.error('Error deleting shipment');
