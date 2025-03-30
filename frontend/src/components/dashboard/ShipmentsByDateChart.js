@@ -70,27 +70,42 @@ const processDataByDay = (data) => {
       // If we have month-based data, check if month matches
       if (item.month) {
         return (item.month === date.getMonth() + 1) && 
-               (item.year === date.getFullYear());
+               (item.year === date.getFullYear() || !item.year);
       }
       
       return false;
     });
+
+    let count = 0;
+    if (matchingData) {
+      count = matchingData.count || 0;
+    } else if (data.length > 0 && data[0].month) {
+      // If we have monthly data, distribute it evenly across days
+      const monthData = data.find(item => item.month === (date.getMonth() + 1));
+      if (monthData) {
+        const daysInMonth = new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate();
+        count = Math.max(Math.round(monthData.count / daysInMonth), 0);
+      }
+    }
     
-    // Use actual count if we have it, otherwise set to 0
+    // Add to daily data
     dailyData.push({
       date: dateStr,
-      count: matchingData ? matchingData.count : 0,
+      count: count,
       // Add day of week for better display
       dayOfWeek: date.toLocaleDateString('en-US', { weekday: 'short' })
     });
   }
   
+  console.log("Processed daily data:", dailyData);
   return dailyData;
 };
 
 const ShipmentsByDateChart = ({ data }) => {
+  console.log("Raw date data:", data);
   // Process data to ensure daily format
   const dailyData = processDataByDay(data);
+  console.log("Processed daily data for chart:", dailyData);
   
   const chartData = {
     labels: dailyData.map(item => `${formatDate(item.date)} (${item.dayOfWeek})`),

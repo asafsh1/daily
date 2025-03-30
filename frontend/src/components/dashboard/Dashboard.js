@@ -506,12 +506,27 @@ const Dashboard = ({
             <h3>Shipment Status</h3>
           </div>
           <div className="card-body">
-            <div className="status-distribution">
+            <div className="status-grid">
               {Object.entries(shipmentsByStatus).length > 0 ? (
                 Object.entries(shipmentsByStatus).map(([status, count]) => (
-                  <Link to={`/shipments?status=${status}`} key={status} className="status-item">
-                    <div className="status-badge status-compact status-${status.toLowerCase().replace(/\s+/g, '-')}">
-                      {status} <span className="status-count-badge">{count}</span>
+                  <Link 
+                    to={`/shipments?status=${status}`} 
+                    key={status} 
+                    className="status-card"
+                  >
+                    <div className={`status-icon status-${status.toLowerCase().replace(/\s+/g, '-')}`}>
+                      <i className={
+                        status === 'Pending' ? 'fas fa-clock' :
+                        status === 'In Transit' ? 'fas fa-plane' :
+                        status === 'Arrived' ? 'fas fa-check-circle' :
+                        status === 'Delayed' ? 'fas fa-exclamation-triangle' :
+                        status === 'Canceled' ? 'fas fa-ban' :
+                        'fas fa-shipping-fast'
+                      }></i>
+                    </div>
+                    <div className="status-details">
+                      <span className="status-name">{status}</span>
+                      <span className="status-value">{count}</span>
                     </div>
                   </Link>
                 ))

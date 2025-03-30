@@ -97,34 +97,53 @@ export const getShipmentsByCustomer = () => async dispatch => {
     // Handle either the old data format or the new paginated format
     const shipmentData = res.data.shipments || res.data;
     
+    // Process shipments with more robust customer handling
     shipmentData.forEach(shipment => {
+      if (!shipment) return;
+      
+      let customerName = 'Unknown';
+      let customerId = null;
+      
+      // Handle different customer formats
       if (shipment.customer) {
-        if (customerCounts[shipment.customer]) {
-          customerCounts[shipment.customer]++;
-        } else {
-          customerCounts[shipment.customer] = 1;
+        if (typeof shipment.customer === 'object') {
+          // If customer is an object with name property
+          customerName = shipment.customer.name || 'Unknown';
+          customerId = shipment.customer._id;
+        } else if (typeof shipment.customer === 'string') {
+          // If customer is a string (could be ID or actual name)
+          customerName = shipment.customer;
+          customerId = shipment.customer;
         }
+      }
+      
+      // Use a unique identifier that works for both formats
+      const customerKey = customerId ? customerId.toString() : customerName;
+      
+      // Track customer counts
+      if (customerCounts[customerKey]) {
+        customerCounts[customerKey].count++;
+      } else {
+        customerCounts[customerKey] = {
+          customer: customerName,
+          count: 1
+        };
       }
     });
     
     // Convert to array format for chart
-    for (const customer in customerCounts) {
-      shipmentsByCustomer.push({
-        customer,
-        count: customerCounts[customer]
-      });
+    for (const key in customerCounts) {
+      shipmentsByCustomer.push(customerCounts[key]);
     }
     
     // Sort by count (descending)
     shipmentsByCustomer.sort((a, b) => b.count - a.count);
     
-    // Take top 10
-    const top10 = shipmentsByCustomer.slice(0, 10);
-    console.log('Processed customer data for chart:', top10);
+    console.log('Processed customer data for chart:', shipmentsByCustomer);
 
     dispatch({
       type: GET_SHIPMENTS_BY_CUSTOMER,
-      payload: top10
+      payload: shipmentsByCustomer
     });
   } catch (err) {
     console.error('Error loading shipments by customer:', err);
