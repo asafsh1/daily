@@ -1732,4 +1732,17 @@ select:focus {
 
 .order-status-canceled {
   background-color: #dc3545;
+}
+
+/* Invoice info in shipments table */
+.invoiced-info {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.invoice-number {
+  font-size: 0.8rem;
+  color: #6c757d;
+  font-style: italic;
 } 

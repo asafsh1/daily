@@ -336,7 +336,7 @@ async function updateShipmentStatusFromLegs(shipmentId) {
         const activeLegIndex = legs.findIndex(leg => leg.status !== 'Arrived');
         if (activeLegIndex !== -1) {
           const activeLeg = legs[activeLegIndex];
-          newStatus = `${activeLeg.status} Leg${activeLeg.legOrder} ${activeLeg.origin}-${activeLeg.destination}`;
+          newStatus = `${activeLeg.status || 'Pending'} Leg${activeLeg.legOrder} ${activeLeg.origin}-${activeLeg.destination}`;
         }
       }
     }

@@ -200,12 +200,34 @@ router.get('/summary', async (req, res) => {
     
     console.log('Shipments by customer:', shipmentsByCustomer);
     
+    // Calculate total cost and receivables from recent shipments
+    const totalCost = recentShipments.reduce((total, shipment) => {
+      const cost = shipment.cost ? parseFloat(shipment.cost) : 0;
+      return isNaN(cost) ? total : total + cost;
+    }, 0);
+    
+    const totalReceivables = recentShipments.reduce((total, shipment) => {
+      const receivables = shipment.receivables ? parseFloat(shipment.receivables) : 0;
+      return isNaN(receivables) ? total : total + receivables;
+    }, 0);
+    
+    const totalProfit = totalReceivables - totalCost;
+    
+    console.log('Financial summary:', {
+      totalCost,
+      totalReceivables,
+      totalProfit
+    });
+    
     const response = {
       totalShipments,
       recentShipments: processedShipments,
       shipmentsByStatus,
       totalNonInvoiced,
-      shipmentsByCustomer
+      shipmentsByCustomer,
+      totalCost,
+      totalReceivables,
+      totalProfit
     };
     
     console.log('Dashboard summary prepared');

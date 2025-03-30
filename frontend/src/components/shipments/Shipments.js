@@ -307,7 +307,20 @@ const Shipments = ({ getShipments, updateShipment, deleteShipment, shipment: { s
                       'N/A'
                     )}
                   </td>
-                  <td>{shipment.invoiced ? 'Yes' : 'No'}</td>
+                  <td>
+                    {shipment.invoiced ? (
+                      <div className="invoiced-info">
+                        <span className="text-success">Yes</span>
+                        {shipment.invoiceNumber && (
+                          <div className="invoice-number">
+                            <small>#{shipment.invoiceNumber}</small>
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      'No'
+                    )}
+                  </td>
                   <td>
                     <Link
                       to={`/shipments/${shipment._id}`}
