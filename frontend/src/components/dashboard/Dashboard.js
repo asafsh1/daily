@@ -510,7 +510,7 @@ const Dashboard = ({
               {Object.entries(shipmentsByStatus).length > 0 ? (
                 Object.entries(shipmentsByStatus).map(([status, count]) => (
                   <Link to={`/shipments?status=${status}`} key={status} className="status-item">
-                    <div className={`status-badge status-compact status-${status.toLowerCase().replace(/\s+/g, '-')}`}>
+                    <div className="status-badge status-compact status-${status.toLowerCase().replace(/\s+/g, '-')}">
                       {status} <span className="status-count-badge">{count}</span>
                     </div>
                   </Link>

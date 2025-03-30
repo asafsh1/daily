@@ -531,9 +531,9 @@ button {
 
 .dashboard-charts {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
-  gap: 2rem;
-  margin-bottom: 2rem;
+  grid-template-columns: 1fr;
+  gap: 20px;
+  margin-top: 20px;
 }
 
 .recent-shipments-container,
@@ -2125,4 +2125,98 @@ select:focus {
   display: flex;
   align-items: center;
   margin-bottom: 3px;
+}
+
+/* Chart controls */
+.chart-controls {
+  display: flex;
+  margin-bottom: 15px;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.chart-controls .btn {
+  margin-left: 8px;
+  font-size: 0.85rem;
+  padding: 4px 10px;
+}
+
+.chart-summary {
+  text-align: center;
+  margin-top: 10px;
+  font-size: 0.85rem;
+  color: #666;
+}
+
+/* Dashboard layout improvements */
+@media (min-width: 992px) {
+  .dashboard-charts {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.chart-container {
+  background: #fff;
+  border-radius: 6px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  padding: 15px;
+  overflow: hidden;
+}
+
+.chart-container h2 {
+  font-size: 1.3rem;
+  margin-bottom: 20px;
+  color: #333;
+  text-align: center;
+}
+
+/* Enhanced status badges for dashboard */
+.status-badge.status-compact {
+  font-size: 0.85rem;
+  padding: 8px 12px;
+  border-radius: 30px;
+  display: inline-flex;
+  align-items: center;
+  box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+  transition: all 0.2s ease;
+  margin: 5px;
+  min-width: 100px;
+  justify-content: space-between;
+}
+
+.status-badge.status-compact:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+}
+
+.status-count-badge {
+  background-color: rgba(255,255,255,0.25);
+  border-radius: 50%;
+  width: 24px;
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: 8px;
+  font-weight: bold;
+}
+
+.status-distribution {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  padding: 10px;
+}
+
+/* Responsive improvements */
+@media (max-width: 768px) {
+  .status-badge.status-compact {
+    width: calc(50% - 20px);
+    margin: 5px;
+    justify-content: center;
+  }
+  
+  .chart-controls {
+    justify-content: center;
+  }
 } 
