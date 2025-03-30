@@ -17,6 +17,7 @@ import OverdueShipments from './OverdueShipments';
 import DashboardDetailModal from './DashboardDetailModal';
 import { Link } from 'react-router-dom';
 import Moment from 'react-moment';
+import { toast } from 'react-toastify';
 
 const Dashboard = ({
   getDashboardSummary,
@@ -39,31 +40,80 @@ const Dashboard = ({
     data: [],
     type: ''
   });
+  
+  const [diagnosticInfo, setDiagnosticInfo] = useState(null);
+  const [diagnosticLoading, setDiagnosticLoading] = useState(false);
+
+  // Run diagnostics first to check API/DB connectivity
+  const runDiagnostics = async () => {
+    try {
+      setDiagnosticLoading(true);
+      console.log('Running API diagnostics...');
+      const res = await axios.get('/api/dashboard/diagnostics');
+      setDiagnosticInfo(res.data);
+      console.log('Diagnostic results:', res.data);
+      setDiagnosticLoading(false);
+      
+      if (!res.data.database.connected) {
+        toast.error('Database connection issue detected. Please contact support.');
+      }
+      
+      return res.data.database.connected;
+    } catch (err) {
+      console.error('Diagnostics error:', err);
+      setDiagnosticInfo({ error: err.message });
+      setDiagnosticLoading(false);
+      toast.error('Error running diagnostics. API might be offline.');
+      return false;
+    }
+  };
 
   useEffect(() => {
     console.log('Dashboard component mounted, fetching summary...');
-    
-    // Check if we have an auth token
     const token = localStorage.getItem('token');
     console.log('Auth token exists:', !!token);
     
-    // Log the current API URL
-    console.log('Current API URL:', axios.defaults.baseURL);
+    const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5000';
+    console.log('Current API URL:', apiUrl);
     
-    // Call dashboard data and log success/failure
-    getDashboardSummary()
-      .then(data => {
-        console.log('Dashboard summary fetched successfully:', data);
+    const fetchData = async () => {
+      try {
+        // Run diagnostics first
+        const connected = await runDiagnostics();
+        if (!connected) {
+          console.warn('Skipping data fetch due to connection issues');
+          return;
+        }
         
-        // Also fetch the other dashboard data
-        getShipmentsByCustomer();
-        getShipmentsByDate();
-        getOverdueNonInvoiced();
-      })
-      .catch(err => {
-        console.error('Error fetching dashboard data:', err);
-        setErrorMsg('Failed to load dashboard data. Please try again later.');
-      });
+        await getDashboardSummary();
+        console.log('Dashboard summary fetched successfully:', summary);
+        
+        await getShipmentsByDate();
+        console.log('Shipments by date fetched successfully');
+        
+        await getShipmentsByCustomer();
+        console.log('Shipments by customer fetched successfully');
+        
+        await getOverdueNonInvoiced();
+        console.log('Overdue non-invoiced fetched successfully');
+        
+      } catch (err) {
+        console.error('Error fetching dashboard data:', err.message, err);
+        toast.error('Error loading dashboard data. Please try refreshing the page.');
+      }
+    };
+    
+    fetchData();
+    
+    // Set up auto-refresh
+    const refreshInterval = setInterval(() => {
+      console.log('Auto-refreshing dashboard data');
+      fetchData();
+    }, 300000); // Refresh every 5 minutes
+    
+    return () => {
+      clearInterval(refreshInterval);
+    };
   }, [getDashboardSummary, getShipmentsByCustomer, getShipmentsByDate, getOverdueNonInvoiced]);
 
   useEffect(() => {
@@ -76,10 +126,10 @@ const Dashboard = ({
 
   useEffect(() => {
     console.log('Dashboard data:', { 
-      summary, 
-      shipmentsByCustomer, 
-      shipmentsByDate, 
-      overdueNonInvoiced,
+      summary: summary || 'null', 
+      shipmentsByCustomer: shipmentsByCustomer || [], 
+      shipmentsByDate: shipmentsByDate || [],
+      overdueNonInvoiced: overdueNonInvoiced || [],
       loading 
     });
   }, [summary, shipmentsByCustomer, shipmentsByDate, overdueNonInvoiced, loading]);
@@ -151,6 +201,7 @@ const Dashboard = ({
       });
     } catch (err) {
       console.error('Error fetching detail data:', err);
+      toast.error(`Error loading ${title} data`);
     }
   };
 

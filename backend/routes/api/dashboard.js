@@ -6,6 +6,54 @@ const ShipmentLeg = require('../../models/ShipmentLeg');
 const Customer = require('../../models/Customer');
 const mongoose = require('mongoose');
 
+// @route   GET api/dashboard/diagnostics
+// @desc    Check database connection and API health
+// @access  Public
+router.get('/diagnostics', async (req, res) => {
+  try {
+    console.log('Running API diagnostics');
+    
+    // Check database connection
+    const dbStatus = {
+      connected: mongoose.connection.readyState === 1,
+      readyState: mongoose.connection.readyState,
+      host: mongoose.connection.host,
+      dbName: mongoose.connection.name
+    };
+    
+    console.log('Database status:', dbStatus);
+    
+    // Try a simple DB query
+    let dbQueryResult = 'Failed';
+    try {
+      const count = await Shipment.estimatedDocumentCount();
+      dbQueryResult = `Success: Found ${count} shipments`;
+    } catch (dbErr) {
+      dbQueryResult = `Error: ${dbErr.message}`;
+    }
+    
+    console.log('DB query test:', dbQueryResult);
+    
+    // Return diagnostic info
+    res.json({
+      timestamp: new Date().toISOString(),
+      database: dbStatus,
+      dbQuery: dbQueryResult,
+      environment: {
+        nodeEnv: process.env.NODE_ENV || 'not set',
+        port: process.env.PORT || 'not set'
+      }
+    });
+  } catch (err) {
+    console.error('Diagnostics error:', err);
+    res.status(500).json({
+      error: 'Diagnostics failed',
+      message: err.message,
+      stack: process.env.NODE_ENV === 'production' ? undefined : err.stack
+    });
+  }
+});
+
 // @route   GET api/dashboard/summary
 // @desc    Get dashboard summary statistics
 // @access  Public
@@ -29,21 +77,37 @@ router.get('/summary', async (req, res) => {
           'Canceled': 0
         },
         totalNonInvoiced: 0,
-        shipmentsByCustomer: []
+        shipmentsByCustomer: [],
+        totalCost: 0,
+        totalReceivables: 0,
+        totalProfit: 0,
+        error: `Database not connected (state: ${mongoose.connection.readyState})`
       });
     }
     
     console.log('Database connected, fetching dashboard data');
     
     // Get total shipments count
-    const totalShipments = await Shipment.countDocuments();
-    console.log('Total shipments:', totalShipments);
+    let totalShipments = 0;
+    try {
+      totalShipments = await Shipment.countDocuments();
+      console.log('Total shipments:', totalShipments);
+    } catch (countErr) {
+      console.error('Error counting shipments:', countErr);
+    }
     
     // Get recent shipments with customer data - handle both ObjectId and string customer references
-    const recentShipments = await Shipment.find()
-      .sort({ dateAdded: -1 })
-      .limit(5)
-      .lean();
+    let recentShipments = [];
+    try {
+      recentShipments = await Shipment.find()
+        .sort({ dateAdded: -1 })
+        .limit(5)
+        .lean();
+      console.log(`Fetched ${recentShipments.length} recent shipments`);
+    } catch (recentErr) {
+      console.error('Error fetching recent shipments:', recentErr);
+      recentShipments = [];
+    }
     
     // Process customers for each shipment
     const processedShipments = await Promise.all(recentShipments.map(async (shipment) => {
@@ -247,7 +311,11 @@ router.get('/summary', async (req, res) => {
         'Canceled': 0
       },
       totalNonInvoiced: 0,
-      shipmentsByCustomer: []
+      shipmentsByCustomer: [],
+      totalCost: 0,
+      totalReceivables: 0,
+      totalProfit: 0,
+      error: err.message
     });
   }
 });

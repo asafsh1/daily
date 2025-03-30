@@ -24,11 +24,38 @@ export const getShipments = () => async dispatch => {
     dispatch({ type: SHIPMENTS_LOADING });
     
     console.log('Fetching shipments from API...');
-    const res = await axios.get('/api/shipments');
-    console.log('API response:', res.data);
+    let res;
+    try {
+      res = await axios.get('/api/shipments');
+      console.log('API response status:', res.status);
+    } catch (apiErr) {
+      console.error('API call failed:', apiErr.message, apiErr.response || 'No response');
+      throw apiErr;
+    }
+    
+    if (!res || !res.data) {
+      console.error('API returned empty response');
+      throw new Error('Empty response from server');
+    }
+    
+    console.log('API response data type:', typeof res.data);
+    console.log('API response data shape:', 
+      Array.isArray(res.data) 
+        ? `Array with ${res.data.length} items` 
+        : (res.data.shipments 
+            ? `Object with shipments array (${res.data.shipments.length} items)` 
+            : 'Unknown shape')
+    );
 
     // Handle both old and new response formats
     const shipmentsData = res.data.shipments ? res.data.shipments : res.data;
+    
+    if (!Array.isArray(shipmentsData)) {
+      console.error('Data is not an array:', shipmentsData);
+      throw new Error('Invalid data format returned from server');
+    }
+    
+    console.log(`Successfully processed ${shipmentsData.length} shipments`);
     
     dispatch({
       type: GET_SHIPMENTS,
@@ -43,7 +70,8 @@ export const getShipments = () => async dispatch => {
       type: SHIPMENT_ERROR,
       payload: { 
         msg: err.response?.statusText || 'Server Error', 
-        status: err.response?.status || 500 
+        status: err.response?.status || 500,
+        error: err.message
       }
     });
     

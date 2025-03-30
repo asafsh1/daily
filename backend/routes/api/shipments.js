@@ -17,7 +17,9 @@ router.get('/', async (req, res) => {
     if (mongoose.connection.readyState !== 1) {
       console.error('Database connection is not ready. Current state:', mongoose.connection.readyState);
       
-      return res.json({
+      return res.status(503).json({
+        error: 'Database connection is not ready',
+        status: mongoose.connection.readyState,
         shipments: [],
         pagination: {
           total: 0,
@@ -32,6 +34,14 @@ router.get('/', async (req, res) => {
       const shipments = await Shipment.find()
         .sort({ dateAdded: -1 })
         .lean();
+      
+      if (!shipments) {
+        console.error('No shipments returned from database');
+        return res.status(500).json({
+          error: 'Failed to retrieve shipments', 
+          shipments: []
+        });
+      }
       
       console.log(`Found ${shipments.length} shipments`);
       
@@ -54,80 +64,95 @@ router.get('/', async (req, res) => {
       
       // Process each shipment to format properly
       const processedShipments = await Promise.all(shipments.map(async (shipment) => {
-        const shipmentId = shipment._id.toString();
-        const shipmentLegs = legsByShipment[shipmentId] || [];
-        
-        // Sort legs by order
-        shipmentLegs.sort((a, b) => a.legOrder - b.legOrder);
-        
-        // Calculate departure and arrival times
-        let departureTime = null;
-        let arrivalTime = null;
-        
-        if (shipmentLegs.length === 1) {
-          // If single leg, use its departure and arrival
-          departureTime = shipmentLegs[0].departureTime;
-          arrivalTime = shipmentLegs[0].arrivalTime;
-        } else if (shipmentLegs.length > 1) {
-          // If multiple legs, use first leg departure and last leg arrival
-          departureTime = shipmentLegs[0].departureTime;
-          arrivalTime = shipmentLegs[shipmentLegs.length - 1].arrivalTime;
+        if (!shipment) {
+          console.warn('Null shipment found in database results');
+          return null;
         }
         
-        // Process customer field to handle both string and ObjectId references
-        let customerDisplay = shipment.customer;
-        if (typeof shipment.customer === 'string' && shipment.customer.length > 24) {
-          console.log('Processing ObjectId string customer:', shipment.customer);
-          // Try to fetch the actual customer by ID
-          try {
-            const customerDoc = await mongoose.model('customer').findById(shipment.customer);
-            if (customerDoc) {
-              customerDisplay = { 
-                _id: customerDoc._id, 
-                name: customerDoc.name 
-              };
-              console.log('Found customer name:', customerDoc.name);
-            } else {
-              customerDisplay = { _id: shipment.customer, name: 'Unknown' };
-              console.log('Customer not found for ID:', shipment.customer);
-            }
-          } catch (err) {
-            console.error('Error looking up customer:', err.message);
-            customerDisplay = { _id: shipment.customer, name: 'Unknown' };
+        try {
+          const shipmentId = shipment._id.toString();
+          const shipmentLegs = legsByShipment[shipmentId] || [];
+          
+          // Sort legs by order
+          shipmentLegs.sort((a, b) => a.legOrder - b.legOrder);
+          
+          // Calculate departure and arrival times
+          let departureTime = null;
+          let arrivalTime = null;
+          
+          if (shipmentLegs.length === 1) {
+            // If single leg, use its departure and arrival
+            departureTime = shipmentLegs[0].departureTime;
+            arrivalTime = shipmentLegs[0].arrivalTime;
+          } else if (shipmentLegs.length > 1) {
+            // If multiple legs, use first leg departure and last leg arrival
+            departureTime = shipmentLegs[0].departureTime;
+            arrivalTime = shipmentLegs[shipmentLegs.length - 1].arrivalTime;
           }
-        } else if (typeof shipment.customer === 'string') {
-          customerDisplay = { name: shipment.customer };
-        } else if (shipment.customer && typeof shipment.customer === 'object') {
-          // It's already an object but might not have been populated
-          if (!shipment.customer.name && mongoose.Types.ObjectId.isValid(shipment.customer._id)) {
+          
+          // Process customer field to handle both string and ObjectId references
+          let customerDisplay = shipment.customer || { name: 'Unknown' };
+          if (typeof shipment.customer === 'string' && shipment.customer.length > 24) {
+            console.log('Processing ObjectId string customer:', shipment.customer);
+            // Try to fetch the actual customer by ID
             try {
-              const customerDoc = await mongoose.model('customer').findById(shipment.customer._id);
+              const customerDoc = await mongoose.model('customer').findById(shipment.customer);
               if (customerDoc) {
                 customerDisplay = { 
                   _id: customerDoc._id, 
                   name: customerDoc.name 
                 };
+                console.log('Found customer name:', customerDoc.name);
+              } else {
+                customerDisplay = { _id: shipment.customer, name: 'Unknown' };
+                console.log('Customer not found for ID:', shipment.customer);
               }
             } catch (err) {
-              console.error('Error looking up customer from object:', err.message);
+              console.error('Error looking up customer:', err.message);
+              customerDisplay = { _id: shipment.customer, name: 'Unknown' };
+            }
+          } else if (typeof shipment.customer === 'string') {
+            customerDisplay = { name: shipment.customer };
+          } else if (shipment.customer && typeof shipment.customer === 'object') {
+            // It's already an object but might not have been populated
+            if (!shipment.customer.name && mongoose.Types.ObjectId.isValid(shipment.customer._id)) {
+              try {
+                const customerDoc = await mongoose.model('customer').findById(shipment.customer._id);
+                if (customerDoc) {
+                  customerDisplay = { 
+                    _id: customerDoc._id, 
+                    name: customerDoc.name 
+                  };
+                }
+              } catch (err) {
+                console.error('Error looking up customer from object:', err.message);
+              }
             }
           }
-        }
         
-        return {
-          ...shipment,
-          legs: shipmentLegs,
-          customer: customerDisplay,
-          scheduledDeparture: departureTime,
-          scheduledArrival: arrivalTime
-        };
+          return {
+            ...shipment,
+            legs: shipmentLegs,
+            customer: customerDisplay,
+            scheduledDeparture: departureTime,
+            scheduledArrival: arrivalTime
+          };
+        } catch (shipmentErr) {
+          console.error('Error processing shipment:', shipmentErr, 'Shipment:', shipment ? shipment._id : 'null');
+          return shipment;
+        }
       }));
       
+      // Filter out null shipments
+      const validShipments = processedShipments.filter(shipment => shipment !== null);
+      
       // Calculate total
-      const total = processedShipments.length;
+      const total = validShipments.length;
+      
+      console.log(`Returning ${validShipments.length} processed shipments`);
       
       return res.json({
-        shipments: processedShipments,
+        shipments: validShipments,
         pagination: {
           total,
           page: 1,
@@ -172,10 +197,11 @@ router.get('/', async (req, res) => {
       throw queryErr;
     }
   } catch (err) {
-    console.error('Error in shipments request:', err.message);
+    console.error('Error in shipments request:', err.message, err.stack);
     return res.status(500).json({
       error: 'Error retrieving shipments',
-      message: err.message
+      message: err.message,
+      shipments: []
     });
   }
 });
