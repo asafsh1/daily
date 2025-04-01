@@ -4,6 +4,7 @@ import axios from '../../utils/axiosConfig';
 import { toast } from 'react-toastify';
 import Moment from 'react-moment';
 import { getTrackingUrlSync, hasTracking } from '../../utils/trackingUtils';
+import moment from 'moment';
 
 // Define initialState to fix the reference errors
 const initialState = {
@@ -271,70 +272,67 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
   };
 
   // Update an existing leg
-  const handleUpdateLeg = async () => {
+  const handleUpdateLeg = async (e) => {
+    e.preventDefault();
     try {
-      console.log('Updating leg with ID:', editingLeg._id);
       setLoading(true);
-      
-      // Format dates
-      const legData = {
+      const formattedData = {
         ...formData,
-        departureTime: new Date(formData.departureTime).toISOString(),
-        arrivalTime: new Date(formData.arrivalTime).toISOString()
+        departureTime: formData.departureTime ? moment(formData.departureTime).toISOString() : null,
+        arrivalTime: formData.arrivalTime ? moment(formData.arrivalTime).toISOString() : null
       };
-      
-      console.log('Update leg data:', legData);
-      
-      // For temporary shipments, update in local state
-      if (shipmentId.toString().startsWith('temp-') || 
-          (editingLeg._id && editingLeg._id.toString().startsWith('temp-'))) {
-        // Update in local state
-        setLegs(prevLegs => prevLegs.map(leg => 
-          leg._id === editingLeg._id ? { ...leg, ...legData, _id: editingLeg._id } : leg
-        ));
-        
-        setFormData(initialState);
-        setEditingLeg(null);
-        setShowForm(false);
-        setError(null);
-        setLoading(false);
-        
-        toast.success('Leg updated successfully');
+
+      // Create change log entry
+      const changeLogEntry = {
+        timestamp: new Date(),
+        description: `Updated leg: ${formData.airline} ${formData.flightNumber} - ${formData.origin} to ${formData.destination}`
+      };
+
+      if (shipmentId.startsWith('temp-')) {
+        // Update local state for temporary shipments
+        const updatedLegs = legs.map(leg => 
+          leg._id === editingLeg._id 
+            ? { ...formattedData, _id: leg._id, changeLog: [...(leg.changeLog || []), changeLogEntry] }
+            : leg
+        );
+        setLegs(updatedLegs);
       } else {
-        // For real shipments, update through API
-        try {
-          console.log(`Sending PUT to /api/shipment-legs/${shipmentId}/${editingLeg._id} with data:`, legData);
-          const res = await axios.put(`/api/shipment-legs/${shipmentId}/${editingLeg._id}`, legData);
-          console.log('Update response:', res.data);
-          
-          // Update the leg in the local state
-          setLegs(prevLegs => prevLegs.map(leg => 
-            leg._id === editingLeg._id ? res.data : leg
-          ));
-          
-          // Reset form
-          setFormData(initialState);
-          setEditingLeg(null);
-          setShowForm(false);
-          setError(null);
-          setLoading(false);
-          
+        // Update real shipment
+        const response = await axios.put(`/api/shipments/${shipmentId}/legs/${editingLeg._id}`, {
+          ...formattedData,
+          changeLog: [...(editingLeg.changeLog || []), changeLogEntry]
+        });
+
+        if (response.data.success) {
+          const updatedLegs = legs.map(leg => 
+            leg._id === editingLeg._id 
+              ? { ...response.data.leg, changeLog: [...(leg.changeLog || []), changeLogEntry] }
+              : leg
+          );
+          setLegs(updatedLegs);
           toast.success('Leg updated successfully');
-          
-          // Reload all legs to ensure we have the latest data
-          await fetchLegs();
-        } catch (err) {
-          setLoading(false);
-          console.error('Error updating leg:', err);
-          const errorMsg = err.response?.data?.errors?.[0]?.msg || 'Failed to update shipment leg';
-          toast.error(errorMsg);
-          setError(errorMsg);
+        } else {
+          throw new Error(response.data.message || 'Failed to update leg');
         }
       }
-    } catch (err) {
+
+      setEditingLeg(null);
+      setFormData({
+        airline: '',
+        flightNumber: '',
+        origin: '',
+        destination: '',
+        departureTime: '',
+        arrivalTime: '',
+        awbNumber: '',
+        status: 'Pending'
+      });
+      setShowForm(false);
+    } catch (error) {
+      console.error('Error updating leg:', error);
+      toast.error(error.response?.data?.message || 'Failed to update leg');
+    } finally {
       setLoading(false);
-      console.error('Error in handleUpdateLeg:', err);
-      setError('Failed to update shipment leg');
     }
   };
 
@@ -394,6 +392,30 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
 
   return (
     <div className="shipment-legs">
+      <style>
+        {`
+          .change-log {
+            max-height: 150px;
+            overflow-y: auto;
+            font-size: 0.85rem;
+          }
+          .change-entry {
+            padding: 4px 0;
+            border-bottom: 1px solid #eee;
+          }
+          .change-entry:last-child {
+            border-bottom: none;
+          }
+          .change-entry small {
+            display: block;
+            color: #666;
+            margin-bottom: 2px;
+          }
+          .change-entry div {
+            color: #333;
+          }
+        `}
+      </style>
       <div className="legs-header">
         <h3>Shipment Legs</h3>
         {!readOnly && (
@@ -432,7 +454,8 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
                 <th>Departure</th>
                 <th>Arrival</th>
                 <th>Status</th>
-                {!readOnly && <th>Actions</th>}
+                <th>Actions</th>
+                <th>Change Log</th>
               </tr>
             </thead>
             <tbody>
@@ -521,6 +544,22 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
                       )}
                     </td>
                   )}
+                  <td>
+                    {leg.changeLog && leg.changeLog.length > 0 ? (
+                      <div className="change-log">
+                        {leg.changeLog.map((change, index) => (
+                          <div key={index} className="change-entry">
+                            <small className="text-muted">
+                              {Moment(change.timestamp).format('DD/MM/YYYY HH:mm')}
+                            </small>
+                            <div>{change.description}</div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <span className="text-muted">No changes</span>
+                    )}
+                  </td>
                 </tr>
               ))}
             </tbody>

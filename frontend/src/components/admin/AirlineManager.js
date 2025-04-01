@@ -1,134 +1,203 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import axios from '../../utils/axiosConfig';
-import Spinner from '../layout/Spinner';
-import AirlineItem from './AirlineItem';
+import { toast } from 'react-toastify';
 import AirlineForm from './AirlineForm';
+import AirlineItem from './AirlineItem';
 
 const AirlineManager = () => {
   const [airlines, setAirlines] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
-  const [editAirline, setEditAirline] = useState(null);
+  const [editingAirline, setEditingAirline] = useState(null);
 
-  // Load airlines on component mount
   useEffect(() => {
-    getAirlines();
+    fetchAirlines();
   }, []);
 
-  // Fetch airlines from API
-  const getAirlines = async () => {
+  const fetchAirlines = async () => {
     try {
-      setLoading(true);
       const res = await axios.get('/api/airlines');
       setAirlines(res.data);
       setLoading(false);
     } catch (err) {
       console.error('Error fetching airlines:', err);
+      toast.error('Failed to fetch airlines');
       setLoading(false);
     }
   };
 
-  // Delete airline
-  const handleDelete = async (id) => {
-    if (window.confirm('Are you sure you want to delete this airline?')) {
-      try {
-        await axios.delete(`/api/airlines/${id}`);
-        setAirlines(airlines.filter(airline => airline._id !== id));
-      } catch (err) {
-        console.error('Error deleting airline:', err);
-        alert(`Error: ${err.response?.data?.msg || 'Something went wrong'}`);
-      }
+  const handleAddAirline = async (airlineData) => {
+    try {
+      const res = await axios.post('/api/airlines', airlineData);
+      setAirlines([...airlines, res.data]);
+      setShowForm(false);
+      toast.success('Airline added successfully');
+    } catch (err) {
+      console.error('Error adding airline:', err);
+      toast.error(err.response?.data?.message || 'Failed to add airline');
     }
   };
 
-  // Open form to edit airline
-  const handleEdit = (airline) => {
-    setEditAirline(airline);
+  const handleUpdateAirline = async (airlineData) => {
+    try {
+      const res = await axios.put(`/api/airlines/${editingAirline._id}`, airlineData);
+      setAirlines(airlines.map(airline => 
+        airline._id === editingAirline._id ? res.data : airline
+      ));
+      setEditingAirline(null);
+      toast.success('Airline updated successfully');
+    } catch (err) {
+      console.error('Error updating airline:', err);
+      toast.error(err.response?.data?.message || 'Failed to update airline');
+    }
+  };
+
+  const handleDeleteAirline = async (airlineId) => {
+    try {
+      await axios.delete(`/api/airlines/${airlineId}`);
+      setAirlines(airlines.filter(airline => airline._id !== airlineId));
+      toast.success('Airline deleted successfully');
+    } catch (err) {
+      console.error('Error deleting airline:', err);
+      toast.error(err.response?.data?.message || 'Failed to delete airline');
+    }
+  };
+
+  const handleEditAirline = (airline) => {
+    setEditingAirline(airline);
     setShowForm(true);
   };
 
-  // Handle form submission (add/edit)
-  const handleFormSubmit = async (airlineData) => {
-    try {
-      if (editAirline) {
-        // Update existing airline
-        const res = await axios.put(`/api/airlines/${editAirline._id}`, airlineData);
-        setAirlines(
-          airlines.map(airline => 
-            airline._id === editAirline._id ? res.data : airline
-          )
-        );
-      } else {
-        // Add new airline
-        const res = await axios.post('/api/airlines', airlineData);
-        setAirlines([...airlines, res.data]);
-      }
-      
-      // Close form and reset
-      setShowForm(false);
-      setEditAirline(null);
-    } catch (err) {
-      console.error('Error saving airline:', err);
-      alert(`Error: ${err.response?.data?.errors?.[0]?.msg || err.response?.data?.msg || 'Something went wrong'}`);
-    }
-  };
-
-  // Handle form cancel
-  const handleCancel = () => {
-    setShowForm(false);
-    setEditAirline(null);
-  };
+  if (loading) {
+    return <div>Loading airlines...</div>;
+  }
 
   return (
-    <div className="admin-section">
-      <div className="admin-section-header">
-        <h2 className="admin-section-title">Airline Management</h2>
+    <div className="airline-manager">
+      <style>
+        {`
+          .airline-manager {
+            padding: 20px;
+          }
+          .airline-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+          }
+          .airline-title {
+            color: #2c3e50;
+            font-size: 20px;
+            margin: 0;
+          }
+          .airline-list {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 20px;
+            margin-top: 20px;
+          }
+          .airline-card {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            transition: transform 0.2s;
+          }
+          .airline-card:hover {
+            transform: translateY(-2px);
+          }
+          .airline-name {
+            font-size: 18px;
+            font-weight: 600;
+            color: #2c3e50;
+            margin-bottom: 10px;
+          }
+          .airline-code {
+            color: #6c757d;
+            font-size: 14px;
+            margin-bottom: 15px;
+          }
+          .airline-url {
+            word-break: break-all;
+            font-size: 13px;
+            color: #495057;
+            margin-bottom: 15px;
+          }
+          .airline-actions {
+            display: flex;
+            gap: 10px;
+          }
+          .btn-icon {
+            padding: 6px 12px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 13px;
+            transition: all 0.2s;
+          }
+          .btn-edit {
+            background: #e3f2fd;
+            color: #1976d2;
+          }
+          .btn-delete {
+            background: #ffebee;
+            color: #d32f2f;
+          }
+          .btn-icon:hover {
+            opacity: 0.9;
+          }
+        `}
+      </style>
+
+      <div className="airline-header">
+        <h2 className="airline-title">Airlines Management</h2>
         <button 
-          className="btn btn-primary" 
+          className="btn btn-primary"
           onClick={() => setShowForm(true)}
-          disabled={showForm}
         >
           <i className="fas fa-plus"></i> Add Airline
         </button>
       </div>
 
       {showForm && (
-        <AirlineForm 
-          initialData={editAirline}
-          onSubmit={handleFormSubmit}
-          onCancel={handleCancel}
+        <AirlineForm
+          onSubmit={editingAirline ? handleUpdateAirline : handleAddAirline}
+          onCancel={() => {
+            setShowForm(false);
+            setEditingAirline(null);
+          }}
+          initialData={editingAirline}
         />
       )}
 
-      {loading ? (
-        <Spinner />
-      ) : airlines.length > 0 ? (
-        <div className="airlines">
-          <table className="table">
-            <thead>
-              <tr>
-                <th>Code</th>
-                <th>Name</th>
-                <th>Tracking URL Template</th>
-                <th>Status</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {airlines.map(airline => (
-                <AirlineItem 
-                  key={airline._id} 
-                  airline={airline} 
-                  onDelete={handleDelete} 
-                  onEdit={handleEdit} 
-                />
-              ))}
-            </tbody>
-          </table>
-        </div>
-      ) : (
-        <p>No airlines found. Please add an airline.</p>
-      )}
+      <div className="airline-list">
+        {airlines.map(airline => (
+          <div key={airline._id} className="airline-card">
+            <div className="airline-name">{airline.name}</div>
+            <div className="airline-code">Code: {airline.code}</div>
+            <div className="airline-url">
+              Tracking URL: {airline.trackingUrlTemplate}
+            </div>
+            <div className="airline-actions">
+              <button 
+                className="btn-icon btn-edit"
+                onClick={() => handleEditAirline(airline)}
+              >
+                <i className="fas fa-edit"></i> Edit
+              </button>
+              <button 
+                className="btn-icon btn-delete"
+                onClick={() => handleDeleteAirline(airline._id)}
+              >
+                <i className="fas fa-trash"></i> Delete
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
     </div>
   );
 };
