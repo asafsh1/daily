@@ -8,6 +8,10 @@ const Admin = () => {
   const [loading, setLoading] = useState(false);
   const [customers, setCustomers] = useState([]);
   const [users, setUsers] = useState([]);
+  const [showCustomerForm, setShowCustomerForm] = useState(false);
+  const [editingCustomer, setEditingCustomer] = useState(null);
+  const [showUserForm, setShowUserForm] = useState(false);
+  const [editingUser, setEditingUser] = useState(null);
 
   useEffect(() => {
     if (activeTab === 'customers') {
@@ -21,13 +25,30 @@ const Admin = () => {
     try {
       setLoading(true);
       console.log('Fetching customers...');
-      const response = await axios.get('/api/customers');
+      
+      // Make sure there's a minimal delay to allow auth to be processed
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      // Add a timestamp to avoid caching issues
+      const timestamp = new Date().getTime();
+      const response = await axios.get(`/api/customers?timestamp=${timestamp}`);
+      
       console.log('Customer response:', response.data);
-      setCustomers(response.data);
+      
+      if (Array.isArray(response.data)) {
+        setCustomers(response.data);
+      } else {
+        console.error('Received non-array data:', response.data);
+        toast.error('Received invalid data format from server');
+      }
       setLoading(false);
     } catch (err) {
       console.error('Error fetching customers:', err);
       console.error('Error details:', err.response?.data || err.message);
+      
+      // Set empty array instead of leaving old data
+      setCustomers([]);
+      
       toast.error(err.response?.data?.msg || 'Failed to fetch customers');
       setLoading(false);
     }
@@ -37,15 +58,72 @@ const Admin = () => {
     try {
       setLoading(true);
       console.log('Fetching users...');
-      const response = await axios.get('/api/users');
+      
+      // Make sure there's a minimal delay to allow auth to be processed
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      // Add a timestamp to avoid caching issues
+      const timestamp = new Date().getTime();
+      const response = await axios.get(`/api/users?timestamp=${timestamp}`);
+      
       console.log('Users response:', response.data);
-      setUsers(response.data);
+      
+      if (Array.isArray(response.data)) {
+        setUsers(response.data);
+      } else {
+        console.error('Received non-array data:', response.data);
+        toast.error('Received invalid data format from server');
+      }
       setLoading(false);
     } catch (err) {
       console.error('Error fetching users:', err);
       console.error('Error details:', err.response?.data || err.message);
+      
+      // Set empty array instead of leaving old data
+      setUsers([]);
+      
       toast.error(err.response?.data?.msg || 'Failed to fetch users');
       setLoading(false);
+    }
+  };
+
+  const handleEditCustomer = (customer) => {
+    setEditingCustomer(customer);
+    setShowCustomerForm(true);
+  };
+
+  const handleDeleteCustomer = async (id) => {
+    if (!window.confirm('Are you sure you want to delete this customer?')) {
+      return;
+    }
+
+    try {
+      await axios.delete(`/api/customers/${id}`);
+      setCustomers(customers.filter(customer => customer._id !== id));
+      toast.success('Customer deleted successfully');
+    } catch (err) {
+      console.error('Error deleting customer:', err);
+      toast.error(err.response?.data?.msg || 'Failed to delete customer');
+    }
+  };
+
+  const handleEditUser = (user) => {
+    setEditingUser(user);
+    setShowUserForm(true);
+  };
+
+  const handleDeleteUser = async (id) => {
+    if (!window.confirm('Are you sure you want to delete this user?')) {
+      return;
+    }
+
+    try {
+      await axios.delete(`/api/users/${id}`);
+      setUsers(users.filter(user => user._id !== id));
+      toast.success('User deleted successfully');
+    } catch (err) {
+      console.error('Error deleting user:', err);
+      toast.error(err.response?.data?.msg || 'Failed to delete user');
     }
   };
 
@@ -101,10 +179,10 @@ const Admin = () => {
                             </span>
                           </td>
                           <td>
-                            <button className="btn-icon btn-edit">
+                            <button className="btn-icon btn-edit" onClick={() => handleEditCustomer(customer)}>
                               <i className="fas fa-edit"></i>
                             </button>
-                            <button className="btn-icon btn-delete">
+                            <button className="btn-icon btn-delete" onClick={() => handleDeleteCustomer(customer._id)}>
                               <i className="fas fa-trash"></i>
                             </button>
                           </td>
@@ -171,10 +249,10 @@ const Admin = () => {
                             </span>
                           </td>
                           <td>
-                            <button className="btn-icon btn-edit">
+                            <button className="btn-icon btn-edit" onClick={() => handleEditUser(user)}>
                               <i className="fas fa-edit"></i>
                             </button>
-                            <button className="btn-icon btn-delete">
+                            <button className="btn-icon btn-delete" onClick={() => handleDeleteUser(user._id)}>
                               <i className="fas fa-trash"></i>
                             </button>
                           </td>

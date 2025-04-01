@@ -18,13 +18,29 @@ const AirlineManager = () => {
     try {
       console.log('Fetching airlines...');
       setLoading(true);
-      const response = await axios.get('/api/airlines');
+      // Make sure there's a minimal delay to allow auth to be processed
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      // Add a timestamp to avoid caching issues
+      const timestamp = new Date().getTime();
+      const response = await axios.get(`/api/airlines?timestamp=${timestamp}`);
+      
       console.log('Airlines response:', response.data);
-      setAirlines(response.data);
+      
+      if (Array.isArray(response.data)) {
+        setAirlines(response.data);
+      } else {
+        console.error('Received non-array data:', response.data);
+        toast.error('Received invalid data format from server');
+      }
       setLoading(false);
     } catch (err) {
       console.error('Error fetching airlines:', err);
       console.error('Error details:', err.response?.data || err.message);
+      
+      // Set empty array instead of leaving old data
+      setAirlines([]);
+      
       toast.error(err.response?.data?.msg || 'Failed to fetch airlines');
       setLoading(false);
     }
