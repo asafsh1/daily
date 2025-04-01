@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { toast } from 'react-toastify';
 import AirlineManager from './AirlineManager';
 import CustomerForm from './CustomerForm';
+import UserForm from './UserForm';
 
 const Admin = () => {
   const [activeTab, setActiveTab] = useState('airlines');
@@ -102,7 +103,18 @@ const Admin = () => {
   const handleEditCustomer = async (customer) => {
     try {
       console.log('Editing customer:', customer);
-      setEditingCustomer(customer);
+      // Make sure we're using the right property names
+      const customerToEdit = {
+        _id: customer._id,
+        companyName: customer.companyName || customer.name,
+        contactName: customer.contactName || customer.contactPerson,
+        email: customer.email,
+        phone: customer.phone || '',
+        awbInstructions: customer.awbInstructions || customer.notes || ''
+      };
+      
+      console.log('Prepared customer data for edit:', customerToEdit);
+      setEditingCustomer(customerToEdit);
       setShowCustomerForm(true);
     } catch (err) {
       console.error('Error preparing customer edit:', err);
@@ -231,8 +243,122 @@ const Admin = () => {
   };
 
   const handleEditUser = (user) => {
-    setEditingUser(user);
-    setShowUserForm(true);
+    try {
+      console.log('Editing user:', user);
+      // Make sure we're using the right property names
+      const userToEdit = {
+        _id: user._id,
+        name: user.name,
+        email: user.email,
+        role: user.role || 'user'
+      };
+      
+      console.log('Prepared user data for edit:', userToEdit);
+      setEditingUser(userToEdit);
+      setShowUserForm(true);
+    } catch (err) {
+      console.error('Error preparing user edit:', err);
+      toast.error('Failed to prepare user edit');
+    }
+  };
+
+  const handleUpdateUser = async (userData) => {
+    try {
+      console.log('Updating user:', userData);
+      
+      // Proceed with update
+      const response = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:5001'}/api/users/${editingUser._id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-auth-token': localStorage.getItem('token') || 'default-dev-token',
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache',
+          'Expires': '0'
+        },
+        body: JSON.stringify(userData)
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.msg || `HTTP error! status: ${response.status}`);
+      }
+      
+      const updatedUser = await response.json();
+      console.log('Updated user response:', updatedUser);
+      
+      // Clear form and show success message
+      setEditingUser(null);
+      setShowUserForm(false);
+      toast.success('User updated successfully');
+      
+      // Force a complete reload of all users
+      setLoading(true);
+      try {
+        const reloadResponse = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:5001'}/api/users`, {
+          headers: {
+            'x-auth-token': localStorage.getItem('token') || 'default-dev-token',
+            'Cache-Control': 'no-cache, no-store, must-revalidate',
+            'Pragma': 'no-cache',
+            'Expires': '0'
+          }
+        });
+        
+        if (reloadResponse.ok) {
+          const freshData = await reloadResponse.json();
+          console.log('Refreshed user data:', freshData);
+          if (Array.isArray(freshData)) {
+            setUsers(freshData);
+          }
+        }
+      } catch (reloadErr) {
+        console.error('Error reloading users after update:', reloadErr);
+      } finally {
+        setLoading(false);
+      }
+    } catch (err) {
+      console.error('Error updating user:', err);
+      toast.error(err.message || 'Failed to update user');
+    }
+  };
+  
+  const handleAddUser = async (userData) => {
+    try {
+      console.log('Adding user:', userData);
+      
+      // Generate a random password for new users
+      const password = Array(10).fill('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz!@#$%^&*')
+        .map(x => x[Math.floor(Math.random() * x.length)]).join('');
+      
+      const userDataWithPassword = {
+        ...userData,
+        password
+      };
+      
+      const response = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:5001'}/api/users`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-auth-token': localStorage.getItem('token') || 'default-dev-token'
+        },
+        body: JSON.stringify(userDataWithPassword)
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.msg || `HTTP error! status: ${response.status}`);
+      }
+      
+      const newUser = await response.json();
+      console.log('Added user:', newUser);
+      
+      setUsers([...users, newUser]);
+      setShowUserForm(false);
+      toast.success('User added successfully');
+    } catch (err) {
+      console.error('Error adding user:', err);
+      toast.error(err.message || 'Failed to add user');
+    }
   };
 
   const handleDeleteUser = async (id) => {
@@ -343,36 +469,35 @@ const Admin = () => {
         );
       case 'users':
         return (
-          <div className="user-manager">
-            <div className="user-header">
-              <h2 className="user-title">User Management</h2>
-              <div className="user-actions">
-                <button className="btn btn-success">
-                  <i className="fas fa-file-export"></i> Export CSV
-                </button>
-                <label className="btn btn-secondary">
-                  <i className="fas fa-file-import"></i> Import CSV
-                  <input type="file" className="file-input" accept=".csv" />
-                </label>
-                <button className="btn btn-primary">
-                  <i className="fas fa-plus"></i> Add User
-                </button>
-              </div>
+          <div className="user-section">
+            <div className="section-header">
+              <h2>User Management</h2>
+              <button className="btn-add" onClick={() => { setEditingUser(null); setShowUserForm(true); }}>
+                <i className="fas fa-plus"></i> Add User
+              </button>
             </div>
-            <div className="user-list">
-              {loading ? (
-                <div className="loading">
-                  <i className="fas fa-spinner fa-spin"></i>
-                  <p>Loading users...</p>
-                </div>
-              ) : (
+            
+            {showUserForm && (
+              <UserForm 
+                onSubmit={editingUser ? handleUpdateUser : handleAddUser}
+                onCancel={() => setShowUserForm(false)}
+                initialData={editingUser}
+              />
+            )}
+            
+            {loading ? (
+              <div className="loading">
+                <i className="fas fa-spinner fa-spin"></i>
+                <p>Loading users...</p>
+              </div>
+            ) : (
+              <div className="user-list">
                 <table>
                   <thead>
                     <tr>
                       <th>Name</th>
                       <th>Email</th>
                       <th>Role</th>
-                      <th>Status</th>
                       <th>Actions</th>
                     </tr>
                   </thead>
@@ -382,17 +507,18 @@ const Admin = () => {
                         <tr key={user._id}>
                           <td>{user.name}</td>
                           <td>{user.email}</td>
-                          <td>{user.role}</td>
+                          <td>{user.role || 'user'}</td>
                           <td>
-                            <span className={`status-badge status-${user.status || 'active'}`}>
-                              {user.status || 'active'}
-                            </span>
-                          </td>
-                          <td>
-                            <button className="btn-icon btn-edit" onClick={() => handleEditUser(user)}>
+                            <button
+                              className="btn-icon btn-edit"
+                              onClick={() => handleEditUser(user)}
+                            >
                               <i className="fas fa-edit"></i>
                             </button>
-                            <button className="btn-icon btn-delete" onClick={() => handleDeleteUser(user._id)}>
+                            <button
+                              className="btn-icon btn-delete"
+                              onClick={() => handleDeleteUser(user._id)}
+                            >
                               <i className="fas fa-trash"></i>
                             </button>
                           </td>
@@ -400,19 +526,19 @@ const Admin = () => {
                       ))
                     ) : (
                       <tr>
-                        <td colSpan="5" className="text-center">
+                        <td colSpan="4" className="text-center">
                           <p>No users found. Add your first user!</p>
                         </td>
                       </tr>
                     )}
                   </tbody>
                 </table>
-              )}
-            </div>
+              </div>
+            )}
           </div>
         );
       default:
-        return null;
+        return <p>Select a tab</p>;
     }
   };
 
