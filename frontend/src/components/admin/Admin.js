@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { toast } from 'react-toastify';
 import AirlineManager from './AirlineManager';
-import axios from '../../utils/axiosConfig';
+import CustomerForm from './CustomerForm';
 
 const Admin = () => {
   const [activeTab, setActiveTab] = useState('airlines');
@@ -99,9 +99,76 @@ const Admin = () => {
     }
   };
 
-  const handleEditCustomer = (customer) => {
-    setEditingCustomer(customer);
-    setShowCustomerForm(true);
+  const handleEditCustomer = async (customer) => {
+    try {
+      console.log('Editing customer:', customer);
+      setEditingCustomer(customer);
+      setShowCustomerForm(true);
+    } catch (err) {
+      console.error('Error preparing customer edit:', err);
+      toast.error('Failed to prepare customer edit');
+    }
+  };
+
+  const handleUpdateCustomer = async (customerData) => {
+    try {
+      console.log('Updating customer:', customerData);
+      const response = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:5001'}/api/customers/${editingCustomer._id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-auth-token': localStorage.getItem('token') || 'default-dev-token'
+        },
+        body: JSON.stringify(customerData)
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.msg || `HTTP error! status: ${response.status}`);
+      }
+      
+      const updatedCustomer = await response.json();
+      console.log('Updated customer:', updatedCustomer);
+      
+      setCustomers(customers.map(customer => 
+        customer._id === updatedCustomer._id ? updatedCustomer : customer
+      ));
+      setEditingCustomer(null);
+      setShowCustomerForm(false);
+      toast.success('Customer updated successfully');
+    } catch (err) {
+      console.error('Error updating customer:', err);
+      toast.error(err.message || 'Failed to update customer');
+    }
+  };
+
+  const handleAddCustomer = async (customerData) => {
+    try {
+      console.log('Adding customer:', customerData);
+      const response = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:5001'}/api/customers`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-auth-token': localStorage.getItem('token') || 'default-dev-token'
+        },
+        body: JSON.stringify(customerData)
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.msg || `HTTP error! status: ${response.status}`);
+      }
+      
+      const newCustomer = await response.json();
+      console.log('Added customer:', newCustomer);
+      
+      setCustomers([...customers, newCustomer]);
+      setShowCustomerForm(false);
+      toast.success('Customer added successfully');
+    } catch (err) {
+      console.error('Error adding customer:', err);
+      toast.error(err.message || 'Failed to add customer');
+    }
   };
 
   const handleDeleteCustomer = async (id) => {
@@ -167,36 +234,37 @@ const Admin = () => {
         return <AirlineManager />;
       case 'customers':
         return (
-          <div className="customer-manager">
-            <div className="customer-header">
-              <h2 className="customer-title">Customer Management</h2>
-              <div className="customer-actions">
-                <button className="btn btn-success">
-                  <i className="fas fa-file-export"></i> Export CSV
-                </button>
-                <label className="btn btn-secondary">
-                  <i className="fas fa-file-import"></i> Import CSV
-                  <input type="file" className="file-input" accept=".csv" />
-                </label>
-                <button className="btn btn-primary">
-                  <i className="fas fa-plus"></i> Add Customer
-                </button>
-              </div>
+          <div className="customer-section">
+            <div className="section-header">
+              <h2>Customer Management</h2>
+              <button className="btn-add" onClick={() => { setEditingCustomer(null); setShowCustomerForm(true); }}>
+                <i className="fas fa-plus"></i> Add Customer
+              </button>
             </div>
-            <div className="customer-list">
-              {loading ? (
-                <div className="loading">
-                  <i className="fas fa-spinner fa-spin"></i>
-                  <p>Loading customers...</p>
-                </div>
-              ) : (
+            
+            {showCustomerForm ? (
+              <CustomerForm 
+                onSubmit={editingCustomer ? handleUpdateCustomer : handleAddCustomer}
+                onCancel={() => setShowCustomerForm(false)}
+                initialData={editingCustomer}
+              />
+            ) : null}
+            
+            {loading ? (
+              <div className="loading">
+                <i className="fas fa-spinner fa-spin"></i>
+                <p>Loading customers...</p>
+              </div>
+            ) : (
+              <div className="customer-list">
                 <table>
                   <thead>
                     <tr>
-                      <th>Name</th>
+                      <th>Company Name</th>
+                      <th>Contact Name</th>
                       <th>Email</th>
                       <th>Phone</th>
-                      <th>Status</th>
+                      <th>AWB Instructions</th>
                       <th>Actions</th>
                     </tr>
                   </thead>
@@ -204,19 +272,22 @@ const Admin = () => {
                     {customers.length > 0 ? (
                       customers.map(customer => (
                         <tr key={customer._id}>
-                          <td>{customer.name}</td>
+                          <td>{customer.companyName}</td>
+                          <td>{customer.contactName}</td>
                           <td>{customer.email}</td>
                           <td>{customer.phone}</td>
+                          <td>{customer.awbInstructions || '-'}</td>
                           <td>
-                            <span className={`status-badge status-${customer.status || 'active'}`}>
-                              {customer.status || 'active'}
-                            </span>
-                          </td>
-                          <td>
-                            <button className="btn-icon btn-edit" onClick={() => handleEditCustomer(customer)}>
+                            <button
+                              className="btn-icon btn-edit"
+                              onClick={() => handleEditCustomer(customer)}
+                            >
                               <i className="fas fa-edit"></i>
                             </button>
-                            <button className="btn-icon btn-delete" onClick={() => handleDeleteCustomer(customer._id)}>
+                            <button
+                              className="btn-icon btn-delete"
+                              onClick={() => handleDeleteCustomer(customer._id)}
+                            >
                               <i className="fas fa-trash"></i>
                             </button>
                           </td>
@@ -224,15 +295,15 @@ const Admin = () => {
                       ))
                     ) : (
                       <tr>
-                        <td colSpan="5" className="text-center">
+                        <td colSpan="6" className="text-center">
                           <p>No customers found. Add your first customer!</p>
                         </td>
                       </tr>
                     )}
                   </tbody>
                 </table>
-              )}
-            </div>
+              </div>
+            )}
           </div>
         );
       case 'users':

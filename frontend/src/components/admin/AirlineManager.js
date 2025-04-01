@@ -44,30 +44,42 @@ const AirlineManager = () => {
     try {
       console.log('Fetching airlines...');
       setLoading(true);
-      // Make sure there's a minimal delay to allow auth to be processed
-      await new Promise(resolve => setTimeout(resolve, 500));
       
-      // Add a timestamp to avoid caching issues
-      const timestamp = new Date().getTime();
-      const response = await axios.get(`/api/airlines?timestamp=${timestamp}`);
+      // Log the API URL being used
+      const apiUrl = `${process.env.REACT_APP_API_URL || 'http://localhost:5001'}/api/airlines`;
+      console.log('API URL:', apiUrl);
       
-      console.log('Airlines response:', response.data);
+      // Log the token being used
+      const token = localStorage.getItem('token') || 'default-dev-token';
+      console.log('Using token:', token ? 'Token available' : 'No token');
       
-      if (Array.isArray(response.data)) {
-        setAirlines(response.data);
+      const response = await fetch(apiUrl, {
+        headers: {
+          'x-auth-token': token,
+          'Cache-Control': 'no-cache'
+        }
+      });
+      
+      console.log('Response status:', response.status);
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      console.log('Fetched airlines:', data);
+      
+      if (Array.isArray(data)) {
+        setAirlines(data);
       } else {
-        console.error('Received non-array data:', response.data);
+        console.error('Received non-array data:', data);
         toast.error('Received invalid data format from server');
       }
       setLoading(false);
     } catch (err) {
       console.error('Error fetching airlines:', err);
-      console.error('Error details:', err.response?.data || err.message);
-      
-      // Set empty array instead of leaving old data
       setAirlines([]);
-      
-      toast.error(err.response?.data?.msg || 'Failed to fetch airlines');
+      toast.error('Failed to fetch airlines');
       setLoading(false);
     }
   };
@@ -100,6 +112,7 @@ const AirlineManager = () => {
 
   const handleUpdateAirline = async (airlineData) => {
     try {
+      console.log('Updating airline:', airlineData);
       const response = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:5001'}/api/airlines/${editingAirline._id}`, {
         method: 'PUT',
         headers: {
@@ -109,20 +122,23 @@ const AirlineManager = () => {
         body: JSON.stringify(airlineData)
       });
       
-      if (response.ok) {
-        const updatedAirline = await response.json();
-        setAirlines(airlines.map(airline => 
-          airline._id === updatedAirline._id ? updatedAirline : airline
-        ));
-        setEditingAirline(null);
-        toast.success('Airline updated successfully');
-      } else {
+      if (!response.ok) {
         const errorData = await response.json();
-        toast.error(errorData.msg || 'Failed to update airline');
+        throw new Error(errorData.msg || `HTTP error! status: ${response.status}`);
       }
+      
+      const updatedAirline = await response.json();
+      console.log('Updated airline:', updatedAirline);
+      
+      setAirlines(airlines.map(airline => 
+        airline._id === updatedAirline._id ? updatedAirline : airline
+      ));
+      setEditingAirline(null);
+      setShowForm(false);
+      toast.success('Airline updated successfully');
     } catch (err) {
       console.error('Error updating airline:', err);
-      toast.error('Failed to update airline');
+      toast.error(err.message || 'Failed to update airline');
     }
   };
 
