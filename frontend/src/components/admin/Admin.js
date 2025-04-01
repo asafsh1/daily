@@ -21,35 +21,47 @@ const Admin = () => {
     }
   }, [activeTab]);
 
+  const handleTabChange = (tab) => {
+    setActiveTab(tab);
+    // Force data reload on tab change
+    if (tab === 'customers') {
+      setLoading(true);
+      setTimeout(() => fetchCustomers(), 100);
+    } else if (tab === 'users') {
+      setLoading(true);
+      setTimeout(() => fetchUsers(), 100);
+    }
+  };
+
   const fetchCustomers = async () => {
     try {
       setLoading(true);
-      console.log('Fetching customers...');
+      console.log('Direct API test: Fetching customers...');
       
-      // Make sure there's a minimal delay to allow auth to be processed
-      await new Promise(resolve => setTimeout(resolve, 500));
+      // Try using the direct fetch API to see if that works better
+      const response = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:5001'}/api/customers`, {
+        headers: {
+          'x-auth-token': localStorage.getItem('token') || 'default-dev-token'
+        }
+      });
+      const data = await response.json();
+      console.log('Direct API test results for customers:', data);
       
-      // Add a timestamp to avoid caching issues
-      const timestamp = new Date().getTime();
-      const response = await axios.get(`/api/customers?timestamp=${timestamp}`);
-      
-      console.log('Customer response:', response.data);
-      
-      if (Array.isArray(response.data)) {
-        setCustomers(response.data);
+      if (Array.isArray(data)) {
+        setCustomers(data);
       } else {
-        console.error('Received non-array data:', response.data);
+        console.error('Received non-array data:', data);
         toast.error('Received invalid data format from server');
       }
       setLoading(false);
     } catch (err) {
       console.error('Error fetching customers:', err);
-      console.error('Error details:', err.response?.data || err.message);
+      console.error('Error details:', err);
       
       // Set empty array instead of leaving old data
       setCustomers([]);
       
-      toast.error(err.response?.data?.msg || 'Failed to fetch customers');
+      toast.error('Failed to fetch customers');
       setLoading(false);
     }
   };
@@ -57,32 +69,32 @@ const Admin = () => {
   const fetchUsers = async () => {
     try {
       setLoading(true);
-      console.log('Fetching users...');
+      console.log('Direct API test: Fetching users...');
       
-      // Make sure there's a minimal delay to allow auth to be processed
-      await new Promise(resolve => setTimeout(resolve, 500));
+      // Try using the direct fetch API to see if that works better
+      const response = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:5001'}/api/users`, {
+        headers: {
+          'x-auth-token': localStorage.getItem('token') || 'default-dev-token'
+        }
+      });
+      const data = await response.json();
+      console.log('Direct API test results for users:', data);
       
-      // Add a timestamp to avoid caching issues
-      const timestamp = new Date().getTime();
-      const response = await axios.get(`/api/users?timestamp=${timestamp}`);
-      
-      console.log('Users response:', response.data);
-      
-      if (Array.isArray(response.data)) {
-        setUsers(response.data);
+      if (Array.isArray(data)) {
+        setUsers(data);
       } else {
-        console.error('Received non-array data:', response.data);
+        console.error('Received non-array data:', data);
         toast.error('Received invalid data format from server');
       }
       setLoading(false);
     } catch (err) {
       console.error('Error fetching users:', err);
-      console.error('Error details:', err.response?.data || err.message);
+      console.error('Error details:', err);
       
       // Set empty array instead of leaving old data
       setUsers([]);
       
-      toast.error(err.response?.data?.msg || 'Failed to fetch users');
+      toast.error('Failed to fetch users');
       setLoading(false);
     }
   };
@@ -98,12 +110,23 @@ const Admin = () => {
     }
 
     try {
-      await axios.delete(`/api/customers/${id}`);
-      setCustomers(customers.filter(customer => customer._id !== id));
-      toast.success('Customer deleted successfully');
+      const response = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:5001'}/api/customers/${id}`, {
+        method: 'DELETE',
+        headers: {
+          'x-auth-token': localStorage.getItem('token') || 'default-dev-token'
+        }
+      });
+      
+      if (response.ok) {
+        setCustomers(customers.filter(customer => customer._id !== id));
+        toast.success('Customer deleted successfully');
+      } else {
+        const errorData = await response.json();
+        toast.error(errorData.msg || 'Failed to delete customer');
+      }
     } catch (err) {
       console.error('Error deleting customer:', err);
-      toast.error(err.response?.data?.msg || 'Failed to delete customer');
+      toast.error('Failed to delete customer');
     }
   };
 
@@ -118,12 +141,23 @@ const Admin = () => {
     }
 
     try {
-      await axios.delete(`/api/users/${id}`);
-      setUsers(users.filter(user => user._id !== id));
-      toast.success('User deleted successfully');
+      const response = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:5001'}/api/users/${id}`, {
+        method: 'DELETE',
+        headers: {
+          'x-auth-token': localStorage.getItem('token') || 'default-dev-token'
+        }
+      });
+      
+      if (response.ok) {
+        setUsers(users.filter(user => user._id !== id));
+        toast.success('User deleted successfully');
+      } else {
+        const errorData = await response.json();
+        toast.error(errorData.msg || 'Failed to delete user');
+      }
     } catch (err) {
       console.error('Error deleting user:', err);
-      toast.error(err.response?.data?.msg || 'Failed to delete user');
+      toast.error('Failed to delete user');
     }
   };
 
@@ -284,19 +318,19 @@ const Admin = () => {
       <div className="admin-tabs">
         <button
           className={`tab-button ${activeTab === 'airlines' ? 'active' : ''}`}
-          onClick={() => setActiveTab('airlines')}
+          onClick={() => handleTabChange('airlines')}
         >
           Airlines
         </button>
         <button
           className={`tab-button ${activeTab === 'customers' ? 'active' : ''}`}
-          onClick={() => setActiveTab('customers')}
+          onClick={() => handleTabChange('customers')}
         >
           Customers
         </button>
         <button
           className={`tab-button ${activeTab === 'users' ? 'active' : ''}`}
-          onClick={() => setActiveTab('users')}
+          onClick={() => handleTabChange('users')}
         >
           Users
         </button>

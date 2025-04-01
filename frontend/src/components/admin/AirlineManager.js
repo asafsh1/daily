@@ -11,7 +11,33 @@ const AirlineManager = () => {
   const [editingAirline, setEditingAirline] = useState(null);
 
   useEffect(() => {
-    fetchAirlines();
+    // Add direct API testing to debug the issue
+    const testDirectFetch = async () => {
+      try {
+        console.log('Direct API test: Fetching airlines...');
+        // Try using the direct fetch API to see if that works better
+        const response = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:5001'}/api/airlines`, {
+          headers: {
+            'x-auth-token': localStorage.getItem('token') || 'default-dev-token'
+          }
+        });
+        const data = await response.json();
+        console.log('Direct API test results:', data);
+        
+        if (Array.isArray(data) && data.length > 0) {
+          console.log('Direct fetch successful, setting airlines');
+          setAirlines(data);
+          setLoading(false);
+        } else {
+          fetchAirlines(); // Fall back to the normal method
+        }
+      } catch (err) {
+        console.error('Direct API test failed:', err);
+        fetchAirlines(); // Fall back to the normal method
+      }
+    };
+    
+    testDirectFetch();
   }, []);
 
   const fetchAirlines = async () => {
@@ -48,27 +74,55 @@ const AirlineManager = () => {
 
   const handleAddAirline = async (airlineData) => {
     try {
-      const response = await axios.post('/api/airlines', airlineData);
-      setAirlines([...airlines, response.data]);
-      setShowForm(false);
-      toast.success('Airline added successfully');
+      const response = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:5001'}/api/airlines`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-auth-token': localStorage.getItem('token') || 'default-dev-token'
+        },
+        body: JSON.stringify(airlineData)
+      });
+      
+      if (response.ok) {
+        const newAirline = await response.json();
+        setAirlines([...airlines, newAirline]);
+        setShowForm(false);
+        toast.success('Airline added successfully');
+      } else {
+        const errorData = await response.json();
+        toast.error(errorData.msg || 'Failed to add airline');
+      }
     } catch (err) {
       console.error('Error adding airline:', err);
-      toast.error(err.response?.data?.msg || 'Failed to add airline');
+      toast.error('Failed to add airline');
     }
   };
 
   const handleUpdateAirline = async (airlineData) => {
     try {
-      const response = await axios.put(`/api/airlines/${editingAirline._id}`, airlineData);
-      setAirlines(airlines.map(airline => 
-        airline._id === response.data._id ? response.data : airline
-      ));
-      setEditingAirline(null);
-      toast.success('Airline updated successfully');
+      const response = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:5001'}/api/airlines/${editingAirline._id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-auth-token': localStorage.getItem('token') || 'default-dev-token'
+        },
+        body: JSON.stringify(airlineData)
+      });
+      
+      if (response.ok) {
+        const updatedAirline = await response.json();
+        setAirlines(airlines.map(airline => 
+          airline._id === updatedAirline._id ? updatedAirline : airline
+        ));
+        setEditingAirline(null);
+        toast.success('Airline updated successfully');
+      } else {
+        const errorData = await response.json();
+        toast.error(errorData.msg || 'Failed to update airline');
+      }
     } catch (err) {
       console.error('Error updating airline:', err);
-      toast.error(err.response?.data?.msg || 'Failed to update airline');
+      toast.error('Failed to update airline');
     }
   };
 
@@ -78,12 +132,23 @@ const AirlineManager = () => {
     }
 
     try {
-      await axios.delete(`/api/airlines/${id}`);
-      setAirlines(airlines.filter(airline => airline._id !== id));
-      toast.success('Airline deleted successfully');
+      const response = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:5001'}/api/airlines/${id}`, {
+        method: 'DELETE',
+        headers: {
+          'x-auth-token': localStorage.getItem('token') || 'default-dev-token'
+        }
+      });
+      
+      if (response.ok) {
+        setAirlines(airlines.filter(airline => airline._id !== id));
+        toast.success('Airline deleted successfully');
+      } else {
+        const errorData = await response.json();
+        toast.error(errorData.msg || 'Failed to delete airline');
+      }
     } catch (err) {
       console.error('Error deleting airline:', err);
-      toast.error(err.response?.data?.msg || 'Failed to delete airline');
+      toast.error('Failed to delete airline');
     }
   };
 
@@ -113,12 +178,26 @@ const AirlineManager = () => {
     Papa.parse(file, {
       complete: async (results) => {
         try {
-          const response = await axios.post('/api/airlines/bulk', results.data);
-          setAirlines([...airlines, ...response.data]);
-          toast.success('Airlines imported successfully');
+          const response = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:5001'}/api/airlines/bulk`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'x-auth-token': localStorage.getItem('token') || 'default-dev-token'
+            },
+            body: JSON.stringify(results.data)
+          });
+          
+          if (response.ok) {
+            const importedAirlines = await response.json();
+            setAirlines([...airlines, ...importedAirlines]);
+            toast.success('Airlines imported successfully');
+          } else {
+            const errorData = await response.json();
+            toast.error(errorData.msg || 'Failed to import airlines');
+          }
         } catch (err) {
           console.error('Error importing airlines:', err);
-          toast.error(err.response?.data?.msg || 'Failed to import airlines');
+          toast.error('Failed to import airlines');
         }
       },
       header: true,
