@@ -126,9 +126,6 @@ const Admin = () => {
     try {
       console.log('Updating customer:', customerData);
       
-      // Force reload after update
-      const willForceReload = true;
-      
       // Proceed with update
       const response = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:5001'}/api/customers/${editingCustomer._id}`, {
         method: 'PUT',
@@ -150,37 +147,16 @@ const Admin = () => {
       const updatedCustomer = await response.json();
       console.log('Updated customer response:', updatedCustomer);
       
+      // Update the local state
+      setCustomers(customers.map(c => c._id === updatedCustomer._id ? updatedCustomer : c));
+      
       // Clear form and show success message
       setEditingCustomer(null);
       setShowCustomerForm(false);
       toast.success('Customer updated successfully');
       
       // Force a complete reload of all customers
-      if (willForceReload) {
-        setLoading(true);
-        try {
-          const reloadResponse = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:5001'}/api/customers`, {
-            headers: {
-              'x-auth-token': localStorage.getItem('token') || 'default-dev-token',
-              'Cache-Control': 'no-cache, no-store, must-revalidate',
-              'Pragma': 'no-cache',
-              'Expires': '0'
-            }
-          });
-          
-          if (reloadResponse.ok) {
-            const freshData = await reloadResponse.json();
-            console.log('Refreshed customer data:', freshData);
-            if (Array.isArray(freshData)) {
-              setCustomers(freshData);
-            }
-          }
-        } catch (reloadErr) {
-          console.error('Error reloading customers after update:', reloadErr);
-        } finally {
-          setLoading(false);
-        }
-      }
+      fetchCustomers();
     } catch (err) {
       console.error('Error updating customer:', err);
       toast.error(err.message || 'Failed to update customer');
@@ -222,6 +198,7 @@ const Admin = () => {
     }
 
     try {
+      setLoading(true);
       const response = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:5001'}/api/customers/${id}`, {
         method: 'DELETE',
         headers: {
@@ -230,15 +207,21 @@ const Admin = () => {
       });
       
       if (response.ok) {
+        // Update the local state immediately
         setCustomers(customers.filter(customer => customer._id !== id));
         toast.success('Customer deleted successfully');
+        
+        // Then force a complete reload to ensure we have the latest data
+        fetchCustomers();
       } else {
         const errorData = await response.json();
         toast.error(errorData.msg || 'Failed to delete customer');
       }
+      setLoading(false);
     } catch (err) {
       console.error('Error deleting customer:', err);
       toast.error('Failed to delete customer');
+      setLoading(false);
     }
   };
 

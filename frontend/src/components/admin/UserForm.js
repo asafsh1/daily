@@ -72,8 +72,12 @@ const UserForm = ({ onSubmit, onCancel, initialData }) => {
               required
             >
               <option value="user">User</option>
-              <option value="manager">Manager</option>
               <option value="admin">Admin</option>
+              <option value="manager">Manager</option>
+              <option value="operations">Operations team</option>
+              <option value="finance">Finance team</option>
+              <option value="agent">Agent</option>
+              <option value="customer">Customer</option>
             </select>
           </div>
 
