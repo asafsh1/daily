@@ -35,88 +35,14 @@ const AirlineForm = ({ onSubmit, onCancel, initialData }) => {
 
   return (
     <div className="airline-form">
-      <style>
-        {`
-          .airline-form {
-            background: white;
-            padding: 24px;
-            border-radius: 8px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-            margin-bottom: 30px;
-          }
-          .form-title {
-            color: #2c3e50;
-            font-size: 18px;
-            margin-bottom: 20px;
-          }
-          .form-group {
-            margin-bottom: 20px;
-          }
-          .form-label {
-            display: block;
-            margin-bottom: 8px;
-            color: #495057;
-            font-weight: 500;
-          }
-          .form-control {
-            width: 100%;
-            padding: 8px 12px;
-            border: 1px solid #ced4da;
-            border-radius: 4px;
-            font-size: 14px;
-            transition: border-color 0.2s;
-          }
-          .form-control:focus {
-            border-color: #80bdff;
-            outline: none;
-            box-shadow: 0 0 0 0.2rem rgba(0,123,255,0.25);
-          }
-          .form-text {
-            font-size: 12px;
-            color: #6c757d;
-            margin-top: 4px;
-          }
-          .form-buttons {
-            display: flex;
-            gap: 10px;
-            margin-top: 24px;
-          }
-          .btn {
-            padding: 8px 16px;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 14px;
-            transition: all 0.2s;
-          }
-          .btn-primary {
-            background: #0d6efd;
-            color: white;
-          }
-          .btn-secondary {
-            background: #6c757d;
-            color: white;
-          }
-          .btn:hover {
-            opacity: 0.9;
-          }
-        `}
-      </style>
-
-      <h3 className="form-title">
-        {initialData ? 'Edit Airline' : 'Add New Airline'}
-      </h3>
-
+      <h3>{initialData ? 'Edit Airline' : 'Add New Airline'}</h3>
       <form onSubmit={handleSubmit}>
         <div className="form-group">
-          <label className="form-label" htmlFor="name">
-            Airline Name
-          </label>
+          <label htmlFor="name">Name</label>
           <input
             type="text"
             id="name"
             name="name"
-            className="form-control"
             value={formData.name}
             onChange={handleChange}
             required
@@ -124,66 +50,105 @@ const AirlineForm = ({ onSubmit, onCancel, initialData }) => {
         </div>
 
         <div className="form-group">
-          <label className="form-label" htmlFor="code">
-            Airline Code
-          </label>
+          <label htmlFor="code">Code</label>
           <input
             type="text"
             id="code"
             name="code"
-            className="form-control"
             value={formData.code}
             onChange={handleChange}
             required
           />
-          <div className="form-text">
-            Enter the IATA or ICAO code for the airline
-          </div>
         </div>
 
         <div className="form-group">
-          <label className="form-label" htmlFor="trackingUrlTemplate">
-            Tracking URL Template
-          </label>
+          <label htmlFor="trackingUrlTemplate">Tracking URL Template</label>
           <input
             type="text"
             id="trackingUrlTemplate"
             name="trackingUrlTemplate"
-            className="form-control"
             value={formData.trackingUrlTemplate}
             onChange={handleChange}
             required
           />
-          <div className="form-text">
-            Use {`{awb}`} as placeholder for the AWB number
-          </div>
         </div>
 
         <div className="form-group">
-          <label className="form-label" htmlFor="status">
-            Status
-          </label>
+          <label htmlFor="status">Status</label>
           <select
             id="status"
             name="status"
-            className="form-control"
             value={formData.status}
             onChange={handleChange}
+            required
           >
             <option value="active">Active</option>
             <option value="inactive">Inactive</option>
           </select>
         </div>
 
-        <div className="form-buttons">
+        <div className="form-actions">
+          <button type="submit" className="btn btn-primary">
+            {initialData ? 'Update' : 'Add'} Airline
+          </button>
           <button type="button" className="btn btn-secondary" onClick={onCancel}>
             Cancel
           </button>
-          <button type="submit" className="btn btn-primary">
-            {initialData ? 'Update Airline' : 'Add Airline'}
-          </button>
         </div>
       </form>
+
+      <style jsx>{`
+        .airline-form {
+          background: white;
+          padding: 20px;
+          border-radius: 8px;
+          box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+          margin-bottom: 20px;
+        }
+
+        .form-group {
+          margin-bottom: 15px;
+        }
+
+        .form-group label {
+          display: block;
+          margin-bottom: 5px;
+          font-weight: bold;
+        }
+
+        .form-group input,
+        .form-group select {
+          width: 100%;
+          padding: 8px;
+          border: 1px solid #ddd;
+          border-radius: 4px;
+          font-size: 14px;
+        }
+
+        .form-actions {
+          display: flex;
+          gap: 10px;
+          margin-top: 20px;
+        }
+
+        .btn {
+          padding: 8px 16px;
+          border: none;
+          border-radius: 4px;
+          cursor: pointer;
+          font-size: 14px;
+        }
+
+        .btn-primary {
+          background-color: #007bff;
+          color: white;
+        }
+
+        .btn-secondary {
+          background-color: #6c757d;
+          color: white;
+        }
+      `}</style>
     </div>
   );
 };

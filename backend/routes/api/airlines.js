@@ -59,107 +59,88 @@ router.get('/code/:code', auth, async (req, res) => {
 
 // @route    POST api/airlines
 // @desc     Create an airline
-// @access   Private (Admin only)
-router.post(
-  '/',
+// @access   Private
+router.post('/', [
+  auth,
   [
-    auth,
-    [
-      check('code', 'Airline code is required').not().isEmpty(),
-      check('name', 'Airline name is required').not().isEmpty(),
-      check('trackingUrlTemplate', 'Tracking URL template is required').not().isEmpty()
-    ]
-  ],
-  async (req, res) => {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(400).json({ errors: errors.array() });
-    }
-
-    try {
-      // Check if user has admin role
-      if (req.user.role !== 'admin') {
-        return res.status(401).json({ msg: 'Not authorized to create airlines' });
-      }
-
-      const { code, name, trackingUrlTemplate, trackingInstructions, active } = req.body;
-
-      // Check if airline with the same code already exists
-      const existingAirline = await Airline.findOne({ code });
-      if (existingAirline) {
-        return res.status(400).json({ errors: [{ msg: 'Airline with this code already exists' }] });
-      }
-
-      const airline = new Airline({
-        code,
-        name,
-        trackingUrlTemplate,
-        trackingInstructions,
-        active: active !== undefined ? active : true
-      });
-
-      await airline.save();
-      res.json(airline);
-    } catch (err) {
-      console.error(err.message);
-      res.status(500).send('Server Error');
-    }
+    check('name', 'Name is required').not().isEmpty(),
+    check('code', 'Code is required').not().isEmpty(),
+    check('trackingUrlTemplate', 'Tracking URL template is required').not().isEmpty()
+  ]
+], async (req, res) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return res.status(400).json({ errors: errors.array() });
   }
-);
+
+  try {
+    const newAirline = new Airline({
+      name: req.body.name,
+      code: req.body.code,
+      trackingUrlTemplate: req.body.trackingUrlTemplate,
+      status: req.body.status || 'active'
+    });
+
+    const airline = await newAirline.save();
+    res.json(airline);
+  } catch (err) {
+    console.error(err.message);
+    if (err.code === 11000) {
+      return res.status(400).json({ msg: 'Airline code already exists' });
+    }
+    res.status(500).send('Server Error');
+  }
+});
+
+// @route    POST api/airlines/bulk
+// @desc     Create multiple airlines
+// @access   Private
+router.post('/bulk', auth, async (req, res) => {
+  try {
+    const airlines = await Airline.insertMany(req.body, { ordered: false });
+    res.json(airlines);
+  } catch (err) {
+    console.error(err.message);
+    if (err.code === 11000) {
+      return res.status(400).json({ msg: 'Some airline codes already exist' });
+    }
+    res.status(500).send('Server Error');
+  }
+});
 
 // @route    PUT api/airlines/:id
 // @desc     Update an airline
-// @access   Private (Admin only)
+// @access   Private
 router.put('/:id', auth, async (req, res) => {
   try {
-    // Check if user has admin role
-    if (req.user.role !== 'admin') {
-      return res.status(401).json({ msg: 'Not authorized to update airlines' });
-    }
-
-    const { code, name, trackingUrlTemplate, trackingInstructions, active } = req.body;
-
-    // Build airline object
-    const airlineFields = {};
-    if (code) airlineFields.code = code;
-    if (name) airlineFields.name = name;
-    if (trackingUrlTemplate) airlineFields.trackingUrlTemplate = trackingUrlTemplate;
-    if (trackingInstructions !== undefined) airlineFields.trackingInstructions = trackingInstructions;
-    if (active !== undefined) airlineFields.active = active;
-    airlineFields.updatedAt = Date.now();
-
-    // Update
-    let airline = await Airline.findById(req.params.id);
-
+    const airline = await Airline.findById(req.params.id);
     if (!airline) {
       return res.status(404).json({ msg: 'Airline not found' });
     }
 
-    airline = await Airline.findByIdAndUpdate(
-      req.params.id,
-      { $set: airlineFields },
-      { new: true }
-    );
+    const { name, code, trackingUrlTemplate, status } = req.body;
+    airline.name = name;
+    airline.code = code;
+    airline.trackingUrlTemplate = trackingUrlTemplate;
+    airline.status = status;
 
+    await airline.save();
     res.json(airline);
   } catch (err) {
     console.error(err.message);
+    if (err.code === 11000) {
+      return res.status(400).json({ msg: 'Airline code already exists' });
+    }
     res.status(500).send('Server Error');
   }
 });
 
 // @route    DELETE api/airlines/:id
 // @desc     Delete an airline
-// @access   Private (Admin only)
+// @access   Private
 router.delete('/:id', auth, async (req, res) => {
   try {
-    // Only allow admin to delete airlines
-    if (req.user.role !== 'admin') {
-      return res.status(401).json({ msg: 'Not authorized to delete airlines' });
-    }
-
     const airline = await Airline.findById(req.params.id);
-
     if (!airline) {
       return res.status(404).json({ msg: 'Airline not found' });
     }
@@ -168,9 +149,6 @@ router.delete('/:id', auth, async (req, res) => {
     res.json({ msg: 'Airline removed' });
   } catch (err) {
     console.error(err.message);
-    if (err.kind === 'ObjectId') {
-      return res.status(404).json({ msg: 'Airline not found' });
-    }
     res.status(500).send('Server Error');
   }
 });

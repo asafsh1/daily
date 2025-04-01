@@ -3,6 +3,7 @@ import axios from '../../utils/axiosConfig';
 import { toast } from 'react-toastify';
 import AirlineForm from './AirlineForm';
 import AirlineItem from './AirlineItem';
+import Papa from 'papaparse';
 
 const AirlineManager = () => {
   const [airlines, setAirlines] = useState([]);
@@ -68,6 +69,56 @@ const AirlineManager = () => {
     setShowForm(true);
   };
 
+  const handleExportCSV = () => {
+    const csv = Papa.unparse(airlines.map(airline => ({
+      name: airline.name,
+      code: airline.code,
+      trackingUrlTemplate: airline.trackingUrlTemplate,
+      status: airline.status
+    })));
+    
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', 'airlines.csv');
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const handleImportCSV = (event) => {
+    const file = event.target.files[0];
+    if (file) {
+      Papa.parse(file, {
+        complete: async (results) => {
+          try {
+            const airlines = results.data.map(row => ({
+              name: row.name,
+              code: row.code,
+              trackingUrlTemplate: row.trackingUrlTemplate,
+              status: row.status || 'active'
+            }));
+
+            const res = await axios.post('/api/airlines/bulk', airlines);
+            setAirlines([...airlines, ...res.data]);
+            toast.success('Airlines imported successfully');
+          } catch (err) {
+            console.error('Error importing airlines:', err);
+            toast.error('Failed to import airlines');
+          }
+        },
+        header: true,
+        skipEmptyLines: true,
+        error: (error) => {
+          console.error('Error parsing CSV:', error);
+          toast.error('Error parsing CSV file');
+        }
+      });
+    }
+  };
+
   if (loading) {
     return <div>Loading airlines...</div>;
   }
@@ -89,6 +140,32 @@ const AirlineManager = () => {
             color: #2c3e50;
             font-size: 20px;
             margin: 0;
+          }
+          .airline-actions {
+            display: flex;
+            gap: 10px;
+          }
+          .btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+          }
+          .btn-primary {
+            background: #0d6efd;
+            color: white;
+          }
+          .btn-secondary {
+            background: #6c757d;
+            color: white;
+          }
+          .btn-success {
+            background: #198754;
+            color: white;
           }
           .airline-list {
             display: grid;
@@ -123,7 +200,23 @@ const AirlineManager = () => {
             color: #495057;
             margin-bottom: 15px;
           }
-          .airline-actions {
+          .airline-status {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 500;
+            margin-bottom: 15px;
+          }
+          .status-active {
+            background: #e8f5e9;
+            color: #2e7d32;
+          }
+          .status-inactive {
+            background: #ffebee;
+            color: #c62828;
+          }
+          .card-actions {
             display: flex;
             gap: 10px;
           }
@@ -149,17 +242,37 @@ const AirlineManager = () => {
           .btn-icon:hover {
             opacity: 0.9;
           }
+          .file-input {
+            display: none;
+          }
         `}
       </style>
 
       <div className="airline-header">
         <h2 className="airline-title">Airlines Management</h2>
-        <button 
-          className="btn btn-primary"
-          onClick={() => setShowForm(true)}
-        >
-          <i className="fas fa-plus"></i> Add Airline
-        </button>
+        <div className="airline-actions">
+          <button 
+            className="btn btn-success"
+            onClick={handleExportCSV}
+          >
+            <i className="fas fa-file-export"></i> Export CSV
+          </button>
+          <label className="btn btn-secondary">
+            <i className="fas fa-file-import"></i> Import CSV
+            <input
+              type="file"
+              className="file-input"
+              accept=".csv"
+              onChange={handleImportCSV}
+            />
+          </label>
+          <button 
+            className="btn btn-primary"
+            onClick={() => setShowForm(true)}
+          >
+            <i className="fas fa-plus"></i> Add Airline
+          </button>
+        </div>
       </div>
 
       {showForm && (
@@ -181,7 +294,10 @@ const AirlineManager = () => {
             <div className="airline-url">
               Tracking URL: {airline.trackingUrlTemplate}
             </div>
-            <div className="airline-actions">
+            <div className={`airline-status status-${airline.status}`}>
+              {airline.status.charAt(0).toUpperCase() + airline.status.slice(1)}
+            </div>
+            <div className="card-actions">
               <button 
                 className="btn-icon btn-edit"
                 onClick={() => handleEditAirline(airline)}
