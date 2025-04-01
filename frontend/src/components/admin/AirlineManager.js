@@ -113,11 +113,26 @@ const AirlineManager = () => {
   const handleUpdateAirline = async (airlineData) => {
     try {
       console.log('Updating airline:', airlineData);
+      
+      // First verify the airline still exists
+      const checkResponse = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:5001'}/api/airlines/${editingAirline._id}`, {
+        headers: {
+          'x-auth-token': localStorage.getItem('token') || 'default-dev-token',
+          'Cache-Control': 'no-cache'
+        }
+      });
+      
+      if (!checkResponse.ok) {
+        throw new Error(`Airline not found or access denied. Status: ${checkResponse.status}`);
+      }
+      
+      // Proceed with update
       const response = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:5001'}/api/airlines/${editingAirline._id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
-          'x-auth-token': localStorage.getItem('token') || 'default-dev-token'
+          'x-auth-token': localStorage.getItem('token') || 'default-dev-token',
+          'Cache-Control': 'no-cache'
         },
         body: JSON.stringify(airlineData)
       });
@@ -130,12 +145,30 @@ const AirlineManager = () => {
       const updatedAirline = await response.json();
       console.log('Updated airline:', updatedAirline);
       
-      setAirlines(airlines.map(airline => 
-        airline._id === updatedAirline._id ? updatedAirline : airline
-      ));
-      setEditingAirline(null);
-      setShowForm(false);
-      toast.success('Airline updated successfully');
+      // Verify the update by re-fetching the airline
+      const verifyResponse = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:5001'}/api/airlines/${editingAirline._id}`, {
+        headers: {
+          'x-auth-token': localStorage.getItem('token') || 'default-dev-token',
+          'Cache-Control': 'no-cache'
+        }
+      });
+      
+      if (verifyResponse.ok) {
+        const verifiedAirline = await verifyResponse.json();
+        console.log('Verified airline data:', verifiedAirline);
+        
+        // Update the local state with the verified data
+        const updatedAirlines = airlines.map(airline => 
+          airline._id === verifiedAirline._id ? verifiedAirline : airline
+        );
+        console.log('Updated airlines list:', updatedAirlines);
+        setAirlines(updatedAirlines);
+        setEditingAirline(null);
+        setShowForm(false);
+        toast.success('Airline updated successfully');
+      } else {
+        throw new Error('Failed to verify update. Please refresh the page.');
+      }
     } catch (err) {
       console.error('Error updating airline:', err);
       toast.error(err.message || 'Failed to update airline');

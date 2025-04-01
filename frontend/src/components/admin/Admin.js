@@ -113,11 +113,26 @@ const Admin = () => {
   const handleUpdateCustomer = async (customerData) => {
     try {
       console.log('Updating customer:', customerData);
+      
+      // First verify the customer still exists
+      const checkResponse = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:5001'}/api/customers/${editingCustomer._id}`, {
+        headers: {
+          'x-auth-token': localStorage.getItem('token') || 'default-dev-token',
+          'Cache-Control': 'no-cache'
+        }
+      });
+      
+      if (!checkResponse.ok) {
+        throw new Error(`Customer not found or access denied. Status: ${checkResponse.status}`);
+      }
+      
+      // Proceed with update
       const response = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:5001'}/api/customers/${editingCustomer._id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
-          'x-auth-token': localStorage.getItem('token') || 'default-dev-token'
+          'x-auth-token': localStorage.getItem('token') || 'default-dev-token',
+          'Cache-Control': 'no-cache'
         },
         body: JSON.stringify(customerData)
       });
@@ -130,12 +145,30 @@ const Admin = () => {
       const updatedCustomer = await response.json();
       console.log('Updated customer:', updatedCustomer);
       
-      setCustomers(customers.map(customer => 
-        customer._id === updatedCustomer._id ? updatedCustomer : customer
-      ));
-      setEditingCustomer(null);
-      setShowCustomerForm(false);
-      toast.success('Customer updated successfully');
+      // Verify the update by re-fetching the customer
+      const verifyResponse = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:5001'}/api/customers/${editingCustomer._id}`, {
+        headers: {
+          'x-auth-token': localStorage.getItem('token') || 'default-dev-token',
+          'Cache-Control': 'no-cache'
+        }
+      });
+      
+      if (verifyResponse.ok) {
+        const verifiedCustomer = await verifyResponse.json();
+        console.log('Verified customer data:', verifiedCustomer);
+        
+        // Update the local state with the verified data
+        const updatedCustomers = customers.map(customer => 
+          customer._id === verifiedCustomer._id ? verifiedCustomer : customer
+        );
+        console.log('Updated customers list:', updatedCustomers);
+        setCustomers(updatedCustomers);
+        setEditingCustomer(null);
+        setShowCustomerForm(false);
+        toast.success('Customer updated successfully');
+      } else {
+        throw new Error('Failed to verify update. Please refresh the page.');
+      }
     } catch (err) {
       console.error('Error updating customer:', err);
       toast.error(err.message || 'Failed to update customer');
@@ -260,6 +293,7 @@ const Admin = () => {
                 <table>
                   <thead>
                     <tr>
+                      <th>Serial #</th>
                       <th>Company Name</th>
                       <th>Contact Name</th>
                       <th>Email</th>
@@ -272,10 +306,11 @@ const Admin = () => {
                     {customers.length > 0 ? (
                       customers.map(customer => (
                         <tr key={customer._id}>
+                          <td>{customer.serialNumber || '-'}</td>
                           <td>{customer.companyName}</td>
                           <td>{customer.contactName}</td>
                           <td>{customer.email}</td>
-                          <td>{customer.phone}</td>
+                          <td>{customer.phone || '-'}</td>
                           <td>{customer.awbInstructions || '-'}</td>
                           <td>
                             <button
@@ -295,7 +330,7 @@ const Admin = () => {
                       ))
                     ) : (
                       <tr>
-                        <td colSpan="6" className="text-center">
+                        <td colSpan="7" className="text-center">
                           <p>No customers found. Add your first customer!</p>
                         </td>
                       </tr>
