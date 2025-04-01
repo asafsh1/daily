@@ -1,29 +1,27 @@
 const mongoose = require('mongoose');
 
 const AirlineSchema = new mongoose.Schema({
-  code: {
-    type: String,
-    required: true,
-    unique: true,
-    trim: true
-  },
   name: {
     type: String,
     required: true,
     trim: true
+  },
+  code: {
+    type: String,
+    required: true,
+    trim: true,
+    unique: true,
+    index: true
   },
   trackingUrlTemplate: {
     type: String,
     required: true,
     trim: true
   },
-  trackingInstructions: {
+  status: {
     type: String,
-    trim: true
-  },
-  active: {
-    type: Boolean,
-    default: true
+    enum: ['active', 'inactive'],
+    default: 'active'
   },
   createdAt: {
     type: Date,
@@ -37,4 +35,14 @@ const AirlineSchema = new mongoose.Schema({
   timestamps: true
 });
 
-module.exports = mongoose.model('airline', AirlineSchema); 
+// Update the updatedAt timestamp before saving
+AirlineSchema.pre('save', function(next) {
+  this.updatedAt = Date.now();
+  next();
+});
+
+// Add indexes for better query performance
+AirlineSchema.index({ name: 1 });
+AirlineSchema.index({ status: 1 });
+
+module.exports = mongoose.model('Airline', AirlineSchema); 

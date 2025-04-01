@@ -68,7 +68,8 @@ const initialAirlines = [
 const seedAirlines = async () => {
   try {
     // Connect to MongoDB
-    await mongoose.connect(process.env.MONGODB_URI, {
+    const mongoUri = process.env.MONGODB_URI || 'mongodb://localhost:27017/shipment-tracker';
+    await mongoose.connect(mongoUri, {
       useNewUrlParser: true,
       useUnifiedTopology: true
     });
@@ -82,6 +83,10 @@ const seedAirlines = async () => {
     const airlines = await Airline.insertMany(initialAirlines);
     console.log(`Successfully seeded ${airlines.length} airlines`);
 
+    // Verify the data
+    const count = await Airline.countDocuments();
+    console.log(`Total airlines in database: ${count}`);
+
     // Close connection
     await mongoose.connection.close();
     console.log('Database connection closed');
@@ -91,4 +96,5 @@ const seedAirlines = async () => {
   }
 };
 
+// Run the seed function
 seedAirlines(); 
