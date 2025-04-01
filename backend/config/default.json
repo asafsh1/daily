@@ -1,4 +1,4 @@
 {
-  "mongoURI": "mongodb://localhost:27017/shipment-reporting",
+  "mongoURI": "mongodb+srv://asafsh1:Aa123456@cluster0.aqbmxvz.mongodb.net/",
   "jwtSecret": "mysecrettoken"
 } 
