@@ -26,28 +26,28 @@ const AirlineManager = () => {
           _id: '2',
           name: 'Emirates',
           code: '176',
-          trackingUrlTemplate: 'https://eskycargo.emirates.com/app/offerandorder/#/shipments/list?type=D&values=17671593266',
+          trackingUrlTemplate: 'https://eskycargo.emirates.com/app/offerandorder/#/shipments/list?type=D&values={awb}',
           status: 'active'
         },
         {
           _id: '3',
           name: 'Qatar Airways',
           code: '157',
-          trackingUrlTemplate: 'https://www.qrcargo.com/s/track-your-shipment?documentType=MAWB&documentPrefix=157&documentNumber=33350634',
+          trackingUrlTemplate: 'https://www.qrcargo.com/s/track-your-shipment?documentType=MAWB&documentPrefix=157&documentNumber={awb}',
           status: 'active'
         },
         {
           _id: '4',
           name: 'Delta',
           code: '006',
-          trackingUrlTemplate: 'https://www.deltacargo.com/Cargo/home/trackShipment?awbNumber=00626463824',
+          trackingUrlTemplate: 'https://www.deltacargo.com/Cargo/home/trackShipment?awbNumber={awb}',
           status: 'active'
         },
         {
           _id: '5',
           name: 'American Airlines',
           code: '001',
-          trackingUrlTemplate: 'https://www.aacargo.com/mobile/tracking-details.html?awb=00185736389',
+          trackingUrlTemplate: 'https://www.aacargo.com/mobile/tracking-details.html?awb={awb}',
           status: 'active'
         }
       ];
