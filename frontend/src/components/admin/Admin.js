@@ -114,17 +114,8 @@ const Admin = () => {
     try {
       console.log('Updating customer:', customerData);
       
-      // First verify the customer still exists
-      const checkResponse = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:5001'}/api/customers/${editingCustomer._id}`, {
-        headers: {
-          'x-auth-token': localStorage.getItem('token') || 'default-dev-token',
-          'Cache-Control': 'no-cache'
-        }
-      });
-      
-      if (!checkResponse.ok) {
-        throw new Error(`Customer not found or access denied. Status: ${checkResponse.status}`);
-      }
+      // Force reload after update
+      const willForceReload = true;
       
       // Proceed with update
       const response = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:5001'}/api/customers/${editingCustomer._id}`, {
@@ -132,7 +123,9 @@ const Admin = () => {
         headers: {
           'Content-Type': 'application/json',
           'x-auth-token': localStorage.getItem('token') || 'default-dev-token',
-          'Cache-Control': 'no-cache'
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache',
+          'Expires': '0'
         },
         body: JSON.stringify(customerData)
       });
@@ -143,31 +136,38 @@ const Admin = () => {
       }
       
       const updatedCustomer = await response.json();
-      console.log('Updated customer:', updatedCustomer);
+      console.log('Updated customer response:', updatedCustomer);
       
-      // Verify the update by re-fetching the customer
-      const verifyResponse = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:5001'}/api/customers/${editingCustomer._id}`, {
-        headers: {
-          'x-auth-token': localStorage.getItem('token') || 'default-dev-token',
-          'Cache-Control': 'no-cache'
+      // Clear form and show success message
+      setEditingCustomer(null);
+      setShowCustomerForm(false);
+      toast.success('Customer updated successfully');
+      
+      // Force a complete reload of all customers
+      if (willForceReload) {
+        setLoading(true);
+        try {
+          const reloadResponse = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:5001'}/api/customers`, {
+            headers: {
+              'x-auth-token': localStorage.getItem('token') || 'default-dev-token',
+              'Cache-Control': 'no-cache, no-store, must-revalidate',
+              'Pragma': 'no-cache',
+              'Expires': '0'
+            }
+          });
+          
+          if (reloadResponse.ok) {
+            const freshData = await reloadResponse.json();
+            console.log('Refreshed customer data:', freshData);
+            if (Array.isArray(freshData)) {
+              setCustomers(freshData);
+            }
+          }
+        } catch (reloadErr) {
+          console.error('Error reloading customers after update:', reloadErr);
+        } finally {
+          setLoading(false);
         }
-      });
-      
-      if (verifyResponse.ok) {
-        const verifiedCustomer = await verifyResponse.json();
-        console.log('Verified customer data:', verifiedCustomer);
-        
-        // Update the local state with the verified data
-        const updatedCustomers = customers.map(customer => 
-          customer._id === verifiedCustomer._id ? verifiedCustomer : customer
-        );
-        console.log('Updated customers list:', updatedCustomers);
-        setCustomers(updatedCustomers);
-        setEditingCustomer(null);
-        setShowCustomerForm(false);
-        toast.success('Customer updated successfully');
-      } else {
-        throw new Error('Failed to verify update. Please refresh the page.');
       }
     } catch (err) {
       console.error('Error updating customer:', err);
@@ -293,7 +293,7 @@ const Admin = () => {
                 <table>
                   <thead>
                     <tr>
-                      <th>Serial #</th>
+                      <th>ID</th>
                       <th>Company Name</th>
                       <th>Contact Name</th>
                       <th>Email</th>
@@ -306,12 +306,12 @@ const Admin = () => {
                     {customers.length > 0 ? (
                       customers.map(customer => (
                         <tr key={customer._id}>
-                          <td>{customer.serialNumber || '-'}</td>
-                          <td>{customer.companyName}</td>
-                          <td>{customer.contactName}</td>
+                          <td>{customer._id.substring(0, 6)}</td>
+                          <td>{customer.companyName || customer.name}</td>
+                          <td>{customer.contactName || customer.contactPerson}</td>
                           <td>{customer.email}</td>
                           <td>{customer.phone || '-'}</td>
-                          <td>{customer.awbInstructions || '-'}</td>
+                          <td>{customer.awbInstructions || customer.notes || '-'}</td>
                           <td>
                             <button
                               className="btn-icon btn-edit"

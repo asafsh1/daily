@@ -6,7 +6,6 @@ const CustomerForm = ({ onSubmit, onCancel, initialData }) => {
     contactName: '',
     email: '',
     phone: '',
-    serialNumber: '',
     awbInstructions: ''
   });
 
@@ -17,7 +16,6 @@ const CustomerForm = ({ onSubmit, onCancel, initialData }) => {
         contactName: initialData.contactName || '',
         email: initialData.email || '',
         phone: initialData.phone || '',
-        serialNumber: initialData.serialNumber || '',
         awbInstructions: initialData.awbInstructions || ''
       });
     }
@@ -44,18 +42,6 @@ const CustomerForm = ({ onSubmit, onCancel, initialData }) => {
           <button type="button" className="close-button" onClick={onCancel}>×</button>
         </div>
         <form onSubmit={handleSubmit}>
-          <div className="form-group">
-            <label htmlFor="serialNumber">Customer Serial Number</label>
-            <input
-              type="text"
-              id="serialNumber"
-              name="serialNumber"
-              value={formData.serialNumber}
-              onChange={handleChange}
-              placeholder="Customer ID for database management"
-            />
-          </div>
-
           <div className="form-group">
             <label htmlFor="companyName">Company Name *</label>
             <input
