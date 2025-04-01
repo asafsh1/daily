@@ -16,11 +16,15 @@ const AirlineManager = () => {
 
   const fetchAirlines = async () => {
     try {
+      console.log('Fetching airlines...');
+      setLoading(true);
       const response = await axios.get('/api/airlines');
+      console.log('Airlines response:', response.data);
       setAirlines(response.data);
       setLoading(false);
     } catch (err) {
       console.error('Error fetching airlines:', err);
+      console.error('Error details:', err.response?.data || err.message);
       toast.error(err.response?.data?.msg || 'Failed to fetch airlines');
       setLoading(false);
     }

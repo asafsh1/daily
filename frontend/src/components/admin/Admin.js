@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { toast } from 'react-toastify';
 import AirlineManager from './AirlineManager';
 import axios from '../../utils/axiosConfig';
@@ -6,6 +6,48 @@ import axios from '../../utils/axiosConfig';
 const Admin = () => {
   const [activeTab, setActiveTab] = useState('airlines');
   const [loading, setLoading] = useState(false);
+  const [customers, setCustomers] = useState([]);
+  const [users, setUsers] = useState([]);
+
+  useEffect(() => {
+    if (activeTab === 'customers') {
+      fetchCustomers();
+    } else if (activeTab === 'users') {
+      fetchUsers();
+    }
+  }, [activeTab]);
+
+  const fetchCustomers = async () => {
+    try {
+      setLoading(true);
+      console.log('Fetching customers...');
+      const response = await axios.get('/api/customers');
+      console.log('Customer response:', response.data);
+      setCustomers(response.data);
+      setLoading(false);
+    } catch (err) {
+      console.error('Error fetching customers:', err);
+      console.error('Error details:', err.response?.data || err.message);
+      toast.error(err.response?.data?.msg || 'Failed to fetch customers');
+      setLoading(false);
+    }
+  };
+
+  const fetchUsers = async () => {
+    try {
+      setLoading(true);
+      console.log('Fetching users...');
+      const response = await axios.get('/api/users');
+      console.log('Users response:', response.data);
+      setUsers(response.data);
+      setLoading(false);
+    } catch (err) {
+      console.error('Error fetching users:', err);
+      console.error('Error details:', err.response?.data || err.message);
+      toast.error(err.response?.data?.msg || 'Failed to fetch users');
+      setLoading(false);
+    }
+  };
 
   const renderContent = () => {
     switch (activeTab) {
@@ -30,24 +72,54 @@ const Admin = () => {
               </div>
             </div>
             <div className="customer-list">
-              <table>
-                <thead>
-                  <tr>
-                    <th>Name</th>
-                    <th>Email</th>
-                    <th>Phone</th>
-                    <th>Status</th>
-                    <th>Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr>
-                    <td colSpan="5" className="text-center">
-                      <p>Customer management is coming soon!</p>
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
+              {loading ? (
+                <div className="loading">
+                  <i className="fas fa-spinner fa-spin"></i>
+                  <p>Loading customers...</p>
+                </div>
+              ) : (
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Name</th>
+                      <th>Email</th>
+                      <th>Phone</th>
+                      <th>Status</th>
+                      <th>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {customers.length > 0 ? (
+                      customers.map(customer => (
+                        <tr key={customer._id}>
+                          <td>{customer.name}</td>
+                          <td>{customer.email}</td>
+                          <td>{customer.phone}</td>
+                          <td>
+                            <span className={`status-badge status-${customer.status || 'active'}`}>
+                              {customer.status || 'active'}
+                            </span>
+                          </td>
+                          <td>
+                            <button className="btn-icon btn-edit">
+                              <i className="fas fa-edit"></i>
+                            </button>
+                            <button className="btn-icon btn-delete">
+                              <i className="fas fa-trash"></i>
+                            </button>
+                          </td>
+                        </tr>
+                      ))
+                    ) : (
+                      <tr>
+                        <td colSpan="5" className="text-center">
+                          <p>No customers found. Add your first customer!</p>
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              )}
             </div>
           </div>
         );
@@ -70,24 +142,54 @@ const Admin = () => {
               </div>
             </div>
             <div className="user-list">
-              <table>
-                <thead>
-                  <tr>
-                    <th>Name</th>
-                    <th>Email</th>
-                    <th>Role</th>
-                    <th>Status</th>
-                    <th>Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr>
-                    <td colSpan="5" className="text-center">
-                      <p>User management is coming soon!</p>
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
+              {loading ? (
+                <div className="loading">
+                  <i className="fas fa-spinner fa-spin"></i>
+                  <p>Loading users...</p>
+                </div>
+              ) : (
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Name</th>
+                      <th>Email</th>
+                      <th>Role</th>
+                      <th>Status</th>
+                      <th>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {users.length > 0 ? (
+                      users.map(user => (
+                        <tr key={user._id}>
+                          <td>{user.name}</td>
+                          <td>{user.email}</td>
+                          <td>{user.role}</td>
+                          <td>
+                            <span className={`status-badge status-${user.status || 'active'}`}>
+                              {user.status || 'active'}
+                            </span>
+                          </td>
+                          <td>
+                            <button className="btn-icon btn-edit">
+                              <i className="fas fa-edit"></i>
+                            </button>
+                            <button className="btn-icon btn-delete">
+                              <i className="fas fa-trash"></i>
+                            </button>
+                          </td>
+                        </tr>
+                      ))
+                    ) : (
+                      <tr>
+                        <td colSpan="5" className="text-center">
+                          <p>No users found. Add your first user!</p>
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              )}
             </div>
           </div>
         );
@@ -258,6 +360,56 @@ const Admin = () => {
 
         .file-input {
           display: none;
+        }
+
+        .loading {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          padding: 40px;
+          color: #6c757d;
+        }
+
+        .loading i {
+          font-size: 24px;
+          margin-bottom: 10px;
+        }
+
+        .status-badge {
+          padding: 4px 8px;
+          border-radius: 4px;
+          font-size: 12px;
+          font-weight: 500;
+        }
+
+        .status-active {
+          background: #e8f5e9;
+          color: #2e7d32;
+        }
+
+        .status-inactive {
+          background: #ffebee;
+          color: #c62828;
+        }
+
+        .btn-icon {
+          padding: 6px;
+          border: none;
+          border-radius: 4px;
+          cursor: pointer;
+          margin-right: 4px;
+          color: #6c757d;
+        }
+
+        .btn-edit {
+          background: #e3f2fd;
+          color: #1976d2;
+        }
+
+        .btn-delete {
+          background: #ffebee;
+          color: #d32f2f;
         }
       `}</style>
     </div>
