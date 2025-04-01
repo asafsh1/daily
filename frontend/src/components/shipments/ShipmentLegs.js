@@ -288,7 +288,6 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
       // For temporary shipments, update in local state
       if (shipmentId.toString().startsWith('temp-') || 
           (editingLeg._id && editingLeg._id.toString().startsWith('temp-'))) {
-        
         // Update in local state
         setLegs(prevLegs => prevLegs.map(leg => 
           leg._id === editingLeg._id ? { ...leg, ...legData, _id: editingLeg._id } : leg

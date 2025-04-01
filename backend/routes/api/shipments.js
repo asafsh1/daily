@@ -294,7 +294,9 @@ router.post(
   [
     check('dateAdded', 'Date added is required').not().isEmpty(),
     check('orderStatus', 'Order status is required').not().isEmpty(),
-    check('customer', 'Customer is required').not().isEmpty()
+    check('customer', 'Customer is required').not().isEmpty(),
+    check('shipperName', 'Shipper name is required').not().isEmpty(),
+    check('consigneeName', 'Consignee name is required').not().isEmpty()
   ],
   async (req, res) => {
     console.log('Received shipment data:', req.body);

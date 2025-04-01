@@ -56,125 +56,61 @@ const ShipmentDetail = ({
             <h2>Basic Information</h2>
             <div className="info-group">
               <div className="info-item">
-                <span className="info-label">Date Added:</span>
-                <span className="info-value">
-                  <Moment format="DD/MM/YYYY">{shipment.dateAdded}</Moment>
-                </span>
-              </div>
-              <div className="info-item">
-                <span className="info-label">Created By:</span>
-                <span className="info-value">
-                  {shipment.createdBy || 'Not specified'}
-                </span>
-              </div>
-              <div className="info-item">
-                <span className="info-label">Order Status:</span>
-                <span className="info-value">{shipment.orderStatus}</span>
+                <span className="info-label">Shipment ID:</span>
+                <span className="info-value">{shipment._id}</span>
               </div>
               <div className="info-item">
                 <span className="info-label">Customer:</span>
-                <span className="info-value">{shipment.customer?.name || 'Unknown'}</span>
+                <span className="info-value">{shipment.customer?.name || 'N/A'}</span>
               </div>
               <div className="info-item">
-                <span className="info-label">AWB Numbers:</span>
-                <span className="info-value">
-                  {shipment.legs && shipment.legs.length > 0 ? (
-                    <div className="awb-list">
-                      {shipment.legs.map((leg, index) => (
-                        leg.awbNumber && (
-                          <div key={index}>
-                            {hasTracking(leg.awbNumber) ? (
-                              <a 
-                                href={getTrackingUrlSync(leg.awbNumber)} 
-                                target="_blank" 
-                                rel="noopener noreferrer"
-                                className="awb-tracking-link"
-                                title="Track shipment"
-                              >
-                                {leg.awbNumber} <i className="fas fa-external-link-alt fa-xs"></i>
-                              </a>
-                            ) : (
-                              leg.awbNumber
-                            )}
-                            {leg.legOrder && ` (Leg ${leg.legOrder})`}
-                          </div>
-                        )
-                      ))}
-                    </div>
-                  ) : (
-                    shipment.awbNumber1 ? (
-                      hasTracking(shipment.awbNumber1) ? (
-                        <a 
-                          href={getTrackingUrlSync(shipment.awbNumber1)} 
-                          target="_blank" 
-                          rel="noopener noreferrer"
-                          className="awb-tracking-link"
-                          title="Track shipment"
-                        >
-                          {shipment.awbNumber1} <i className="fas fa-external-link-alt fa-xs"></i>
-                        </a>
-                      ) : (
-                        shipment.awbNumber1
-                      )
-                    ) : 'No AWBs'
-                  )}
-                </span>
-              </div>
-              <div className="info-item">
-                <span className="info-label">Routing:</span>
-                <span className="info-value">
-                  {shipment.legs && shipment.legs.length > 0 ? (
-                    shipment.legs.map((leg, index) => (
-                      <span key={index}>
-                        {index === 0 ? leg.origin : ''} → {leg.destination}
-                        {index < shipment.legs.length - 1 ? ' → ' : ''}
-                      </span>
-                    ))
-                  ) : (
-                    'No routing information'
-                  )}
-                </span>
-              </div>
-              <div className="info-item">
-                <span className="info-label">First Departure:</span>
-                <span className="info-value">
-                  {shipment.legs && shipment.legs.length > 0 ? (
-                    <Moment format="DD/MM/YYYY HH:mm">{shipment.legs[0].departureTime}</Moment>
-                  ) : (
-                    'N/A'
-                  )}
-                </span>
-              </div>
-              <div className="info-item">
-                <span className="info-label">Final Arrival:</span>
-                <span className="info-value">
-                  {shipment.legs && shipment.legs.length > 0 ? (
-                    <Moment format="DD/MM/YYYY HH:mm">{shipment.legs[shipment.legs.length - 1].arrivalTime}</Moment>
-                  ) : (
-                    'N/A'
-                  )}
-                </span>
-              </div>
-              <div className="info-item">
-                <span className="info-label">Shipment Status:</span>
-                <span
-                  className={`status-badge status-${shipment.shipmentStatus.toLowerCase()}`}
-                >
+                <span className="info-label">Status:</span>
+                <span className={`status-badge status-${shipment.shipmentStatus.toLowerCase().replace(/\s+/g, '-')}`}>
                   {shipment.shipmentStatus}
                 </span>
               </div>
-              {shipment.weight && (
+              <div className="info-item">
+                <span className="info-label">Created:</span>
+                <span className="info-value">
+                  <Moment format="DD/MM/YYYY HH:mm">
+                    {shipment.createdAt}
+                  </Moment>
+                </span>
+              </div>
+            </div>
+
+            <h2>Parties Information</h2>
+            <div className="info-group">
+              <div className="info-item">
+                <span className="info-label">Shipper:</span>
+                <span className="info-value">{shipment.shipperName || 'N/A'}</span>
+              </div>
+              <div className="info-item">
+                <span className="info-label">Consignee:</span>
+                <span className="info-value">{shipment.consigneeName || 'N/A'}</span>
+              </div>
+              {shipment.notifyParty && (
                 <div className="info-item">
-                  <span className="info-label">Weight:</span>
-                  <span className="info-value">{shipment.weight} kg</span>
+                  <span className="info-label">Notify Party:</span>
+                  <span className="info-value">{shipment.notifyParty}</span>
                 </div>
               )}
-              {shipment.packageCount && (
-                <div className="info-item">
-                  <span className="info-label">Package Count:</span>
-                  <span className="info-value">{shipment.packageCount}</span>
-                </div>
-              )}
+            </div>
+
+            <h2>Cargo Information</h2>
+            <div className="info-group">
+              <div className="info-item">
+                <span className="info-label">Weight:</span>
+                <span className="info-value">{shipment.weight ? `${shipment.weight} kg` : 'N/A'}</span>
+              </div>
+              <div className="info-item">
+                <span className="info-label">Packages:</span>
+                <span className="info-value">{shipment.packageCount || 'N/A'}</span>
+              </div>
+              <div className="info-item">
+                <span className="info-label">Order Status:</span>
+                <span className="info-value">{shipment.orderStatus || 'N/A'}</span>
+              </div>
             </div>
           </div>
 

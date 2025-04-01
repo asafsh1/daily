@@ -23,6 +23,20 @@ const ShipmentSchema = new Schema(
       ref: 'customer',
       required: true
     },
+    shipperName: {
+      type: String,
+      required: true,
+      trim: true
+    },
+    consigneeName: {
+      type: String,
+      required: true,
+      trim: true
+    },
+    notifyParty: {
+      type: String,
+      trim: true
+    },
     // AWB numbers and routing will be determined from legs
     shipmentStatus: {
       type: String,

@@ -23,7 +23,11 @@ const initialState = {
   comments: '',
   invoiceNumber: '',
   invoiceStatus: 'Pending',
-  createdBy: ''
+  createdBy: '',
+  shipperName: '',
+  consigneeName: '',
+  notifyParty: '',
+  legs: []
 };
 
 const ShipmentForm = ({ 
@@ -151,7 +155,11 @@ const ShipmentForm = ({
     comments,
     invoiceNumber,
     invoiceStatus,
-    createdBy
+    createdBy,
+    shipperName,
+    consigneeName,
+    notifyParty,
+    legs
   } = formData;
 
   const validateForm = () => {
@@ -163,7 +171,9 @@ const ShipmentForm = ({
       customer,
       shipmentStatus,
       createdBy,
-      invoiceStatus
+      invoiceStatus,
+      shipperName,
+      consigneeName
     });
     
     if (!dateAdded) newErrors.dateAdded = 'Date added is required';
@@ -196,6 +206,8 @@ const ShipmentForm = ({
     if (packageCount && isNaN(Number(packageCount))) {
       newErrors.packageCount = 'Package count must be a number';
     }
+    if (!shipperName) newErrors.shipperName = 'Shipper name is required';
+    if (!consigneeName) newErrors.consigneeName = 'Consignee name is required';
 
     console.log('Validation errors:', newErrors);
     setErrors(newErrors);
@@ -372,16 +384,58 @@ const ShipmentForm = ({
               value={customer}
               onChange={onChange}
               className={errors.customer ? 'form-control is-invalid' : 'form-control'}
+              required
             >
-              <option value="">Select Customer</option>
-              {customers.map(cust => (
-                <option key={cust._id} value={cust._id}>
-                  {cust.name}
+              <option value="">Select a customer</option>
+              {customers.map(customer => (
+                <option key={customer._id} value={customer._id}>
+                  {customer.name}
                 </option>
               ))}
             </select>
           )}
           {errors.customer && <div className="invalid-feedback">{errors.customer}</div>}
+        </div>
+        
+        <div className="form-group">
+          <label htmlFor="shipperName">Shipper Name*</label>
+          <input
+            type="text"
+            id="shipperName"
+            name="shipperName"
+            value={shipperName}
+            onChange={onChange}
+            className={errors.shipperName ? 'form-control is-invalid' : 'form-control'}
+            required
+          />
+          {errors.shipperName && <div className="invalid-feedback">{errors.shipperName}</div>}
+        </div>
+
+        <div className="form-group">
+          <label htmlFor="consigneeName">Consignee Name*</label>
+          <input
+            type="text"
+            id="consigneeName"
+            name="consigneeName"
+            value={consigneeName}
+            onChange={onChange}
+            className={errors.consigneeName ? 'form-control is-invalid' : 'form-control'}
+            required
+          />
+          {errors.consigneeName && <div className="invalid-feedback">{errors.consigneeName}</div>}
+        </div>
+
+        <div className="form-group">
+          <label htmlFor="notifyParty">Notify Party</label>
+          <input
+            type="text"
+            id="notifyParty"
+            name="notifyParty"
+            value={notifyParty}
+            onChange={onChange}
+            className={errors.notifyParty ? 'form-control is-invalid' : 'form-control'}
+          />
+          {errors.notifyParty && <div className="invalid-feedback">{errors.notifyParty}</div>}
         </div>
         
         <div className="form-group">
