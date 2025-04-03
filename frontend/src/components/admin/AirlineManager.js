@@ -3,6 +3,7 @@ import { toast } from 'react-toastify';
 import Papa from 'papaparse';
 import AirlineForm from './AirlineForm';
 import axios from '../../utils/axiosConfig';
+import { generateUniqueId, ID_PREFIXES } from '../../utils/idGenerator';
 
 const AirlineManager = () => {
   const [airlines, setAirlines] = useState([]);
@@ -126,7 +127,7 @@ const AirlineManager = () => {
       // Generate a unique ID for the airline
       const airlineWithId = {
         ...airlineData,
-        airlineId: `AIR-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+        airlineId: generateUniqueId(ID_PREFIXES.AIRLINE)
       };
 
       const response = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:5001'}/api/airlines`, {

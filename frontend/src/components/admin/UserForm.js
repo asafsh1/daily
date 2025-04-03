@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { generateUniqueId, ID_PREFIXES } from '../../utils/idGenerator';
 
 const UserForm = ({ onSubmit, onCancel, initialData }) => {
   const [formData, setFormData] = useState({
@@ -14,7 +15,7 @@ const UserForm = ({ onSubmit, onCancel, initialData }) => {
         name: initialData.name || '',
         email: initialData.email || '',
         role: initialData.role || 'user',
-        userId: initialData.userId || ''
+        userId: initialData.userId || generateUniqueId(ID_PREFIXES.USER)
       });
     }
   }, [initialData]);
@@ -23,7 +24,7 @@ const UserForm = ({ onSubmit, onCancel, initialData }) => {
     e.preventDefault();
     const finalData = {
       ...formData,
-      userId: formData.userId || `USR-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+      userId: formData.userId || generateUniqueId(ID_PREFIXES.USER)
     };
     onSubmit(finalData);
   };

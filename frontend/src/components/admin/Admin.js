@@ -583,6 +583,7 @@ const Admin = () => {
           margin-bottom: 30px;
           border-bottom: 1px solid #dee2e6;
           padding-bottom: 10px;
+          flex-wrap: wrap;
         }
 
         .tab-button {
@@ -594,6 +595,9 @@ const Admin = () => {
           font-size: 14px;
           font-weight: 500;
           transition: all 0.2s;
+          flex: 1;
+          min-width: 100px;
+          text-align: center;
         }
 
         .tab-button:hover {
@@ -609,6 +613,7 @@ const Admin = () => {
           background: white;
           border-radius: 8px;
           box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+          overflow-x: auto;
         }
 
         .customer-manager,
@@ -622,6 +627,8 @@ const Admin = () => {
           justify-content: space-between;
           align-items: center;
           margin-bottom: 30px;
+          flex-wrap: wrap;
+          gap: 10px;
         }
 
         .customer-title,
@@ -635,6 +642,7 @@ const Admin = () => {
         .user-actions {
           display: flex;
           gap: 10px;
+          flex-wrap: wrap;
         }
 
         .btn {
@@ -646,27 +654,14 @@ const Admin = () => {
           display: flex;
           align-items: center;
           gap: 8px;
-        }
-
-        .btn-primary {
-          background: #0d6efd;
-          color: white;
-        }
-
-        .btn-secondary {
-          background: #6c757d;
-          color: white;
-        }
-
-        .btn-success {
-          background: #198754;
-          color: white;
+          white-space: nowrap;
         }
 
         .customer-list table,
         .user-list table {
           width: 100%;
           border-collapse: collapse;
+          min-width: 600px;
         }
 
         .customer-list th,
@@ -678,21 +673,10 @@ const Admin = () => {
           border-bottom: 1px solid #dee2e6;
         }
 
-        .customer-list th,
-        .user-list th {
-          background-color: #f8f9fa;
-          font-weight: 600;
-          color: #495057;
-        }
-
         .text-center {
           text-align: center;
           padding: 40px;
           color: #6c757d;
-        }
-
-        .file-input {
-          display: none;
         }
 
         .loading {
@@ -743,6 +727,71 @@ const Admin = () => {
         .btn-delete {
           background: #ffebee;
           color: #d32f2f;
+        }
+
+        @media (max-width: 768px) {
+          .admin-panel {
+            padding: 10px;
+          }
+
+          .admin-tabs {
+            flex-direction: column;
+            gap: 5px;
+          }
+
+          .tab-button {
+            width: 100%;
+            text-align: left;
+            padding: 12px;
+          }
+
+          .customer-header,
+          .user-header {
+            flex-direction: column;
+            align-items: flex-start;
+          }
+
+          .customer-actions,
+          .user-actions {
+            width: 100%;
+            justify-content: space-between;
+          }
+
+          .btn {
+            flex: 1;
+            justify-content: center;
+          }
+
+          .customer-list table,
+          .user-list table {
+            display: block;
+            overflow-x: auto;
+          }
+
+          .customer-list th,
+          .customer-list td,
+          .user-list th,
+          .user-list td {
+            padding: 8px;
+            font-size: 14px;
+          }
+        }
+
+        @media (max-width: 480px) {
+          .btn {
+            padding: 6px 12px;
+            font-size: 12px;
+          }
+
+          .customer-title,
+          .user-title {
+            font-size: 18px;
+          }
+
+          .status-badge {
+            padding: 2px 6px;
+            font-size: 10px;
+          }
         }
       `}</style>
     </div>
