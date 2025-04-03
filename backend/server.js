@@ -39,7 +39,7 @@ app.use(cors({
 // Define Routes
 app.use('/api/users', require('./routes/api/users'));
 app.use('/api/auth', require('./routes/api/auth'));
-// app.use('/api/profile', require('./routes/api/profile'));
+app.use('/api/profile', require('./routes/api/profile'));
 app.use('/api/shipments', require('./routes/api/shipments'));
 app.use('/api/customers', require('./routes/api/customers'));
 app.use('/api/airlines', require('./routes/api/airlines'));
