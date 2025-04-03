@@ -6,6 +6,7 @@ const http = require('http');
 const socketIo = require('socket.io');
 const fs = require('fs');
 const mongoose = require('mongoose');
+const auth = require('./middleware/auth');
 const User = require('./models/User');
 const Shipment = require('./models/Shipment');
 const Customer = require('./models/Customer');
@@ -90,8 +91,8 @@ app.get('/health', (req, res) => {
   });
 });
 
-// Add a detailed diagnostics endpoint
-app.get('/api/diagnostics', auth, async (req, res) => {
+// Change endpoint path to match frontend expectation
+app.get('/api/dashboard/diagnostics', auth, async (req, res) => {
   try {
     // Check if user has admin role
     if (!req.user.role || req.user.role !== 'admin') {
