@@ -4,7 +4,8 @@ const UserForm = ({ onSubmit, onCancel, initialData }) => {
   const [formData, setFormData] = useState({
     name: '',
     email: '',
-    role: 'user'
+    role: 'user',
+    userId: ''
   });
 
   useEffect(() => {
@@ -12,14 +13,19 @@ const UserForm = ({ onSubmit, onCancel, initialData }) => {
       setFormData({
         name: initialData.name || '',
         email: initialData.email || '',
-        role: initialData.role || 'user'
+        role: initialData.role || 'user',
+        userId: initialData.userId || ''
       });
     }
   }, [initialData]);
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    onSubmit(formData);
+    const finalData = {
+      ...formData,
+      userId: formData.userId || `USR-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+    };
+    onSubmit(finalData);
   };
 
   const handleChange = (e) => {

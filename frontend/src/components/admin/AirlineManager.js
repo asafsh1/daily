@@ -123,42 +123,32 @@ const AirlineManager = () => {
 
   const handleAddAirline = async (airlineData) => {
     try {
-      console.log('Adding airline:', airlineData);
-      
-      // Try API first
-      try {
-        const response = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:5001'}/api/airlines`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'x-auth-token': localStorage.getItem('token') || 'default-dev-token'
-          },
-          body: JSON.stringify(airlineData)
-        });
-        
-        if (response.ok) {
-          const newAirline = await response.json();
-          setAirlines([...airlines, newAirline]);
-          setShowForm(false);
-          toast.success('Airline added successfully');
-          return;
-        }
-      } catch (apiErr) {
-        console.log('API add failed, using local add:', apiErr);
-      }
-      
-      // Fall back to local add if API failed
-      const newAirline = {
+      // Generate a unique ID for the airline
+      const airlineWithId = {
         ...airlineData,
-        _id: `local_${Date.now()}` // Generate a temporary ID
+        airlineId: `AIR-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
       };
-      
+
+      const response = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:5001'}/api/airlines`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-auth-token': localStorage.getItem('token') || 'default-dev-token'
+        },
+        body: JSON.stringify(airlineWithId)
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to add airline');
+      }
+
+      const newAirline = await response.json();
       setAirlines([...airlines, newAirline]);
       setShowForm(false);
-      toast.success('Airline added successfully (local only)');
+      toast.success('Airline added successfully');
     } catch (err) {
       console.error('Error adding airline:', err);
-      toast.error('Failed to add airline');
+      toast.error(err.message || 'Failed to add airline');
     }
   };
 

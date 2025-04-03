@@ -46,6 +46,8 @@ const ShipmentForm = ({
   const { id } = useParams(); // Get the shipment ID from URL params
   const isEditMode = !!id;
 
+  const [users, setUsers] = useState([]);
+
   // Render the leg section even in create mode with a temp ID
   useEffect(() => {
     if (!tempShipmentId && !isEditMode) {
@@ -61,6 +63,24 @@ const ShipmentForm = ({
 
     // Load customers
     fetchCustomers();
+
+    // Fetch users for the createdBy dropdown
+    const fetchUsers = async () => {
+      try {
+        const response = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:5001'}/api/users`, {
+          headers: {
+            'x-auth-token': localStorage.getItem('token') || 'default-dev-token'
+          }
+        });
+        if (response.ok) {
+          const data = await response.json();
+          setUsers(data);
+        }
+      } catch (err) {
+        console.error('Error fetching users:', err);
+      }
+    };
+    fetchUsers();
 
     // Cleanup on component unmount
     return () => {
@@ -339,6 +359,16 @@ const ShipmentForm = ({
     }
   };
 
+  const handleLegChange = (index, field, value) => {
+    const updatedLegs = [...formData.legs];
+    updatedLegs[index] = {
+      ...updatedLegs[index],
+      [field]: value,
+      legId: updatedLegs[index].legId || `LEG-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+    };
+    setFormData({ ...formData, legs: updatedLegs });
+  };
+
   // Show loading indicator while fetching shipment data
   if ((loading && isEditMode) || customersLoading) {
     return <Spinner />;
@@ -615,16 +645,21 @@ const ShipmentForm = ({
         </div>
 
         <div className="form-group">
-          <label>Created By*</label>
-          <input
-            type="text"
+          <label htmlFor="createdBy">Created By</label>
+          <select
+            id="createdBy"
             name="createdBy"
             value={createdBy}
-            onChange={onChange}
-            className={errors.createdBy ? 'form-control is-invalid' : 'form-control'}
-            placeholder="Enter your name"
-          />
-          {errors.createdBy && <div className="invalid-feedback">{errors.createdBy}</div>}
+            onChange={(e) => setFormData({ ...formData, createdBy: e.target.value })}
+            required
+          >
+            <option value="">Select User</option>
+            {users.map(user => (
+              <option key={user._id} value={user._id}>
+                {user.name} ({user.email})
+              </option>
+            ))}
+          </select>
         </div>
 
         <div className="form-actions">

@@ -126,6 +126,12 @@ const Admin = () => {
     try {
       console.log('Updating customer:', customerData);
       
+      // Ensure empty phone number is properly handled
+      const updateData = {
+        ...customerData,
+        phone: customerData.phone || null  // Convert empty string to null
+      };
+      
       // Proceed with update
       const response = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:5001'}/api/customers/${editingCustomer._id}`, {
         method: 'PUT',
@@ -136,7 +142,7 @@ const Admin = () => {
           'Pragma': 'no-cache',
           'Expires': '0'
         },
-        body: JSON.stringify(customerData)
+        body: JSON.stringify(updateData)
       });
       
       if (!response.ok) {
