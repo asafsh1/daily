@@ -3,6 +3,7 @@ import { toast } from 'react-toastify';
 import AirlineManager from './AirlineManager';
 import CustomerForm from './CustomerForm';
 import UserForm from './UserForm';
+import { generateUniqueId, ID_PREFIXES } from '../../utils/idGenerator';
 
 const Admin = () => {
   const [activeTab, setActiveTab] = useState('airlines');
@@ -172,13 +173,20 @@ const Admin = () => {
   const handleAddCustomer = async (customerData) => {
     try {
       console.log('Adding customer:', customerData);
+      
+      // Generate a unique ID for the customer
+      const customerWithId = {
+        ...customerData,
+        customerId: generateUniqueId(ID_PREFIXES.CUSTOMER)
+      };
+      
       const response = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:5001'}/api/customers`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'x-auth-token': localStorage.getItem('token') || 'default-dev-token'
         },
-        body: JSON.stringify(customerData)
+        body: JSON.stringify(customerWithId)
       });
       
       if (!response.ok) {
@@ -319,9 +327,11 @@ const Admin = () => {
       const password = Array(10).fill('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz!@#$%^&*')
         .map(x => x[Math.floor(Math.random() * x.length)]).join('');
       
-      const userDataWithPassword = {
+      // Ensure the user has a unique ID
+      const userDataWithPasswordAndId = {
         ...userData,
-        password
+        password,
+        userId: userData.userId || generateUniqueId(ID_PREFIXES.USER)
       };
       
       const response = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:5001'}/api/users`, {
@@ -330,7 +340,7 @@ const Admin = () => {
           'Content-Type': 'application/json',
           'x-auth-token': localStorage.getItem('token') || 'default-dev-token'
         },
-        body: JSON.stringify(userDataWithPassword)
+        body: JSON.stringify(userDataWithPasswordAndId)
       });
       
       if (!response.ok) {
@@ -421,7 +431,7 @@ const Admin = () => {
                     {customers.length > 0 ? (
                       customers.map(customer => (
                         <tr key={customer._id}>
-                          <td>{customer._id.substring(0, 6)}</td>
+                          <td>{customer.customerId || `CUST-${customer._id.substring(0, 6)}`}</td>
                           <td>{customer.companyName || customer.name}</td>
                           <td>{customer.contactName || customer.contactPerson}</td>
                           <td>{customer.email}</td>
@@ -484,6 +494,7 @@ const Admin = () => {
                 <table>
                   <thead>
                     <tr>
+                      <th>ID</th>
                       <th>Name</th>
                       <th>Email</th>
                       <th>Role</th>
@@ -494,6 +505,7 @@ const Admin = () => {
                     {users.length > 0 ? (
                       users.map(user => (
                         <tr key={user._id}>
+                          <td>{user.userId || `USR-${user._id.substring(0, 8)}`}</td>
                           <td>{user.name}</td>
                           <td>{user.email}</td>
                           <td>{user.role || 'user'}</td>

@@ -357,6 +357,7 @@ const AirlineManager = () => {
         <table>
           <thead>
             <tr>
+              <th>ID</th>
               <th>Name</th>
               <th>Code</th>
               <th>Tracking URL Template</th>
@@ -367,6 +368,7 @@ const AirlineManager = () => {
           <tbody>
             {airlines.map(airline => (
               <tr key={airline._id}>
+                <td>{airline.airlineId || `AIR-${airline._id.substring(0, 8)}`}</td>
                 <td>{airline.name}</td>
                 <td>{airline.code}</td>
                 <td>{airline.trackingUrlTemplate}</td>
@@ -408,6 +410,8 @@ const AirlineManager = () => {
           justify-content: space-between;
           align-items: center;
           margin-bottom: 30px;
+          flex-wrap: wrap;
+          gap: 15px;
         }
 
         .airline-title {
@@ -419,6 +423,7 @@ const AirlineManager = () => {
         .airline-actions {
           display: flex;
           gap: 10px;
+          flex-wrap: wrap;
         }
 
         .btn {
@@ -430,6 +435,8 @@ const AirlineManager = () => {
           display: flex;
           align-items: center;
           gap: 8px;
+          white-space: nowrap;
+          transition: background-color 0.2s;
         }
 
         .btn-primary {
@@ -437,9 +444,17 @@ const AirlineManager = () => {
           color: white;
         }
 
+        .btn-primary:hover {
+          background: #0b5ed7;
+        }
+
         .btn-secondary {
           background: #6c757d;
           color: white;
+        }
+
+        .btn-secondary:hover {
+          background: #5c636a;
         }
 
         .btn-success {
@@ -447,10 +462,22 @@ const AirlineManager = () => {
           color: white;
         }
 
+        .btn-success:hover {
+          background: #157347;
+        }
+
         .airline-list table {
           width: 100%;
           border-collapse: collapse;
           margin-top: 20px;
+          min-width: 600px;
+        }
+
+        .airline-list {
+          overflow-x: auto;
+          border-radius: 8px;
+          box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+          background: white;
         }
 
         .airline-list th,
@@ -464,6 +491,9 @@ const AirlineManager = () => {
           background-color: #f8f9fa;
           font-weight: 600;
           color: #495057;
+          position: sticky;
+          top: 0;
+          z-index: 10;
         }
 
         .airline-list tr:hover {
@@ -501,9 +531,17 @@ const AirlineManager = () => {
           color: #1976d2;
         }
 
+        .btn-edit:hover {
+          background: #bbdefb;
+        }
+
         .btn-delete {
           background: #ffebee;
           color: #d32f2f;
+        }
+
+        .btn-delete:hover {
+          background: #ffcdd2;
         }
 
         .file-input {
@@ -522,6 +560,50 @@ const AirlineManager = () => {
         .loading i {
           font-size: 24px;
           margin-bottom: 10px;
+        }
+
+        @media (max-width: 768px) {
+          .airline-header {
+            flex-direction: column;
+            align-items: flex-start;
+          }
+          
+          .airline-actions {
+            width: 100%;
+            justify-content: space-between;
+          }
+          
+          .btn {
+            padding: 8px 12px;
+            font-size: 13px;
+          }
+          
+          .airline-list td, 
+          .airline-list th {
+            padding: 8px;
+            font-size: 14px;
+          }
+        }
+
+        @media (max-width: 480px) {
+          .airline-manager {
+            padding: 10px;
+          }
+          
+          .airline-title {
+            font-size: 18px;
+          }
+          
+          .btn {
+            padding: 6px 10px;
+            font-size: 12px;
+          }
+          
+          .airline-list td, 
+          .airline-list th {
+            padding: 6px;
+            font-size: 13px;
+          }
         }
       `}</style>
     </div>

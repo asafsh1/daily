@@ -5,6 +5,7 @@ import { toast } from 'react-toastify';
 import Moment from 'react-moment';
 import { getTrackingUrlSync, hasTracking } from '../../utils/trackingUtils';
 import moment from 'moment';
+import { generateUniqueId, ID_PREFIXES } from '../../utils/idGenerator';
 
 // Define initialState to fix the reference errors
 const initialState = {
@@ -112,75 +113,60 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
     setEditingLeg(null);
   };
 
-  // Open form to add a new leg
-  const handleAddLeg = async () => {
+  // Add a new leg
+  const handleAddLeg = async (e) => {
+    e.preventDefault();
     try {
-      console.log('handleAddLeg called');
-      
-      if (!validateForm()) {
-        return;
-      }
-
-      // Set loading state
       setLoading(true);
-      
-      // Prepare leg data with proper format
-      const legData = {
+      const formattedData = {
         ...formData,
-        departureTime: new Date(formData.departureTime).toISOString(),
-        arrivalTime: new Date(formData.arrivalTime).toISOString(),
-        // Let the server auto-assign legOrder if not specified
-        legOrder: formData.legOrder || legs.length + 1
+        departureTime: formData.departureTime ? moment(formData.departureTime).toISOString() : null,
+        arrivalTime: formData.arrivalTime ? moment(formData.arrivalTime).toISOString() : null,
+        legId: generateUniqueId(ID_PREFIXES.LEG)
       };
 
-      console.log("Submitting leg data:", legData);
+      // Create change log entry
+      const changeLogEntry = {
+        timestamp: new Date(),
+        description: `Added leg: ${formData.airline} ${formData.flightNumber} - ${formData.origin} to ${formData.destination}`
+      };
 
-      // For temporary shipments, just add to local state
-      if (shipmentId && shipmentId.toString().startsWith('temp-')) {
-        // Create a temporary ID
-        const tempLegId = 'temp-leg-' + Date.now() + '-' + Math.random().toString(36).substring(2, 9);
-        const newLeg = { ...legData, _id: tempLegId };
-        setLegs(prevLegs => [...prevLegs, newLeg]);
-        
-        // Reset form
-        setFormData({ ...initialState });
-        setShowForm(false);
-        setError(null);
-        setLoading(false);
-        
-        // Show success message
-        toast.success('Leg added successfully');
+      if (shipmentId.startsWith('temp-')) {
+        // Store locally for new shipments
+        setLegs([
+          ...legs, 
+          { 
+            ...formattedData, 
+            _id: `temp-leg-${Date.now()}`,
+            changeLog: [changeLogEntry]
+          }
+        ]);
       } else {
-        // For real shipments, save to the server
-        console.log("Adding leg to shipment:", shipmentId);
-        
-        try {
-          // Make the API call with proper error handling
-          const res = await axios.post(`/api/shipment-legs/${shipmentId}`, legData);
-          console.log("Add leg response:", res.data);
-          
-          // Update the legs state with the new leg
-          setLegs(prevLegs => [...prevLegs, res.data]);
-          
-          // Reset form and loading state
-          setFormData({ ...initialState });
-          setShowForm(false);
-          setError(null);
-          setLoading(false);
-          
-          // Show success message
+        // Add to existing shipment
+        const response = await axios.post(`/api/shipments/${shipmentId}/legs`, {
+          ...formattedData,
+          changeLog: [changeLogEntry]
+        });
+
+        if (response.data.success) {
+          setLegs([...legs, response.data.leg]);
           toast.success('Leg added successfully');
-          
-          // Reload all legs to ensure we have the latest data
-          fetchLegs();
-        } catch (err) {
-          setLoading(false);
-          console.error('Error in API call:', err);
-          const errorMsg = err.response?.data?.errors?.[0]?.msg || 'Failed to add shipment leg';
-          toast.error(errorMsg);
-          setError(errorMsg);
+        } else {
+          throw new Error(response.data.message || 'Failed to add leg');
         }
       }
+
+      setFormData({
+        airline: '',
+        flightNumber: '',
+        origin: '',
+        destination: '',
+        departureTime: '',
+        arrivalTime: '',
+        awbNumber: '',
+        status: 'Pending'
+      });
+      setShowForm(false);
     } catch (err) {
       setLoading(false);
       console.error('Error adding shipment leg:', err);
