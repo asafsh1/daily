@@ -240,9 +240,20 @@ const ShipmentDetail = ({
         </div>
 
         <style jsx>{`
+          .shipment-section {
+            margin-top: 2rem;
+            padding: 1rem;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+          }
+
           .change-log {
             margin-top: 1rem;
+            max-height: 400px;
+            overflow-y: auto;
           }
+
           .log-entry {
             border: 1px solid #ddd;
             padding: 1rem;
@@ -250,6 +261,7 @@ const ShipmentDetail = ({
             border-radius: 4px;
             background-color: #f9f9f9;
           }
+
           .log-header {
             display: flex;
             justify-content: space-between;
@@ -257,86 +269,32 @@ const ShipmentDetail = ({
             padding-bottom: 0.5rem;
             border-bottom: 1px solid #eee;
           }
+
           .log-timestamp {
             color: #666;
             font-size: 0.9rem;
           }
+
           .log-user {
             font-weight: bold;
             color: #0d6efd;
           }
+
           .log-details {
             margin-top: 0.5rem;
           }
+
           .log-changes {
             margin-top: 0.5rem;
             padding-left: 1rem;
             border-left: 2px solid #eee;
           }
+
           .text-muted {
             color: #6c757d;
             font-style: italic;
           }
         `}</style>
-
-        <h2 className="shipment-detail-heading">Shipment Details</h2>
-        <div className="shipment-header">
-          <h3>
-            {shipment.legs && shipment.legs.length > 0 && shipment.legs.some(leg => leg.awbNumber) ? (
-              <>
-                AWB: {shipment.legs.map(leg => {
-                  if (!leg.awbNumber) return null;
-                  
-                  return hasTracking(leg.awbNumber) ? (
-                    <a 
-                      key={leg._id || leg.legOrder}
-                      href={getTrackingUrlSync(leg.awbNumber)} 
-                      target="_blank" 
-                      rel="noopener noreferrer"
-                      className="awb-tracking-link"
-                      title="Track shipment"
-                      style={{ marginRight: '8px' }}
-                    >
-                      {leg.awbNumber} <i className="fas fa-external-link-alt fa-xs"></i>
-                    </a>
-                  ) : (
-                    <span key={leg._id || leg.legOrder} style={{ marginRight: '8px' }}>
-                      {leg.awbNumber}
-                    </span>
-                  );
-                }).filter(Boolean)}
-              </>
-            ) : null}
-          </h3>
-          <p className={`status-badge ${shipment.shipmentStatus.toLowerCase()}`}>
-            {shipment.shipmentStatus}
-          </p>
-        </div>
-
-        <div className="shipment-info">
-          <div className="column">
-            <p><strong>Customer:</strong> {shipment.customer?.name || 'Unknown'}</p>
-            <p><strong>Origin:</strong> {shipment.legs && shipment.legs.length > 0 ? shipment.legs[0].origin : 'N/A'}</p>
-            <p><strong>Destination:</strong> {shipment.legs && shipment.legs.length > 0 ? shipment.legs[shipment.legs.length - 1].destination : 'N/A'}</p>
-            <p><strong>Date Added:</strong> <Moment format="DD/MM/YYYY">{shipment.dateAdded}</Moment></p>
-            <p><strong>Weight:</strong> {shipment.weight || 'N/A'} kg</p>
-          </div>
-          <div className="column">
-            <p><strong>Order Status:</strong> {shipment.orderStatus}</p>
-            <p><strong>First Departure:</strong> {shipment.legs && shipment.legs.length > 0 ? 
-              <Moment format="DD/MM/YYYY HH:mm">{shipment.legs[0].departureTime}</Moment> : 'N/A'}</p>
-            <p><strong>Final Arrival:</strong> {shipment.legs && shipment.legs.length > 0 ? 
-              <Moment format="DD/MM/YYYY HH:mm">{shipment.legs[shipment.legs.length - 1].arrivalTime}</Moment> : 'N/A'}</p>
-            <p><strong>Routing:</strong> {shipment.legs && shipment.legs.length > 0 ? 
-              shipment.legs.map((leg, i) => i === 0 ? leg.origin : '').filter(Boolean).join('') + ' → ' + 
-              shipment.legs.map(leg => leg.destination).join(' → ') : 'N/A'}</p>
-            <p><strong>Package Count:</strong> {shipment.packageCount || 'N/A'}</p>
-          </div>
-        </div>
-
-        <div className="action-buttons">
-          {/* ... existing code ... */}
-        </div>
       </div>
     </section>
   );

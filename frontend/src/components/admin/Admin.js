@@ -505,7 +505,7 @@ const Admin = () => {
                     {users.length > 0 ? (
                       users.map(user => (
                         <tr key={user._id}>
-                          <td>{user.userId || `USR-${user._id.substring(0, 8)}`}</td>
+                          <td>{user.userId || `USR-${user._id?.substring(0, 8) || 'N/A'}`}</td>
                           <td>{user.name}</td>
                           <td>{user.email}</td>
                           <td>{user.role || 'user'}</td>
