@@ -43,7 +43,7 @@ app.use('/api/profile', require('./routes/api/profile'));
 app.use('/api/shipments', require('./routes/api/shipments'));
 app.use('/api/customers', require('./routes/api/customers'));
 app.use('/api/airlines', require('./routes/api/airlines'));
-app.use('/api/shipment-legs', require('./routes/api/shipment-legs'));
+app.use('/api/shipment-legs', require('./routes/api/shipmentLegs'));
 app.use('/api/shippers', require('./routes/api/shippers'));
 app.use('/api/consignees', require('./routes/api/consignees'));
 app.use('/api/notify-parties', require('./routes/api/notify-parties'));
