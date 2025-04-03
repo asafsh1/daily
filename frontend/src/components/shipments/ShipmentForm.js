@@ -6,6 +6,7 @@ import { addShipment, getShipment, updateShipment, clearShipment } from '../../a
 import axios from '../../utils/axiosConfig';
 import Spinner from '../layout/Spinner';
 import ShipmentLegs from './ShipmentLegs';
+import AutocompleteSearch from '../common/AutocompleteSearch';
 
 const initialState = {
   dateAdded: new Date().toISOString().split('T')[0],
@@ -47,6 +48,9 @@ const ShipmentForm = ({
   const isEditMode = !!id;
 
   const [users, setUsers] = useState([]);
+  const [shippers, setShippers] = useState([]);
+  const [consignees, setConsignees] = useState([]);
+  const [notifyParties, setNotifyParties] = useState([]);
 
   // Render the leg section even in create mode with a temp ID
   useEffect(() => {
@@ -81,6 +85,11 @@ const ShipmentForm = ({
       }
     };
     fetchUsers();
+
+    // Fetch shippers, consignees, and notify parties
+    fetchShippers();
+    fetchConsignees();
+    fetchNotifyParties();
 
     // Cleanup on component unmount
     return () => {
@@ -156,6 +165,36 @@ const ShipmentForm = ({
     } catch (err) {
       console.error('Error fetching customers:', err);
       setCustomersLoading(false);
+    }
+  };
+
+  // Fetch shippers from the API
+  const fetchShippers = async () => {
+    try {
+      const res = await axios.get('/api/shippers');
+      setShippers(res.data);
+    } catch (err) {
+      console.error('Error fetching shippers:', err);
+    }
+  };
+
+  // Fetch consignees from the API
+  const fetchConsignees = async () => {
+    try {
+      const res = await axios.get('/api/consignees');
+      setConsignees(res.data);
+    } catch (err) {
+      console.error('Error fetching consignees:', err);
+    }
+  };
+
+  // Fetch notify parties from the API
+  const fetchNotifyParties = async () => {
+    try {
+      const res = await axios.get('/api/notify-parties');
+      setNotifyParties(res.data);
+    } catch (err) {
+      console.error('Error fetching notify parties:', err);
     }
   };
 
@@ -410,62 +449,77 @@ const ShipmentForm = ({
           ) : (
             <select
               id="customer"
-              name="customer"
-              value={customer}
+              name="customerId"
+              value={formData.customerId}
               onChange={onChange}
-              className={errors.customer ? 'form-control is-invalid' : 'form-control'}
+              className={errors.customerId ? 'form-control is-invalid' : 'form-control'}
               required
             >
-              <option value="">Select a customer</option>
+              <option value="">Select Customer</option>
               {customers.map(customer => (
                 <option key={customer._id} value={customer._id}>
-                  {customer.name}
+                  {customer.name || customer.companyName} {customer.customerId ? `(${customer.customerId})` : ''}
                 </option>
               ))}
             </select>
           )}
-          {errors.customer && <div className="invalid-feedback">{errors.customer}</div>}
+          {errors.customerId && <div className="invalid-feedback">{errors.customerId}</div>}
+        </div>
+        
+        <div className="form-row">
+          <div className="form-group">
+            <label htmlFor="shipper">Shipper</label>
+            <AutocompleteSearch 
+              items={shippers}
+              onSelect={(item) => {
+                setFormData({
+                  ...formData,
+                  shipperId: item?._id || '',
+                  shipperName: item?.name || ''
+                });
+              }}
+              placeholder="Search for a shipper..."
+              initialValue={formData.shipperId}
+              displayProperty="name"
+              idProperty="shipperId"
+            />
+          </div>
+          
+          <div className="form-group">
+            <label htmlFor="consignee">Consignee</label>
+            <AutocompleteSearch 
+              items={consignees}
+              onSelect={(item) => {
+                setFormData({
+                  ...formData,
+                  consigneeId: item?._id || '',
+                  consigneeName: item?.name || ''
+                });
+              }}
+              placeholder="Search for a consignee..."
+              initialValue={formData.consigneeId}
+              displayProperty="name"
+              idProperty="consigneeId"
+            />
+          </div>
         </div>
         
         <div className="form-group">
-          <label htmlFor="shipperName">Shipper Name*</label>
-          <input
-            type="text"
-            id="shipperName"
-            name="shipperName"
-            value={shipperName}
-            onChange={onChange}
-            className={errors.shipperName ? 'form-control is-invalid' : 'form-control'}
-            required
-          />
-          {errors.shipperName && <div className="invalid-feedback">{errors.shipperName}</div>}
-        </div>
-
-        <div className="form-group">
-          <label htmlFor="consigneeName">Consignee Name*</label>
-          <input
-            type="text"
-            id="consigneeName"
-            name="consigneeName"
-            value={consigneeName}
-            onChange={onChange}
-            className={errors.consigneeName ? 'form-control is-invalid' : 'form-control'}
-            required
-          />
-          {errors.consigneeName && <div className="invalid-feedback">{errors.consigneeName}</div>}
-        </div>
-
-        <div className="form-group">
           <label htmlFor="notifyParty">Notify Party</label>
-          <input
-            type="text"
-            id="notifyParty"
-            name="notifyParty"
-            value={notifyParty}
-            onChange={onChange}
-            className={errors.notifyParty ? 'form-control is-invalid' : 'form-control'}
+          <AutocompleteSearch 
+            items={notifyParties}
+            onSelect={(item) => {
+              setFormData({
+                ...formData,
+                notifyPartyId: item?._id || '',
+                notifyPartyName: item?.name || ''
+              });
+            }}
+            placeholder="Search for a notify party..."
+            initialValue={formData.notifyPartyId}
+            displayProperty="name"
+            idProperty="notifyPartyId"
           />
-          {errors.notifyParty && <div className="invalid-feedback">{errors.notifyParty}</div>}
         </div>
         
         <div className="form-group">

@@ -4,12 +4,14 @@ export const generateUniqueId = (prefix) => {
   return `${prefix}-${timestamp}-${random}`;
 };
 
-// ID prefixes for different entities
+// Define prefixes for different types of IDs
 export const ID_PREFIXES = {
-  AIRLINE: 'AIR',
-  USER: 'USR',
   CUSTOMER: 'CUST',
-  SHIPMENT: 'SHIP',
+  USER: 'USR',
+  AIRLINE: 'AIR',
+  SHIPMENT: 'SHP',
   LEG: 'LEG',
-  INVOICE: 'INV'
+  SHIPPER: 'SHP',
+  CONSIGNEE: 'CNS',
+  NOTIFY_PARTY: 'NP'
 }; 

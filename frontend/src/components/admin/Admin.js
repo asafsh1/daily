@@ -3,6 +3,9 @@ import { toast } from 'react-toastify';
 import AirlineManager from './AirlineManager';
 import CustomerForm from './CustomerForm';
 import UserForm from './UserForm';
+import ShipperForm from './ShipperForm';
+import ConsigneeForm from './ConsigneeForm';
+import NotifyPartyForm from './NotifyPartyForm';
 import { generateUniqueId, ID_PREFIXES } from '../../utils/idGenerator';
 
 const Admin = () => {
@@ -14,25 +17,54 @@ const Admin = () => {
   const [editingCustomer, setEditingCustomer] = useState(null);
   const [showUserForm, setShowUserForm] = useState(false);
   const [editingUser, setEditingUser] = useState(null);
+  const [shippers, setShippers] = useState([]);
+  const [consignees, setConsignees] = useState([]);
+  const [notifyParties, setNotifyParties] = useState([]);
+  const [showShipperForm, setShowShipperForm] = useState(false);
+  const [editShipper, setEditShipper] = useState(null);
+  const [showConsigneeForm, setShowConsigneeForm] = useState(false);
+  const [editConsignee, setEditConsignee] = useState(null);
+  const [showNotifyPartyForm, setShowNotifyPartyForm] = useState(false);
+  const [editNotifyParty, setEditNotifyParty] = useState(null);
+
+  // Define all tabs
+  const tabs = [
+    { id: 'airlines', label: 'Airlines' },
+    { id: 'customers', label: 'Customers' },
+    { id: 'users', label: 'Users' },
+    { id: 'shippers', label: 'Shippers' },
+    { id: 'consignees', label: 'Consignees' },
+    { id: 'notifyParties', label: 'Notify Parties' }
+  ];
 
   useEffect(() => {
     if (activeTab === 'customers') {
       fetchCustomers();
     } else if (activeTab === 'users') {
       fetchUsers();
+    } else if (activeTab === 'shippers') {
+      fetchShippers();
+    } else if (activeTab === 'consignees') {
+      fetchConsignees();
+    } else if (activeTab === 'notifyParties') {
+      fetchNotifyParties();
     }
   }, [activeTab]);
 
   const handleTabChange = (tab) => {
     setActiveTab(tab);
-    // Force data reload on tab change
-    if (tab === 'customers') {
-      setLoading(true);
-      setTimeout(() => fetchCustomers(), 100);
-    } else if (tab === 'users') {
-      setLoading(true);
-      setTimeout(() => fetchUsers(), 100);
-    }
+    
+    // Reset form states when changing tabs
+    setShowCustomerForm(false);
+    setEditingCustomer(null);
+    setShowUserForm(false);
+    setEditingUser(null);
+    setShowShipperForm(false);
+    setEditShipper(null);
+    setShowConsigneeForm(false);
+    setEditConsignee(null);
+    setShowNotifyPartyForm(false);
+    setEditNotifyParty(null);
   };
 
   const fetchCustomers = async () => {
@@ -386,207 +418,770 @@ const Admin = () => {
     }
   };
 
+  // Fetch shippers
+  const fetchShippers = async () => {
+    setLoading(true);
+    try {
+      const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5001';
+      const response = await fetch(`${apiUrl}/api/shippers`, {
+        headers: {
+          'x-auth-token': localStorage.getItem('token')
+        }
+      });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! Status: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      console.log('Direct API test results for shippers:', data);
+      setShippers(data);
+    } catch (error) {
+      console.error('Error fetching shippers:', error);
+      toast.error('Failed to load shippers data');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Fetch consignees
+  const fetchConsignees = async () => {
+    setLoading(true);
+    try {
+      const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5001';
+      const response = await fetch(`${apiUrl}/api/consignees`, {
+        headers: {
+          'x-auth-token': localStorage.getItem('token')
+        }
+      });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! Status: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      console.log('Direct API test results for consignees:', data);
+      setConsignees(data);
+    } catch (error) {
+      console.error('Error fetching consignees:', error);
+      toast.error('Failed to load consignees data');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Fetch notify parties
+  const fetchNotifyParties = async () => {
+    setLoading(true);
+    try {
+      const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5001';
+      const response = await fetch(`${apiUrl}/api/notify-parties`, {
+        headers: {
+          'x-auth-token': localStorage.getItem('token')
+        }
+      });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! Status: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      console.log('Direct API test results for notify parties:', data);
+      setNotifyParties(data);
+    } catch (error) {
+      console.error('Error fetching notify parties:', error);
+      toast.error('Failed to load notify parties data');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const renderContent = () => {
     switch (activeTab) {
       case 'airlines':
         return <AirlineManager />;
       case 'customers':
         return (
-          <div className="customer-section">
+          <div className="admin-section">
             <div className="section-header">
               <h2>Customer Management</h2>
-              <button className="btn-add" onClick={() => { setEditingCustomer(null); setShowCustomerForm(true); }}>
+              <button
+                className="btn btn-primary"
+                onClick={() => {
+                  setEditingCustomer(null);
+                  setShowCustomerForm(true);
+                }}
+              >
                 <i className="fas fa-plus"></i> Add Customer
               </button>
             </div>
-            
-            {showCustomerForm ? (
-              <CustomerForm 
-                onSubmit={editingCustomer ? handleUpdateCustomer : handleAddCustomer}
-                onCancel={() => setShowCustomerForm(false)}
-                initialData={editingCustomer}
-              />
-            ) : null}
-            
+
             {loading ? (
-              <div className="loading">
-                <i className="fas fa-spinner fa-spin"></i>
-                <p>Loading customers...</p>
-              </div>
+              <div>Loading customers...</div>
             ) : (
-              <div className="customer-list">
-                <table>
-                  <thead>
-                    <tr>
-                      <th>ID</th>
-                      <th>Company Name</th>
-                      <th>Contact Name</th>
-                      <th>Email</th>
-                      <th>Phone</th>
-                      <th>AWB Instructions</th>
-                      <th>Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {customers.length > 0 ? (
-                      customers.map(customer => (
-                        <tr key={customer._id}>
-                          <td>{customer.customerId || `CUST-${customer._id.substring(0, 6)}`}</td>
-                          <td>{customer.companyName || customer.name}</td>
-                          <td>{customer.contactName || customer.contactPerson}</td>
-                          <td>{customer.email}</td>
-                          <td>{customer.phone || '-'}</td>
-                          <td>{customer.awbInstructions || customer.notes || '-'}</td>
-                          <td>
-                            <button
-                              className="btn-icon btn-edit"
-                              onClick={() => handleEditCustomer(customer)}
-                            >
-                              <i className="fas fa-edit"></i>
-                            </button>
-                            <button
-                              className="btn-icon btn-delete"
-                              onClick={() => handleDeleteCustomer(customer._id)}
-                            >
-                              <i className="fas fa-trash"></i>
-                            </button>
-                          </td>
+              <>
+                {customers.length === 0 ? (
+                  <p>No customers found.</p>
+                ) : (
+                  <div className="table-responsive">
+                    <table className="table">
+                      <thead>
+                        <tr>
+                          <th>ID</th>
+                          <th>Name</th>
+                          <th>Email</th>
+                          <th>Phone</th>
+                          <th>Address</th>
+                          <th>Actions</th>
                         </tr>
-                      ))
-                    ) : (
-                      <tr>
-                        <td colSpan="7" className="text-center">
-                          <p>No customers found. Add your first customer!</p>
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
+                      </thead>
+                      <tbody>
+                        {customers.map(customer => (
+                          <tr key={customer._id}>
+                            <td>{customer.customerId || `CUST-${customer._id?.substring(0, 8) || 'N/A'}`}</td>
+                            <td>{customer.name}</td>
+                            <td>{customer.email}</td>
+                            <td>{customer.phone}</td>
+                            <td>{customer.address}</td>
+                            <td>
+                              <button
+                                className="btn-icon btn-edit"
+                                onClick={() => handleEditCustomer(customer)}
+                              >
+                                <i className="fas fa-edit"></i>
+                              </button>
+                              <button
+                                className="btn-icon btn-delete"
+                                onClick={() => handleDeleteCustomer(customer._id)}
+                              >
+                                <i className="fas fa-trash"></i>
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+
+                {showCustomerForm && (
+                  <CustomerForm
+                    customer={editingCustomer}
+                    onSave={editingCustomer ? handleUpdateCustomer : handleAddCustomer}
+                    onCancel={() => {
+                      setShowCustomerForm(false);
+                      setEditingCustomer(null);
+                    }}
+                  />
+                )}
+              </>
             )}
           </div>
         );
       case 'users':
         return (
-          <div className="user-section">
+          <div className="admin-section">
             <div className="section-header">
               <h2>User Management</h2>
-              <button className="btn-add" onClick={() => { setEditingUser(null); setShowUserForm(true); }}>
+              <button
+                className="btn btn-primary"
+                onClick={() => {
+                  setEditingUser(null);
+                  setShowUserForm(true);
+                }}
+              >
                 <i className="fas fa-plus"></i> Add User
               </button>
             </div>
-            
-            {showUserForm && (
-              <UserForm 
-                onSubmit={editingUser ? handleUpdateUser : handleAddUser}
-                onCancel={() => setShowUserForm(false)}
-                initialData={editingUser}
-              />
-            )}
-            
+
             {loading ? (
-              <div className="loading">
-                <i className="fas fa-spinner fa-spin"></i>
-                <p>Loading users...</p>
-              </div>
+              <div>Loading users...</div>
             ) : (
-              <div className="user-list">
-                <table>
-                  <thead>
-                    <tr>
-                      <th>ID</th>
-                      <th>Name</th>
-                      <th>Email</th>
-                      <th>Role</th>
-                      <th>Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {users.length > 0 ? (
-                      users.map(user => (
-                        <tr key={user._id}>
-                          <td>{user.userId || `USR-${user._id?.substring(0, 8) || 'N/A'}`}</td>
-                          <td>{user.name}</td>
-                          <td>{user.email}</td>
-                          <td>{user.role || 'user'}</td>
-                          <td>
-                            <button
-                              className="btn-icon btn-edit"
-                              onClick={() => handleEditUser(user)}
-                            >
-                              <i className="fas fa-edit"></i>
-                            </button>
-                            <button
-                              className="btn-icon btn-delete"
-                              onClick={() => handleDeleteUser(user._id)}
-                            >
-                              <i className="fas fa-trash"></i>
-                            </button>
-                          </td>
+              <>
+                {users.length === 0 ? (
+                  <p>No users found.</p>
+                ) : (
+                  <div className="table-responsive">
+                    <table className="table">
+                      <thead>
+                        <tr>
+                          <th>ID</th>
+                          <th>Name</th>
+                          <th>Email</th>
+                          <th>Role</th>
+                          <th>Actions</th>
                         </tr>
-                      ))
-                    ) : (
-                      <tr>
-                        <td colSpan="4" className="text-center">
-                          <p>No users found. Add your first user!</p>
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
+                      </thead>
+                      <tbody>
+                        {users.map(user => (
+                          <tr key={user._id}>
+                            <td>{user.userId || `USR-${user._id?.substring(0, 8) || 'N/A'}`}</td>
+                            <td>{user.name}</td>
+                            <td>{user.email}</td>
+                            <td>{user.role || 'user'}</td>
+                            <td>
+                              <button
+                                className="btn-icon btn-edit"
+                                onClick={() => handleEditUser(user)}
+                              >
+                                <i className="fas fa-edit"></i>
+                              </button>
+                              <button
+                                className="btn-icon btn-delete"
+                                onClick={() => handleDeleteUser(user._id)}
+                              >
+                                <i className="fas fa-trash"></i>
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+
+                {showUserForm && (
+                  <UserForm
+                    user={editingUser}
+                    onSave={handleUpdateUser}
+                    onCancel={() => {
+                      setShowUserForm(false);
+                      setEditingUser(null);
+                    }}
+                  />
+                )}
+              </>
+            )}
+          </div>
+        );
+      case 'shippers':
+        return (
+          <div className="admin-section">
+            <div className="section-header">
+              <h2>Shipper Management</h2>
+              <button
+                className="btn btn-primary"
+                onClick={() => {
+                  setEditShipper(null);
+                  setShowShipperForm(true);
+                }}
+              >
+                <i className="fas fa-plus"></i> Add Shipper
+              </button>
+            </div>
+
+            {loading ? (
+              <div>Loading shippers...</div>
+            ) : (
+              <>
+                {shippers.length === 0 ? (
+                  <p>No shippers found.</p>
+                ) : (
+                  <div className="table-responsive">
+                    <table className="table">
+                      <thead>
+                        <tr>
+                          <th>ID</th>
+                          <th>Name</th>
+                          <th>Email</th>
+                          <th>Phone</th>
+                          <th>Address</th>
+                          <th>Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {shippers.map(shipper => (
+                          <tr key={shipper._id}>
+                            <td>{shipper.shipperId || `SHP-${shipper._id?.substring(0, 8) || 'N/A'}`}</td>
+                            <td>{shipper.name}</td>
+                            <td>{shipper.email}</td>
+                            <td>{shipper.phone}</td>
+                            <td>{shipper.address}</td>
+                            <td>
+                              <button
+                                className="btn-icon btn-edit"
+                                onClick={() => handleEditShipper(shipper)}
+                              >
+                                <i className="fas fa-edit"></i>
+                              </button>
+                              <button
+                                className="btn-icon btn-delete"
+                                onClick={() => handleDeleteShipper(shipper._id)}
+                              >
+                                <i className="fas fa-trash"></i>
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+
+                {showShipperForm && (
+                  <div className="form-modal">
+                    <h3>{editShipper ? 'Edit Shipper' : 'Add Shipper'}</h3>
+                    <ShipperForm
+                      shipper={editShipper}
+                      onSave={handleSaveShipper}
+                      onCancel={() => {
+                        setShowShipperForm(false);
+                        setEditShipper(null);
+                      }}
+                    />
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        );
+      case 'consignees':
+        return (
+          <div className="admin-section">
+            <div className="section-header">
+              <h2>Consignee Management</h2>
+              <button
+                className="btn btn-primary"
+                onClick={() => {
+                  setEditConsignee(null);
+                  setShowConsigneeForm(true);
+                }}
+              >
+                <i className="fas fa-plus"></i> Add Consignee
+              </button>
+            </div>
+
+            {loading ? (
+              <div>Loading consignees...</div>
+            ) : (
+              <>
+                {consignees.length === 0 ? (
+                  <p>No consignees found.</p>
+                ) : (
+                  <div className="table-responsive">
+                    <table className="table">
+                      <thead>
+                        <tr>
+                          <th>ID</th>
+                          <th>Name</th>
+                          <th>Email</th>
+                          <th>Phone</th>
+                          <th>Address</th>
+                          <th>Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {consignees.map(consignee => (
+                          <tr key={consignee._id}>
+                            <td>{consignee.consigneeId || `CNS-${consignee._id?.substring(0, 8) || 'N/A'}`}</td>
+                            <td>{consignee.name}</td>
+                            <td>{consignee.email}</td>
+                            <td>{consignee.phone}</td>
+                            <td>{consignee.address}</td>
+                            <td>
+                              <button
+                                className="btn-icon btn-edit"
+                                onClick={() => handleEditConsignee(consignee)}
+                              >
+                                <i className="fas fa-edit"></i>
+                              </button>
+                              <button
+                                className="btn-icon btn-delete"
+                                onClick={() => handleDeleteConsignee(consignee._id)}
+                              >
+                                <i className="fas fa-trash"></i>
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+
+                {showConsigneeForm && (
+                  <div className="form-modal">
+                    <h3>{editConsignee ? 'Edit Consignee' : 'Add Consignee'}</h3>
+                    <ConsigneeForm
+                      consignee={editConsignee}
+                      onSave={handleSaveConsignee}
+                      onCancel={() => {
+                        setShowConsigneeForm(false);
+                        setEditConsignee(null);
+                      }}
+                    />
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        );
+      case 'notifyParties':
+        return (
+          <div className="admin-section">
+            <div className="section-header">
+              <h2>Notify Party Management</h2>
+              <button
+                className="btn btn-primary"
+                onClick={() => {
+                  setEditNotifyParty(null);
+                  setShowNotifyPartyForm(true);
+                }}
+              >
+                <i className="fas fa-plus"></i> Add Notify Party
+              </button>
+            </div>
+
+            {loading ? (
+              <div>Loading notify parties...</div>
+            ) : (
+              <>
+                {notifyParties.length === 0 ? (
+                  <p>No notify parties found.</p>
+                ) : (
+                  <div className="table-responsive">
+                    <table className="table">
+                      <thead>
+                        <tr>
+                          <th>ID</th>
+                          <th>Name</th>
+                          <th>Email</th>
+                          <th>Phone</th>
+                          <th>Address</th>
+                          <th>Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {notifyParties.map(notifyParty => (
+                          <tr key={notifyParty._id}>
+                            <td>{notifyParty.notifyPartyId || `NP-${notifyParty._id?.substring(0, 8) || 'N/A'}`}</td>
+                            <td>{notifyParty.name}</td>
+                            <td>{notifyParty.email}</td>
+                            <td>{notifyParty.phone}</td>
+                            <td>{notifyParty.address}</td>
+                            <td>
+                              <button
+                                className="btn-icon btn-edit"
+                                onClick={() => handleEditNotifyParty(notifyParty)}
+                              >
+                                <i className="fas fa-edit"></i>
+                              </button>
+                              <button
+                                className="btn-icon btn-delete"
+                                onClick={() => handleDeleteNotifyParty(notifyParty._id)}
+                              >
+                                <i className="fas fa-trash"></i>
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+
+                {showNotifyPartyForm && (
+                  <div className="form-modal">
+                    <h3>{editNotifyParty ? 'Edit Notify Party' : 'Add Notify Party'}</h3>
+                    <NotifyPartyForm
+                      notifyParty={editNotifyParty}
+                      onSave={handleSaveNotifyParty}
+                      onCancel={() => {
+                        setShowNotifyPartyForm(false);
+                        setEditNotifyParty(null);
+                      }}
+                    />
+                  </div>
+                )}
+              </>
             )}
           </div>
         );
       default:
-        return <p>Select a tab</p>;
+        return <div>Select a tab</div>;
+    }
+  };
+
+  // Add handler functions for Shippers
+  const handleEditShipper = (shipper) => {
+    setEditShipper(shipper);
+    setShowShipperForm(true);
+  };
+
+  const handleDeleteShipper = async (shipperId) => {
+    if (window.confirm('Are you sure you want to delete this shipper?')) {
+      try {
+        setLoading(true);
+        const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5001';
+        const response = await fetch(`${apiUrl}/api/shippers/${shipperId}`, {
+          method: 'DELETE',
+          headers: {
+            'x-auth-token': localStorage.getItem('token')
+          }
+        });
+        
+        if (!response.ok) {
+          throw new Error(`HTTP error! Status: ${response.status}`);
+        }
+        
+        setShippers(shippers.filter(shipper => shipper._id !== shipperId));
+        toast.success('Shipper deleted successfully');
+      } catch (error) {
+        console.error('Error deleting shipper:', error);
+        toast.error('Failed to delete shipper');
+      } finally {
+        setLoading(false);
+      }
+    }
+  };
+
+  const handleSaveShipper = async (shipperData) => {
+    try {
+      setLoading(true);
+      const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5001';
+      
+      // Generate unique ID if it's a new shipper
+      if (!shipperData._id) {
+        shipperData.shipperId = generateUniqueId(ID_PREFIXES.SHIPPER);
+      }
+      
+      const method = shipperData._id ? 'PUT' : 'POST';
+      const url = shipperData._id 
+        ? `${apiUrl}/api/shippers/${shipperData._id}` 
+        : `${apiUrl}/api/shippers`;
+      
+      const response = await fetch(url, {
+        method,
+        headers: {
+          'Content-Type': 'application/json',
+          'x-auth-token': localStorage.getItem('token')
+        },
+        body: JSON.stringify(shipperData)
+      });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! Status: ${response.status}`);
+      }
+      
+      const savedShipper = await response.json();
+      
+      if (shipperData._id) {
+        setShippers(shippers.map(shipper => 
+          shipper._id === shipperData._id ? savedShipper : shipper
+        ));
+        toast.success('Shipper updated successfully');
+      } else {
+        setShippers([...shippers, savedShipper]);
+        toast.success('Shipper added successfully');
+      }
+      
+      setShowShipperForm(false);
+      setEditShipper(null);
+    } catch (error) {
+      console.error('Error saving shipper:', error);
+      toast.error('Failed to save shipper');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Add handler functions for Consignees
+  const handleEditConsignee = (consignee) => {
+    setEditConsignee(consignee);
+    setShowConsigneeForm(true);
+  };
+
+  const handleDeleteConsignee = async (consigneeId) => {
+    if (window.confirm('Are you sure you want to delete this consignee?')) {
+      try {
+        setLoading(true);
+        const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5001';
+        const response = await fetch(`${apiUrl}/api/consignees/${consigneeId}`, {
+          method: 'DELETE',
+          headers: {
+            'x-auth-token': localStorage.getItem('token')
+          }
+        });
+        
+        if (!response.ok) {
+          throw new Error(`HTTP error! Status: ${response.status}`);
+        }
+        
+        setConsignees(consignees.filter(consignee => consignee._id !== consigneeId));
+        toast.success('Consignee deleted successfully');
+      } catch (error) {
+        console.error('Error deleting consignee:', error);
+        toast.error('Failed to delete consignee');
+      } finally {
+        setLoading(false);
+      }
+    }
+  };
+
+  const handleSaveConsignee = async (consigneeData) => {
+    try {
+      setLoading(true);
+      const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5001';
+      
+      // Generate unique ID if it's a new consignee
+      if (!consigneeData._id) {
+        consigneeData.consigneeId = generateUniqueId(ID_PREFIXES.CONSIGNEE);
+      }
+      
+      const method = consigneeData._id ? 'PUT' : 'POST';
+      const url = consigneeData._id 
+        ? `${apiUrl}/api/consignees/${consigneeData._id}` 
+        : `${apiUrl}/api/consignees`;
+      
+      const response = await fetch(url, {
+        method,
+        headers: {
+          'Content-Type': 'application/json',
+          'x-auth-token': localStorage.getItem('token')
+        },
+        body: JSON.stringify(consigneeData)
+      });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! Status: ${response.status}`);
+      }
+      
+      const savedConsignee = await response.json();
+      
+      if (consigneeData._id) {
+        setConsignees(consignees.map(consignee => 
+          consignee._id === consigneeData._id ? savedConsignee : consignee
+        ));
+        toast.success('Consignee updated successfully');
+      } else {
+        setConsignees([...consignees, savedConsignee]);
+        toast.success('Consignee added successfully');
+      }
+      
+      setShowConsigneeForm(false);
+      setEditConsignee(null);
+    } catch (error) {
+      console.error('Error saving consignee:', error);
+      toast.error('Failed to save consignee');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Add handler functions for Notify Parties
+  const handleEditNotifyParty = (notifyParty) => {
+    setEditNotifyParty(notifyParty);
+    setShowNotifyPartyForm(true);
+  };
+
+  const handleDeleteNotifyParty = async (notifyPartyId) => {
+    if (window.confirm('Are you sure you want to delete this notify party?')) {
+      try {
+        setLoading(true);
+        const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5001';
+        const response = await fetch(`${apiUrl}/api/notify-parties/${notifyPartyId}`, {
+          method: 'DELETE',
+          headers: {
+            'x-auth-token': localStorage.getItem('token')
+          }
+        });
+        
+        if (!response.ok) {
+          throw new Error(`HTTP error! Status: ${response.status}`);
+        }
+        
+        setNotifyParties(notifyParties.filter(notifyParty => notifyParty._id !== notifyPartyId));
+        toast.success('Notify party deleted successfully');
+      } catch (error) {
+        console.error('Error deleting notify party:', error);
+        toast.error('Failed to delete notify party');
+      } finally {
+        setLoading(false);
+      }
+    }
+  };
+
+  const handleSaveNotifyParty = async (notifyPartyData) => {
+    try {
+      setLoading(true);
+      const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5001';
+      
+      // Generate unique ID if it's a new notify party
+      if (!notifyPartyData._id) {
+        notifyPartyData.notifyPartyId = generateUniqueId(ID_PREFIXES.NOTIFY_PARTY);
+      }
+      
+      const method = notifyPartyData._id ? 'PUT' : 'POST';
+      const url = notifyPartyData._id 
+        ? `${apiUrl}/api/notify-parties/${notifyPartyData._id}` 
+        : `${apiUrl}/api/notify-parties`;
+      
+      const response = await fetch(url, {
+        method,
+        headers: {
+          'Content-Type': 'application/json',
+          'x-auth-token': localStorage.getItem('token')
+        },
+        body: JSON.stringify(notifyPartyData)
+      });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! Status: ${response.status}`);
+      }
+      
+      const savedNotifyParty = await response.json();
+      
+      if (notifyPartyData._id) {
+        setNotifyParties(notifyParties.map(notifyParty => 
+          notifyParty._id === notifyPartyData._id ? savedNotifyParty : notifyParty
+        ));
+        toast.success('Notify party updated successfully');
+      } else {
+        setNotifyParties([...notifyParties, savedNotifyParty]);
+        toast.success('Notify party added successfully');
+      }
+      
+      setShowNotifyPartyForm(false);
+      setEditNotifyParty(null);
+    } catch (error) {
+      console.error('Error saving notify party:', error);
+      toast.error('Failed to save notify party');
+    } finally {
+      setLoading(false);
     }
   };
 
   return (
-    <div className="admin-panel">
-      <div className="admin-header">
-        <h1>Admin Panel</h1>
-      </div>
+    <div className="admin-container">
+      <h1 className="admin-title">Admin Panel</h1>
+      
       <div className="admin-tabs">
-        <button
-          className={`tab-button ${activeTab === 'airlines' ? 'active' : ''}`}
-          onClick={() => handleTabChange('airlines')}
-        >
-          Airlines
-        </button>
-        <button
-          className={`tab-button ${activeTab === 'customers' ? 'active' : ''}`}
-          onClick={() => handleTabChange('customers')}
-        >
-          Customers
-        </button>
-        <button
-          className={`tab-button ${activeTab === 'users' ? 'active' : ''}`}
-          onClick={() => handleTabChange('users')}
-        >
-          Users
-        </button>
+        {tabs.map(tab => (
+          <button
+            key={tab.id}
+            className={`tab-button ${activeTab === tab.id ? 'active' : ''}`}
+            onClick={() => handleTabChange(tab.id)}
+          >
+            {tab.label}
+          </button>
+        ))}
       </div>
-      <div className="admin-content">
+      
+      <div className="tab-content">
         {renderContent()}
       </div>
 
       <style jsx>{`
-        .admin-panel {
+        .admin-container {
           padding: 20px;
           max-width: 1200px;
           margin: 0 auto;
         }
 
-        .admin-header {
-          margin-bottom: 30px;
-        }
-
-        .admin-header h1 {
+        .admin-title {
           color: #2c3e50;
           font-size: 24px;
-          margin: 0;
+          margin-bottom: 30px;
         }
 
         .admin-tabs {
@@ -621,20 +1216,18 @@ const Admin = () => {
           border-bottom: 2px solid #0d6efd;
         }
 
-        .admin-content {
+        .tab-content {
           background: white;
           border-radius: 8px;
           box-shadow: 0 2px 4px rgba(0,0,0,0.1);
           overflow-x: auto;
         }
 
-        .customer-manager,
-        .user-manager {
+        .admin-section {
           padding: 20px;
         }
 
-        .customer-header,
-        .user-header {
+        .section-header {
           display: flex;
           justify-content: space-between;
           align-items: center;
@@ -643,18 +1236,10 @@ const Admin = () => {
           gap: 10px;
         }
 
-        .customer-title,
-        .user-title {
+        .section-header h2 {
           color: #2c3e50;
           font-size: 20px;
           margin: 0;
-        }
-
-        .customer-actions,
-        .user-actions {
-          display: flex;
-          gap: 10px;
-          flex-wrap: wrap;
         }
 
         .btn {
@@ -669,17 +1254,27 @@ const Admin = () => {
           white-space: nowrap;
         }
 
-        .customer-list table,
-        .user-list table {
+        .btn-primary {
+          background: #0d6efd;
+          color: white;
+        }
+
+        .btn-primary:hover {
+          background: #0b5ed7;
+        }
+
+        .table-responsive {
+          overflow-x: auto;
+        }
+
+        .table {
           width: 100%;
           border-collapse: collapse;
           min-width: 600px;
         }
 
-        .customer-list th,
-        .customer-list td,
-        .user-list th,
-        .user-list td {
+        .table th,
+        .table td {
           padding: 12px;
           text-align: left;
           border-bottom: 1px solid #dee2e6;
@@ -742,7 +1337,7 @@ const Admin = () => {
         }
 
         @media (max-width: 768px) {
-          .admin-panel {
+          .admin-container {
             padding: 10px;
           }
 
@@ -757,16 +1352,9 @@ const Admin = () => {
             padding: 12px;
           }
 
-          .customer-header,
-          .user-header {
+          .section-header {
             flex-direction: column;
             align-items: flex-start;
-          }
-
-          .customer-actions,
-          .user-actions {
-            width: 100%;
-            justify-content: space-between;
           }
 
           .btn {
@@ -774,16 +1362,13 @@ const Admin = () => {
             justify-content: center;
           }
 
-          .customer-list table,
-          .user-list table {
+          .table {
             display: block;
             overflow-x: auto;
           }
 
-          .customer-list th,
-          .customer-list td,
-          .user-list th,
-          .user-list td {
+          .table th,
+          .table td {
             padding: 8px;
             font-size: 14px;
           }
@@ -795,8 +1380,7 @@ const Admin = () => {
             font-size: 12px;
           }
 
-          .customer-title,
-          .user-title {
+          .section-header h2 {
             font-size: 18px;
           }
 
