@@ -429,10 +429,11 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
         </div>
       ) : (
         <div className="legs-list">
-          <table className="table legs-table">
+          <table className="shipment-legs-table">
             <thead>
               <tr>
                 <th>Leg</th>
+                <th>Leg ID</th>
                 <th>Origin</th>
                 <th>Destination</th>
                 <th>AWB</th>
@@ -442,108 +443,107 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
                 <th>Status</th>
                 <th>Actions</th>
                 <th>Change Log</th>
+                <th>Status History</th>
               </tr>
             </thead>
             <tbody>
               {legs.map((leg, index) => (
                 <tr key={leg._id || index}>
-                  <td>{leg.legOrder || index + 1}</td>
+                  <td>{index + 1}</td>
+                  <td>{leg.legId || `LEG-${leg._id ? leg._id.substring(0, 8) : 'N/A'}`}</td>
                   <td>{leg.origin}</td>
                   <td>{leg.destination}</td>
-                  <td>{getDisplayAwb(leg)}</td>
+                  <td>
+                    {leg.awbNumber && hasTracking(leg.awbNumber) ? (
+                      <a
+                        href={getTrackingUrlSync(leg.awbNumber)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="tracking-link"
+                      >
+                        {leg.awbNumber} <i className="fas fa-external-link-alt"></i>
+                      </a>
+                    ) : (
+                      leg.awbNumber || 'N/A'
+                    )}
+                  </td>
                   <td>{leg.flightNumber || 'N/A'}</td>
                   <td>
-                    <Moment format="DD/MM/YYYY HH:mm">
-                      {leg.departureTime}
-                    </Moment>
+                    {leg.departureTime ? (
+                      <Moment format="DD/MM/YYYY HH:mm">{leg.departureTime}</Moment>
+                    ) : (
+                      'N/A'
+                    )}
                   </td>
                   <td>
-                    <Moment format="DD/MM/YYYY HH:mm">
-                      {leg.arrivalTime}
-                    </Moment>
+                    {leg.arrivalTime ? (
+                      <Moment format="DD/MM/YYYY HH:mm">{leg.arrivalTime}</Moment>
+                    ) : (
+                      'N/A'
+                    )}
                   </td>
                   <td>
                     {readOnly ? (
-                      <span className={`status-badge status-${leg.status.toLowerCase().replace(/\s+/g, '-')}`}>
-                        {leg.status}
-                      </span>
+                      <div className={`status-pill ${leg.status?.toLowerCase() || 'unknown'}`}>
+                        {leg.status || 'Unknown'}
+                      </div>
                     ) : (
                       <select
-                        className={`status-select status-${leg.status.toLowerCase().replace(/\s+/g, '-')}`}
-                        value={leg.status}
+                        className={`status-select ${leg.status?.toLowerCase() || 'unknown'}`}
+                        value={leg.status || 'Not Started'}
                         onChange={(e) => handleLegStatusChange(leg._id, e.target.value)}
                       >
-                        <option value="Pending">Pending</option>
-                        <option value="In Transit">In Transit</option>
-                        <option value="Arrived">Arrived</option>
-                        <option value="Delayed">Delayed</option>
-                        <option value="Canceled">Canceled</option>
+                        {['Not Started', 'In Progress', 'Departed', 'In Transit', 'Arrived', 'Delivered', 'Delayed', 'Cancelled'].map(
+                          (status) => (
+                            <option key={status} value={status}>
+                              {status}
+                            </option>
+                          )
+                        )}
                       </select>
                     )}
                   </td>
-                  {!readOnly && (
-                    <td>
-                      <div className="leg-details">
-                        <div className="leg-status">
-                          <span className={`status-badge status-${leg.status.toLowerCase().replace(/\s+/g, '-')}`}>
-                            {leg.status}
-                          </span>
-                        </div>
-                        
-                        <div className="leg-actions">
-                          <button 
-                            type="button" 
-                            onClick={() => handleEditLeg(leg)}
-                            className="btn btn-sm btn-primary"
-                          >
-                            <i className="fas fa-edit"></i> Edit
-                          </button>
-                          <button 
-                            type="button" 
-                            onClick={() => handleDeleteLeg(leg._id)}
-                            className="btn btn-sm btn-danger"
-                          >
-                            <i className="fas fa-trash"></i> Delete
-                          </button>
-                        </div>
-                      </div>
-                      
-                      {/* Status History Log */}
-                      {leg.statusHistory && leg.statusHistory.length > 0 && (
-                        <div className="status-history">
-                          <h5 className="status-history-title">Status History</h5>
-                          <ul className="status-history-list">
-                            {[...leg.statusHistory].reverse().map((history, idx) => (
-                              <li key={idx} className="status-history-item">
-                                <span className={`status-badge small status-${history.status.toLowerCase().replace(/\s+/g, '-')}`}>
-                                  {history.status}
-                                </span>
-                                <span className="status-timestamp">
-                                  <Moment format="DD/MM/YYYY HH:mm">
-                                    {history.timestamp}
-                                  </Moment>
-                                </span>
-                              </li>
-                            ))}
-                          </ul>
-                        </div>
-                      )}
-                    </td>
-                  )}
                   <td>
-                    {leg.changeLog && leg.changeLog.length > 0 ? (
-                      <div className="change-log">
-                        {leg.changeLog.map((change, index) => (
-                          <div key={index} className="change-entry">
-                            <small className="text-muted">
-                              {Moment(change.timestamp).format('DD/MM/YYYY HH:mm')}
-                            </small>
-                            <div>{change.description}</div>
+                    {!readOnly && (
+                      <>
+                        <button
+                          className="btn-icon btn-edit"
+                          onClick={() => handleEditLeg(leg)}
+                          title="Edit Leg"
+                        >
+                          <i className="fas fa-edit"></i> Edit
+                        </button>
+                        <button
+                          className="btn-icon btn-delete"
+                          onClick={() => handleDeleteLeg(leg._id)}
+                          title="Delete Leg"
+                        >
+                          <i className="fas fa-trash"></i> Delete
+                        </button>
+                      </>
+                    )}
+                  </td>
+                  <td>
+                    {leg.changeLog && leg.changeLog.length > 0
+                      ? leg.changeLog[leg.changeLog.length - 1].description || 'No changes'
+                      : 'No changes'}
+                  </td>
+                  <td>
+                    {leg.statusHistory && leg.statusHistory.length > 0 ? (
+                      <div className="status-history">
+                        {leg.statusHistory.map((statusRecord, idx) => (
+                          <div key={idx} className="status-record">
+                            <div className={`status-pill ${statusRecord.status?.toLowerCase() || 'unknown'}`}>
+                              {statusRecord.status}
+                            </div>
+                            <div className="status-timestamp">
+                              <Moment format="DD/MM/YYYY HH:mm">{statusRecord.timestamp}</Moment>
+                            </div>
                           </div>
                         ))}
                       </div>
                     ) : (
-                      <span className="text-muted">No changes</span>
+                      'No history'
                     )}
                   </td>
                 </tr>

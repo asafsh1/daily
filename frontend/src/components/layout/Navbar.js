@@ -33,4 +33,26 @@ const Navbar = () => {
   );
 };
 
-export default Navbar; 
+export default Navbar;
+
+<style jsx>{`
+  .navbar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    background-color: #343a40;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.7rem 2rem;
+    z-index: 1000;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+  }
+
+  .container {
+    width: 100%;
+  }
+  
+  /* More existing styles... */
+`}</style> 

@@ -71,13 +71,20 @@ img {
 
 /* Utilities */
 .container {
-  width: 95%;
-  max-width: 1800px;
-  margin: auto;
-  overflow: hidden;
+  max-width: 1200px;
+  margin: 0 auto;
   padding: 0 1rem;
-  margin-top: 4rem;
-  margin-bottom: 2rem;
+  padding-top: 80px; /* Add padding to top to account for fixed navbar */
+  overflow: hidden;
+}
+
+section.container {
+  padding-top: 80px; /* Extra padding for section containers */
+}
+
+/* Ensure all pages have proper spacing */
+.dashboard, .shipments-page, .admin-page {
+  padding-top: 80px;
 }
 
 /* Text Styles*/
