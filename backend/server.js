@@ -5,6 +5,10 @@ const path = require('path');
 const http = require('http');
 const socketIo = require('socket.io');
 const fs = require('fs');
+const mongoose = require('mongoose');
+const User = require('./models/User');
+const Shipment = require('./models/Shipment');
+const Customer = require('./models/Customer');
 
 // Initialize Express
 const app = express();
@@ -50,13 +54,95 @@ app.use('/api/notify-parties', require('./routes/api/notify-parties'));
 
 // Health check endpoint
 app.get('/health', (req, res) => {
-  const dbStatus = require('mongoose').connection.readyState === 1 ? 'connected' : 'disconnected';
+  const dbStatus = require('mongoose').connection.readyState;
+  let dbStatusText;
+  
+  switch(dbStatus) {
+    case 0:
+      dbStatusText = 'disconnected';
+      break;
+    case 1:
+      dbStatusText = 'connected';
+      break;
+    case 2:
+      dbStatusText = 'connecting';
+      break;
+    case 3:
+      dbStatusText = 'disconnecting';
+      break;
+    default:
+      dbStatusText = 'unknown';
+  }
+  
   res.json({
     status: 'ok',
     timestamp: new Date(),
-    database: dbStatus,
-    environment: process.env.NODE_ENV || 'development'
+    database: {
+      status: dbStatusText,
+      readyState: dbStatus
+    },
+    environment: process.env.NODE_ENV || 'development',
+    serverInfo: {
+      uptime: process.uptime(),
+      memory: process.memoryUsage(),
+      version: process.version
+    }
   });
+});
+
+// Add a detailed diagnostics endpoint
+app.get('/api/diagnostics', auth, async (req, res) => {
+  try {
+    // Check if user has admin role
+    if (!req.user.role || req.user.role !== 'admin') {
+      return res.status(403).json({ msg: 'Not authorized to access diagnostics' });
+    }
+    
+    const dbStatus = require('mongoose').connection.readyState;
+    const diagnosticInfo = {
+      server: {
+        uptime: process.uptime(),
+        memory: process.memoryUsage(),
+        version: process.version,
+        nodeEnv: process.env.NODE_ENV || 'development'
+      },
+      database: {
+        status: dbStatus === 1 ? 'connected' : 'disconnected',
+        readyState: dbStatus,
+        host: dbStatus === 1 ? mongoose.connection.host : 'N/A'
+      },
+      config: {
+        port: PORT,
+        corsOrigins: Array.isArray(app.get('corsOrigins')) ? app.get('corsOrigins') : ['default'],
+        staticPath: app.get('staticPath') || 'none'
+      }
+    };
+    
+    // Try to get some DB stats if connected
+    if (dbStatus === 1) {
+      try {
+        const userCount = await User.countDocuments();
+        const shipmentCount = await Shipment.countDocuments();
+        const customerCount = await Customer.countDocuments();
+        
+        diagnosticInfo.database.collections = {
+          users: userCount,
+          shipments: shipmentCount,
+          customers: customerCount
+        };
+      } catch (err) {
+        diagnosticInfo.database.collectionError = err.message;
+      }
+    }
+    
+    res.json(diagnosticInfo);
+  } catch (err) {
+    console.error('Diagnostics error:', err.message);
+    res.status(500).json({ 
+      msg: 'Error running diagnostics',
+      error: process.env.NODE_ENV === 'production' ? 'Internal server error' : err.message
+    });
+  }
 });
 
 // Serve static assets in production
