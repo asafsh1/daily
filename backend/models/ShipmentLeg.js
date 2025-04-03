@@ -1,65 +1,51 @@
 const mongoose = require('mongoose');
 
 const ShipmentLegSchema = new mongoose.Schema({
-  shipmentId: {
+  shipment: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'shipment',
-    required: true,
-    index: true
+    required: true
   },
   legOrder: {
     type: Number,
-    required: true,
-    min: 1,
-    max: 20
+    default: 0
   },
-  origin: {
+  legId: {
+    type: String,
+    required: false
+  },
+  from: {
     type: String,
     required: true
   },
-  destination: {
+  to: {
     type: String,
     required: true
   },
-  flightNumber: {
+  carrier: {
     type: String,
-    required: true
+    required: false
   },
-  mawbNumber: {
-    type: String,
-    required: true
-  },
-  awbNumber: {
-    type: String
-  },
-  departureTime: {
+  departureDate: {
     type: Date,
-    required: true
+    required: false
   },
-  arrivalTime: {
+  arrivalDate: {
     type: Date,
-    required: true
+    required: false
   },
   status: {
     type: String,
-    enum: ['Pending', 'In Transit', 'Arrived', 'Delayed', 'Canceled'],
-    default: 'Pending'
+    enum: ['pending', 'in-transit', 'delayed', 'completed', 'cancelled'],
+    default: 'pending'
   },
-  statusHistory: [
-    {
-      status: {
-        type: String,
-        enum: ['Pending', 'In Transit', 'Arrived', 'Delayed', 'Canceled'],
-        required: true
-      },
-      timestamp: {
-        type: Date,
-        default: Date.now
-      }
-    }
-  ],
+  trackingNumber: {
+    type: String,
+    required: false
+  },
   notes: {
-    type: String
+    type: String,
+    required: false
   },
   createdAt: {
     type: Date,
@@ -71,43 +57,9 @@ const ShipmentLegSchema = new mongoose.Schema({
   }
 });
 
-// Create a compound index for shipmentId and legOrder to ensure uniqueness
-ShipmentLegSchema.index({ shipmentId: 1, legOrder: 1 }, { unique: true });
-
-// Pre-save hook to ensure the leg has a valid legOrder
-ShipmentLegSchema.pre('save', async function(next) {
-  if (!this.isNew && !this.isModified('legOrder')) {
-    return next();
-  }
-  
-  try {
-    // If legOrder is not set or is 0, auto-assign the next available number
-    if (!this.legOrder || this.legOrder === 0) {
-      const highestLeg = await this.constructor.findOne(
-        { shipmentId: this.shipmentId },
-        { legOrder: 1 },
-        { sort: { legOrder: -1 } }
-      );
-      
-      this.legOrder = highestLeg ? highestLeg.legOrder + 1 : 1;
-    }
-    
-    next();
-  } catch (err) {
-    next(err);
-  }
-});
-
-// Pre-save hook to track status changes
+// Update the updatedAt field before saving
 ShipmentLegSchema.pre('save', function(next) {
-  // If this is a new document or status has been modified
-  if (this.isNew || this.isModified('status')) {
-    // Add current status to history
-    this.statusHistory.push({
-      status: this.status,
-      timestamp: new Date()
-    });
-  }
+  this.updatedAt = Date.now();
   next();
 });
 
