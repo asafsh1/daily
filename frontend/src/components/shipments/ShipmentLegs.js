@@ -429,7 +429,7 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
         </div>
       ) : (
         <div className="legs-list">
-          <table className="shipment-legs-table">
+          <table className="table legs-table">
             <thead>
               <tr>
                 <th>Leg</th>
@@ -453,20 +453,7 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
                   <td>{leg.legId || `LEG-${leg._id ? leg._id.substring(0, 8) : 'N/A'}`}</td>
                   <td>{leg.origin}</td>
                   <td>{leg.destination}</td>
-                  <td>
-                    {leg.awbNumber && hasTracking(leg.awbNumber) ? (
-                      <a
-                        href={getTrackingUrlSync(leg.awbNumber)}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="tracking-link"
-                      >
-                        {leg.awbNumber} <i className="fas fa-external-link-alt"></i>
-                      </a>
-                    ) : (
-                      leg.awbNumber || 'N/A'
-                    )}
-                  </td>
+                  <td>{getDisplayAwb(leg)}</td>
                   <td>{leg.flightNumber || 'N/A'}</td>
                   <td>
                     {leg.departureTime ? (
@@ -484,12 +471,12 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
                   </td>
                   <td>
                     {readOnly ? (
-                      <div className={`status-pill ${leg.status?.toLowerCase() || 'unknown'}`}>
+                      <span className={`status-badge status-${leg.status?.toLowerCase()?.replace(/\s+/g, '-') || 'unknown'}`}>
                         {leg.status || 'Unknown'}
-                      </div>
+                      </span>
                     ) : (
                       <select
-                        className={`status-select ${leg.status?.toLowerCase() || 'unknown'}`}
+                        className={`status-select status-${leg.status?.toLowerCase()?.replace(/\s+/g, '-') || 'unknown'}`}
                         value={leg.status || 'Not Started'}
                         onChange={(e) => handleLegStatusChange(leg._id, e.target.value)}
                       >
@@ -505,22 +492,22 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
                   </td>
                   <td>
                     {!readOnly && (
-                      <>
+                      <div className="leg-actions">
                         <button
-                          className="btn-icon btn-edit"
+                          type="button"
                           onClick={() => handleEditLeg(leg)}
-                          title="Edit Leg"
+                          className="btn btn-sm btn-primary"
                         >
                           <i className="fas fa-edit"></i> Edit
                         </button>
                         <button
-                          className="btn-icon btn-delete"
+                          type="button"
                           onClick={() => handleDeleteLeg(leg._id)}
-                          title="Delete Leg"
+                          className="btn btn-sm btn-danger"
                         >
                           <i className="fas fa-trash"></i> Delete
                         </button>
-                      </>
+                      </div>
                     )}
                   </td>
                   <td>
@@ -531,19 +518,24 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
                   <td>
                     {leg.statusHistory && leg.statusHistory.length > 0 ? (
                       <div className="status-history">
-                        {leg.statusHistory.map((statusRecord, idx) => (
-                          <div key={idx} className="status-record">
-                            <div className={`status-pill ${statusRecord.status?.toLowerCase() || 'unknown'}`}>
-                              {statusRecord.status}
-                            </div>
-                            <div className="status-timestamp">
-                              <Moment format="DD/MM/YYYY HH:mm">{statusRecord.timestamp}</Moment>
-                            </div>
-                          </div>
-                        ))}
+                        <h5 className="status-history-title">Status History</h5>
+                        <ul className="status-history-list">
+                          {[...leg.statusHistory].reverse().map((history, idx) => (
+                            <li key={idx} className="status-history-item">
+                              <span className={`status-badge small status-${history.status?.toLowerCase()?.replace(/\s+/g, '-') || 'unknown'}`}>
+                                {history.status}
+                              </span>
+                              <span className="status-timestamp">
+                                <Moment format="DD/MM/YYYY HH:mm">
+                                  {history.timestamp}
+                                </Moment>
+                              </span>
+                            </li>
+                          ))}
+                        </ul>
                       </div>
                     ) : (
-                      'No history'
+                      <span className="text-muted">No history</span>
                     )}
                   </td>
                 </tr>
