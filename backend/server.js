@@ -39,11 +39,14 @@ app.use(cors({
 // Define Routes
 app.use('/api/users', require('./routes/api/users'));
 app.use('/api/auth', require('./routes/api/auth'));
-app.use('/api/customers', require('./routes/api/customers'));
+// app.use('/api/profile', require('./routes/api/profile'));
 app.use('/api/shipments', require('./routes/api/shipments'));
-app.use('/api/shipment-legs', require('./routes/api/shipmentLegs'));
-app.use('/api/dashboard', require('./routes/api/dashboard'));
+app.use('/api/customers', require('./routes/api/customers'));
 app.use('/api/airlines', require('./routes/api/airlines'));
+app.use('/api/shipment-legs', require('./routes/api/shipment-legs'));
+app.use('/api/shippers', require('./routes/api/shippers'));
+app.use('/api/consignees', require('./routes/api/consignees'));
+app.use('/api/notify-parties', require('./routes/api/notify-parties'));
 
 // Health check endpoint
 app.get('/health', (req, res) => {
