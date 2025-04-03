@@ -50,30 +50,44 @@ const Dashboard = ({
   const [lossShipments, setLossShipments] = useState([]);
   const [activeTab, setActiveTab] = useState('all');
   const [detailedShipments, setDetailedShipments] = useState([]);
+  const [connectionIssue, setConnectionIssue] = useState(false);
 
-  // Run diagnostics first to check API/DB connectivity
-  const runDiagnostics = async () => {
-    try {
+  // Add a fallback to public-diagnostics when the authenticated endpoint fails
+  useEffect(() => {
+    const fetchDiagnosticInfo = async () => {
       setDiagnosticLoading(true);
-      console.log('Running API diagnostics...');
-      const res = await axios.get('/api/dashboard/diagnostics');
-      setDiagnosticInfo(res.data);
-      console.log('Diagnostic results:', res.data);
-      setDiagnosticLoading(false);
-      
-      if (!res.data.database.connected) {
-        toast.error('Database connection issue detected. Please contact support.');
+      try {
+        // Try the authenticated endpoint first
+        const res = await axios.get('/api/dashboard/diagnostics');
+        setDiagnosticInfo(res.data);
+        setConnectionIssue(false);
+      } catch (error) {
+        console.error('Diagnostics error:', error.message);
+        
+        try {
+          // If that fails, try the public endpoint
+          console.log('Trying public diagnostics endpoint...');
+          const publicRes = await axios.get('/api/public-diagnostics');
+          setDiagnosticInfo(publicRes.data);
+          
+          // If we get here, the API is working but DB might not be
+          if (publicRes.data.database.readyState !== 1) {
+            setConnectionIssue(true);
+            console.warn('Database connection issue detected:', publicRes.data.database.connectionError);
+          } else {
+            setConnectionIssue(false);
+          }
+        } catch (publicError) {
+          console.error('Public diagnostics error:', publicError.message);
+          setConnectionIssue(true);
+        }
+      } finally {
+        setDiagnosticLoading(false);
       }
-      
-      return res.data.database.connected;
-    } catch (err) {
-      console.error('Diagnostics error:', err);
-      setDiagnosticInfo({ error: err.message });
-      setDiagnosticLoading(false);
-      toast.error('Error running diagnostics. API might be offline.');
-      return false;
-    }
-  };
+    };
+
+    fetchDiagnosticInfo();
+  }, []);
 
   useEffect(() => {
     console.log('Dashboard component mounted, fetching summary...');
@@ -86,7 +100,7 @@ const Dashboard = ({
     const fetchData = async () => {
       try {
         // Run diagnostics first
-        const connected = await runDiagnostics();
+        const connected = !connectionIssue;
         if (!connected) {
           console.warn('Skipping data fetch due to connection issues');
           return;
@@ -126,7 +140,7 @@ const Dashboard = ({
     return () => {
       clearInterval(refreshInterval);
     };
-  }, [getDashboardSummary, getShipmentsByCustomer, getShipmentsByDate, getOverdueNonInvoiced, getDetailedShipments]);
+  }, [getDashboardSummary, getShipmentsByCustomer, getShipmentsByDate, getOverdueNonInvoiced, getDetailedShipments, connectionIssue]);
 
   useEffect(() => {
     console.log('Dashboard data state:', { summary, loading, error });

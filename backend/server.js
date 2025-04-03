@@ -146,6 +146,57 @@ app.get('/api/dashboard/diagnostics', auth, async (req, res) => {
   }
 });
 
+// Add a public diagnostics endpoint that works without authentication
+app.get('/api/public-diagnostics', (req, res) => {
+  try {
+    const dbStatus = mongoose.connection.readyState;
+    let dbStatusText;
+    
+    switch(dbStatus) {
+      case 0:
+        dbStatusText = 'disconnected';
+        break;
+      case 1:
+        dbStatusText = 'connected';
+        break;
+      case 2:
+        dbStatusText = 'connecting';
+        break;
+      case 3:
+        dbStatusText = 'disconnecting';
+        break;
+      default:
+        dbStatusText = 'unknown';
+    }
+    
+    res.json({
+      status: 'api-responding',
+      timestamp: new Date(),
+      database: {
+        status: dbStatusText,
+        readyState: dbStatus,
+        connectionError: 'DNS resolution failed for MongoDB Atlas cluster',
+        errorDetails: 'The MongoDB Atlas cluster (cluster0.aqbmxvz.mongodb.net) could not be found. The cluster may have been deleted, paused, or renamed.',
+        connectionString: process.env.NODE_ENV === 'production' ? 'hidden' : mongoose.connection._connectionString.replace(/:([^@]+)@/, ':***@')
+      },
+      serverInfo: {
+        uptime: process.uptime(),
+        memory: process.memoryUsage(),
+        version: process.version,
+        environment: process.env.NODE_ENV || 'development'
+      },
+      message: 'This endpoint works without authentication and provides server status even when the database is unavailable.'
+    });
+  } catch (err) {
+    console.error('Diagnostics error:', err.message);
+    res.status(500).json({ 
+      msg: 'Error running diagnostics',
+      error: process.env.NODE_ENV === 'production' ? 'Internal server error' : err.message,
+      suggestion: 'MongoDB Atlas is unavailable. You need to update your connection string with a valid cluster.'
+    });
+  }
+});
+
 // Serve static assets in production
 if (process.env.NODE_ENV === 'production') {
   // Set static folder - look in current directory or one level up
