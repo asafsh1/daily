@@ -1,32 +1,43 @@
 const mongoose = require('mongoose');
 const config = require('config');
 
-// Get the MongoDB URI from config
-let mongoURI;
-try {
-  mongoURI = config.get('mongoURI');
-  console.log('Using MongoDB URI from config file');
-} catch (err) {
-  console.error('Error loading MongoDB URI from config:', err.message);
-  // Use default URI if not found in config
-  mongoURI = process.env.MONGO_URI || 'mongodb://localhost:27017/daily-app';
-  console.log('Using fallback MongoDB URI');
-}
+// Get MongoDB URI with multiple fallbacks
+const getMongoURI = () => {
+  // Priority 1: Environment variable
+  if (process.env.MONGO_URI) {
+    console.log('Using MongoDB URI from environment variable');
+    return process.env.MONGO_URI;
+  }
+  
+  // Priority 2: Config file
+  try {
+    const uri = config.get('mongoURI');
+    console.log('Using MongoDB URI from config file');
+    return uri;
+  } catch (err) {
+    console.error('Error loading MongoDB URI from config:', err.message);
+  }
+  
+  // Priority 3: Default localhost
+  console.log('Using fallback localhost MongoDB URI');
+  return 'mongodb://localhost:27017/daily-app';
+};
 
-// Connect to MongoDB with retries
+// Connect to MongoDB with retries and fallback
 const connectDB = async () => {
-  const MAX_RETRIES = 5;
+  const MAX_RETRIES = 3;
   const RETRY_DELAY = 5000; // 5 seconds
   
+  // First try the primary URI
+  const primaryURI = getMongoURI();
+  console.log(`Primary MongoDB URI: ${primaryURI.replace(/\/\/([^:]+):[^@]+@/, '//***:***@')}`); // Hide password
+  
+  // Try the primary connection
   for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
-    console.log(`MongoDB connection attempt ${attempt} of ${MAX_RETRIES}...`);
+    console.log(`MongoDB connection attempt ${attempt} of ${MAX_RETRIES} to primary URI...`);
     
     try {
-      // Log detailed connection information
-      console.log(`Connecting to: ${mongoURI.replace(/\/\/([^:]+):[^@]+@/, '//***:***@')}`); // Hide password in logs
-      
-      // Set more verbose connection options
-      const conn = await mongoose.connect(mongoURI, {
+      const conn = await mongoose.connect(primaryURI, {
         useNewUrlParser: true,
         useUnifiedTopology: true,
         serverSelectionTimeoutMS: 10000, // 10 seconds
@@ -36,26 +47,32 @@ const connectDB = async () => {
       console.log(`MongoDB Connected: ${conn.connection.host}`);
       return true;
     } catch (err) {
-      mongoose.connection.close();
-      console.error('Mongoose disconnected from MongoDB');
-      
-      // Provide more detailed error information
-      console.error(`Connection attempt ${attempt} failed: ${err.message}`);
-      if (err.name === 'MongoServerSelectionError') {
-        console.error(`Server selection timed out. Check your network or MongoDB Atlas status.`);
-      } else if (err.message.includes('ENOTFOUND')) {
-        console.error(`DNS resolution failed. Check your MongoDB URI and internet connection.`);
-      } else if (err.message.includes('Authentication failed')) {
-        console.error(`Authentication failed. Check your MongoDB username and password.`);
-      }
+      console.error(`Connection attempt ${attempt} failed:`, err.message);
       
       if (attempt < MAX_RETRIES) {
         console.log(`Retrying in ${RETRY_DELAY/1000} seconds...`);
         await new Promise(resolve => setTimeout(resolve, RETRY_DELAY));
       } else {
-        console.error(`Failed to connect to MongoDB after ${MAX_RETRIES} attempts.`);
-        console.error(`Last error: ${err.message}`);
-        return false;
+        console.error(`Failed to connect to primary MongoDB after ${MAX_RETRIES} attempts.`);
+        console.log('Trying localhost fallback...');
+        
+        // Try localhost as fallback
+        try {
+          const conn = await mongoose.connect('mongodb://localhost:27017/daily-app', {
+            useNewUrlParser: true,
+            useUnifiedTopology: true,
+            serverSelectionTimeoutMS: 5000, // 5 seconds
+          });
+          
+          console.log(`Connected to local MongoDB: ${conn.connection.host}`);
+          return true;
+        } catch (localErr) {
+          console.error('Failed to connect to local MongoDB:', localErr.message);
+          
+          // Final fallback - operate in limited functionality mode
+          console.error('All MongoDB connection attempts failed. Running with limited functionality.');
+          return false;
+        }
       }
     }
   }
@@ -63,7 +80,7 @@ const connectDB = async () => {
   return false;
 };
 
-// Handle errors after initial connection
+// Handle connection events
 mongoose.connection.on('error', err => {
   console.error('Mongoose connection error:', err.message);
 });
