@@ -18,11 +18,11 @@ router.get('/summary', async (req, res) => {
     
     // Get shipments by status
     const shipmentsByStatus = {
-      draft: await Shipment.countDocuments({ status: 'draft' }),
-      confirmed: await Shipment.countDocuments({ status: 'confirmed' }),
-      intransit: await Shipment.countDocuments({ status: 'intransit' }),
-      delivered: await Shipment.countDocuments({ status: 'delivered' }),
-      completed: await Shipment.countDocuments({ status: 'completed' })
+      draft: await Shipment.countDocuments({ shipmentStatus: 'Pending' }),
+      confirmed: await Shipment.countDocuments({ shipmentStatus: 'Confirmed' }),
+      intransit: await Shipment.countDocuments({ shipmentStatus: 'In Transit' }),
+      delivered: await Shipment.countDocuments({ shipmentStatus: 'Arrived' }),
+      completed: await Shipment.countDocuments({ shipmentStatus: 'Completed' })
     };
     
     // Get total non-invoiced shipments
@@ -32,16 +32,15 @@ router.get('/summary', async (req, res) => {
     const recentShipments = await Shipment.find()
       .sort({ createdAt: -1 })
       .limit(5)
-      .populate('user', ['name', 'email'])
-      .populate('consignee', ['name', 'address'])
-      .populate('shipper', ['name', 'address']);
+      .populate('customer', 'name')
+      .lean();
 
     // Get financial metrics
     const shipments = await Shipment.find();
     
     // Calculate total cost, total receivables and total profit
-    const totalCost = shipments.reduce((acc, shipment) => acc + (shipment.totalCost || 0), 0);
-    const totalReceivables = shipments.reduce((acc, shipment) => acc + (shipment.totalReceivables || 0), 0);
+    const totalCost = shipments.reduce((acc, shipment) => acc + (shipment.cost || 0), 0);
+    const totalReceivables = shipments.reduce((acc, shipment) => acc + (shipment.receivables || 0), 0);
     const totalProfit = totalReceivables - totalCost;
 
     // Return all data
@@ -66,13 +65,15 @@ router.get('/summary', async (req, res) => {
 router.get('/shipments-by-customer', async (req, res) => {
   try {
     const shipments = await Shipment.find()
-      .populate('consignee', ['name']);
+      .populate('customer', 'name');
     
     // Process shipments to extract customer data
     const shipmentsByCustomer = {};
     
     shipments.forEach(shipment => {
-      const customerName = shipment.consignee ? shipment.consignee.name : 'Unknown Customer';
+      // Use consigneeName if the customer populate failed
+      const customerName = (shipment.customer && shipment.customer.name) ? 
+        shipment.customer.name : (shipment.consigneeName || 'Unknown Customer');
       
       if (!shipmentsByCustomer[customerName]) {
         shipmentsByCustomer[customerName] = {
@@ -82,7 +83,7 @@ router.get('/shipments-by-customer', async (req, res) => {
       }
       
       shipmentsByCustomer[customerName].count += 1;
-      shipmentsByCustomer[customerName].totalValue += shipment.totalReceivables || 0;
+      shipmentsByCustomer[customerName].totalValue += shipment.receivables || 0;
     });
     
     // Convert to array format for chart
@@ -110,7 +111,7 @@ router.get('/monthly-stats', async (req, res) => {
     
     // Get all shipments created within the date range
     const shipments = await Shipment.find({
-      createdAt: { 
+      dateAdded: { 
         $gte: startDate.toDate(), 
         $lte: endDate.toDate() 
       }
@@ -131,11 +132,11 @@ router.get('/monthly-stats', async (req, res) => {
     
     // Process shipments to aggregate monthly data
     shipments.forEach(shipment => {
-      const monthKey = moment(shipment.createdAt).format('MMM YYYY');
+      const monthKey = moment(shipment.dateAdded).format('MMM YYYY');
       if (monthlyData[monthKey]) {
         monthlyData[monthKey].shipmentCount += 1;
-        monthlyData[monthKey].totalValue += (shipment.totalReceivables || 0);
-        monthlyData[monthKey].totalCost += (shipment.totalCost || 0);
+        monthlyData[monthKey].totalValue += (shipment.receivables || 0);
+        monthlyData[monthKey].totalCost += (shipment.cost || 0);
         monthlyData[monthKey].profit = monthlyData[monthKey].totalValue - monthlyData[monthKey].totalCost;
       }
     });
@@ -163,7 +164,7 @@ router.get('/shipments-by-date', async (req, res) => {
     
     // Get all shipments created within the date range
     const shipments = await Shipment.find({
-      createdAt: { 
+      dateAdded: { 
         $gte: startDate.toDate(), 
         $lte: endDate.toDate() 
       }
@@ -181,7 +182,7 @@ router.get('/shipments-by-date', async (req, res) => {
     
     // Process shipments to aggregate daily data
     shipments.forEach(shipment => {
-      const dateKey = moment(shipment.createdAt).format('YYYY-MM-DD');
+      const dateKey = moment(shipment.dateAdded).format('YYYY-MM-DD');
       if (dailyData[dateKey]) {
         dailyData[dateKey].count += 1;
       }
@@ -207,13 +208,13 @@ router.get('/overdue-non-invoiced', async (req, res) => {
     const sevenDaysAgo = moment().subtract(7, 'days').toDate();
     
     const overdueShipments = await Shipment.find({
-      status: 'delivered',
+      shipmentStatus: 'Arrived',
       invoiced: false,
-      deliveryDate: { $lt: sevenDaysAgo }
+      dateAdded: { $lt: sevenDaysAgo }
     })
-    .sort({ deliveryDate: 1 })
-    .populate('consignee', ['name', 'address'])
-    .populate('shipper', ['name', 'address']);
+    .sort({ dateAdded: 1 })
+    .populate('customer', 'name')
+    .lean();
     
     res.json(overdueShipments);
   } catch (err) {
@@ -228,11 +229,11 @@ router.get('/overdue-non-invoiced', async (req, res) => {
 router.get('/detailed-shipments', async (req, res) => {
   try {
     const shipments = await Shipment.find()
-      .sort({ createdAt: -1 })
+      .sort({ dateAdded: -1 })
       .limit(100)
-      .populate('user', ['name', 'email'])
-      .populate('consignee', ['name', 'address'])
-      .populate('shipper', ['name', 'address']);
+      .populate('customer', 'name')
+      .populate('legs')
+      .lean();
     
     res.json({
       shipments,
