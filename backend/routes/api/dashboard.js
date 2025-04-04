@@ -1,267 +1,292 @@
 const express = require('express');
 const router = express.Router();
 const auth = require('../../middleware/auth');
-const Shipment = require('../../models/Shipment');
-const ShipmentLeg = require('../../models/ShipmentLeg');
-const Customer = require('../../models/Customer');
+const { check, validationResult } = require('express-validator');
 const mongoose = require('mongoose');
-const User = require('../../models/User');
+const moment = require('moment');
 
-// @route   GET api/dashboard/diagnostics
-// @desc    Check database connection and API health
-// @access  Public
-router.get('/diagnostics', async (req, res) => {
-  try {
-    console.log('Running API diagnostics');
-    
-    // Check database connection
-    const dbStatus = {
-      connected: mongoose.connection.readyState === 1,
-      readyState: mongoose.connection.readyState,
-      host: mongoose.connection.host,
-      dbName: mongoose.connection.name
-    };
-    
-    console.log('Database status:', dbStatus);
-    
-    // Try a simple DB query
-    let dbQueryResult = 'Failed';
-    try {
-      const count = await Shipment.estimatedDocumentCount();
-      dbQueryResult = `Success: Found ${count} shipments`;
-    } catch (dbErr) {
-      dbQueryResult = `Error: ${dbErr.message}`;
-    }
-    
-    console.log('DB query test:', dbQueryResult);
-    
-    // Return diagnostic info
-    res.json({
-      timestamp: new Date().toISOString(),
-      database: dbStatus,
-      dbQuery: dbQueryResult,
-      environment: {
-        nodeEnv: process.env.NODE_ENV || 'not set',
-        port: process.env.PORT || 'not set'
-      }
-    });
-  } catch (err) {
-    console.error('Diagnostics error:', err);
-    res.status(500).json({
-      error: 'Diagnostics failed',
-      message: err.message,
-      stack: process.env.NODE_ENV === 'production' ? undefined : err.stack
-    });
-  }
-});
+const Shipment = require('../../models/Shipment');
+const User = require('../../models/User');
 
 // @route   GET api/dashboard/summary
 // @desc    Get dashboard summary data
-// @access  Private
-router.get('/summary', auth, async (req, res) => {
+// @access  Public (for testing, will be private later)
+router.get('/summary', async (req, res) => {
   try {
-    // Get total shipments count
+    // Get total shipments
     const totalShipments = await Shipment.countDocuments();
     
     // Get shipments by status
-    const shipmentsByStatus = await Shipment.aggregate([
-      { $group: { _id: "$shipmentStatus", count: { $sum: 1 } } }
-    ]);
+    const shipmentsByStatus = {
+      draft: await Shipment.countDocuments({ status: 'draft' }),
+      confirmed: await Shipment.countDocuments({ status: 'confirmed' }),
+      intransit: await Shipment.countDocuments({ status: 'intransit' }),
+      delivered: await Shipment.countDocuments({ status: 'delivered' }),
+      completed: await Shipment.countDocuments({ status: 'completed' })
+    };
     
-    // Format shipments by status into an object
-    const statusObj = {};
-    shipmentsByStatus.forEach(status => {
-      statusObj[status._id] = status.count;
-    });
-    
-    // Get non-invoiced shipments
+    // Get total non-invoiced shipments
     const totalNonInvoiced = await Shipment.countDocuments({ invoiced: false });
     
-    // Get recent shipments with customer info
+    // Get recent shipments (last 5)
     const recentShipments = await Shipment.find()
-      .sort({ dateAdded: -1 })
-      .limit(10)
-      .populate('customer', 'name')
-      .lean();
+      .sort({ createdAt: -1 })
+      .limit(5)
+      .populate('user', ['name', 'email'])
+      .populate('consignee', ['name', 'address'])
+      .populate('shipper', ['name', 'address']);
+
+    // Get financial metrics
+    const shipments = await Shipment.find();
     
-    // Calculate financial metrics
-    let totalCost = 0;
-    let totalReceivables = 0;
-    
-    // Process shipments for financial data
-    const processedShipments = recentShipments.map(shipment => {
-      const cost = shipment.cost ? parseFloat(shipment.cost) : 0;
-      const receivables = shipment.receivables ? parseFloat(shipment.receivables) : 0;
-      
-      totalCost += cost;
-      totalReceivables += receivables;
-      
-      return {
-        ...shipment,
-        cost,
-        receivables
-      };
-    });
-    
+    // Calculate total cost, total receivables and total profit
+    const totalCost = shipments.reduce((acc, shipment) => acc + (shipment.totalCost || 0), 0);
+    const totalReceivables = shipments.reduce((acc, shipment) => acc + (shipment.totalReceivables || 0), 0);
     const totalProfit = totalReceivables - totalCost;
-    
-    // Return the dashboard summary data
+
+    // Return all data
     res.json({
       totalShipments,
-      shipmentsByStatus: statusObj,
+      shipmentsByStatus,
       totalNonInvoiced,
-      recentShipments: processedShipments,
+      recentShipments,
       totalCost,
       totalReceivables,
-      totalProfit,
-      statsData: [
-        {
-          title: 'Total Shipments',
-          value: totalShipments,
-          footer: 'All time shipments',
-          icon: 'fa-shipping-fast',
-          path: '/shipments'
-        },
-        {
-          title: 'Pending',
-          value: statusObj['Pending'] || 0,
-          footer: 'Waiting to be shipped',
-          icon: 'fa-clock',
-          path: '/shipments?status=Pending'
-        },
-        {
-          title: 'In Transit',
-          value: statusObj['In Transit'] || 0,
-          footer: 'Currently in transit',
-          icon: 'fa-plane',
-          path: '/shipments?status=In Transit'
-        },
-        {
-          title: 'Non-Invoiced',
-          value: totalNonInvoiced,
-          footer: 'Shipments without invoice',
-          icon: 'fa-file-invoice-dollar',
-          path: '/shipments?invoiced=false'
-        }
-      ]
+      totalProfit
     });
   } catch (err) {
-    console.error('Dashboard summary error:', err.message);
-    res.status(500).json({ msg: 'Server Error' });
+    console.error('Error fetching dashboard summary:', err.message);
+    res.status(500).send('Server Error');
   }
 });
 
 // @route   GET api/dashboard/shipments-by-customer
 // @desc    Get shipment counts by customer
-// @access  Private
-router.get('/shipments-by-customer', auth, async (req, res) => {
+// @access  Public (for testing, will be private later)
+router.get('/shipments-by-customer', async (req, res) => {
   try {
-    const shipmentsByCustomer = await Shipment.aggregate([
-      {
-        $lookup: {
-          from: 'customers',
-          localField: 'customer',
-          foreignField: '_id',
-          as: 'customerInfo'
-        }
-      },
-      { $unwind: { path: '$customerInfo', preserveNullAndEmptyArrays: true } },
-      {
-        $group: {
-          _id: '$customer',
-          customerName: { $first: '$customerInfo.name' },
-          count: { $sum: 1 }
-        }
-      },
-      { $sort: { count: -1 } },
-      { $limit: 10 }
-    ]);
+    const shipments = await Shipment.find()
+      .populate('consignee', ['name']);
     
-    // Handle null customer names
-    const processedData = shipmentsByCustomer.map(item => ({
-      customerName: item.customerName || 'Unknown Customer',
-      count: item.count
+    // Process shipments to extract customer data
+    const shipmentsByCustomer = {};
+    
+    shipments.forEach(shipment => {
+      const customerName = shipment.consignee ? shipment.consignee.name : 'Unknown Customer';
+      
+      if (!shipmentsByCustomer[customerName]) {
+        shipmentsByCustomer[customerName] = {
+          count: 0,
+          totalValue: 0
+        };
+      }
+      
+      shipmentsByCustomer[customerName].count += 1;
+      shipmentsByCustomer[customerName].totalValue += shipment.totalReceivables || 0;
+    });
+    
+    // Convert to array format for chart
+    const result = Object.keys(shipmentsByCustomer).map(customer => ({
+      name: customer,
+      count: shipmentsByCustomer[customer].count,
+      value: shipmentsByCustomer[customer].totalValue
     }));
     
-    res.json(processedData);
+    res.json(result);
   } catch (err) {
-    console.error('Shipments by customer error:', err.message);
-    res.status(500).json({ msg: 'Server Error' });
+    console.error('Error fetching shipments by customer:', err.message);
+    res.status(500).send('Server Error');
+  }
+});
+
+// @route   GET api/dashboard/monthly-stats
+// @desc    Get shipment statistics by month
+// @access  Public (for testing, will be private later)
+router.get('/monthly-stats', async (req, res) => {
+  try {
+    // Calculate date range for last 12 months
+    const endDate = moment();
+    const startDate = moment().subtract(12, 'months');
+    
+    // Get all shipments created within the date range
+    const shipments = await Shipment.find({
+      createdAt: { 
+        $gte: startDate.toDate(), 
+        $lte: endDate.toDate() 
+      }
+    });
+    
+    // Initialize monthly data structure
+    const monthlyData = {};
+    for (let i = 0; i < 12; i++) {
+      const monthKey = moment().subtract(i, 'months').format('MMM YYYY');
+      monthlyData[monthKey] = {
+        month: monthKey,
+        shipmentCount: 0,
+        totalValue: 0,
+        totalCost: 0,
+        profit: 0
+      };
+    }
+    
+    // Process shipments to aggregate monthly data
+    shipments.forEach(shipment => {
+      const monthKey = moment(shipment.createdAt).format('MMM YYYY');
+      if (monthlyData[monthKey]) {
+        monthlyData[monthKey].shipmentCount += 1;
+        monthlyData[monthKey].totalValue += (shipment.totalReceivables || 0);
+        monthlyData[monthKey].totalCost += (shipment.totalCost || 0);
+        monthlyData[monthKey].profit = monthlyData[monthKey].totalValue - monthlyData[monthKey].totalCost;
+      }
+    });
+    
+    // Convert to array and sort chronologically
+    const result = Object.values(monthlyData).sort((a, b) => 
+      moment(a.month, 'MMM YYYY') - moment(b.month, 'MMM YYYY')
+    );
+    
+    res.json(result);
+  } catch (err) {
+    console.error('Error fetching monthly statistics:', err.message);
+    res.status(500).send('Server Error');
   }
 });
 
 // @route   GET api/dashboard/shipments-by-date
-// @desc    Get shipment counts by date for the last 30 days
-// @access  Private
-router.get('/shipments-by-date', auth, async (req, res) => {
+// @desc    Get shipment counts by date (last 30 days)
+// @access  Public (for testing, will be private later)
+router.get('/shipments-by-date', async (req, res) => {
   try {
-    // Calculate date 30 days ago
-    const thirtyDaysAgo = new Date();
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    // Calculate date range for last 30 days
+    const endDate = moment();
+    const startDate = moment().subtract(30, 'days');
     
-    const shipmentsByDate = await Shipment.aggregate([
-      {
-        $match: {
-          dateAdded: { $gte: thirtyDaysAgo }
-        }
-      },
-      {
-        $group: {
-          _id: { $dateToString: { format: '%Y-%m-%d', date: '$dateAdded' } },
-          count: { $sum: 1 }
-        }
-      },
-      { $sort: { _id: 1 } }
-    ]);
+    // Get all shipments created within the date range
+    const shipments = await Shipment.find({
+      createdAt: { 
+        $gte: startDate.toDate(), 
+        $lte: endDate.toDate() 
+      }
+    });
     
-    res.json(shipmentsByDate.map(item => ({
-      date: item._id,
-      count: item.count
-    })));
+    // Initialize daily data structure
+    const dailyData = {};
+    for (let i = 0; i < 30; i++) {
+      const dateKey = moment().subtract(i, 'days').format('YYYY-MM-DD');
+      dailyData[dateKey] = {
+        date: dateKey,
+        count: 0
+      };
+    }
+    
+    // Process shipments to aggregate daily data
+    shipments.forEach(shipment => {
+      const dateKey = moment(shipment.createdAt).format('YYYY-MM-DD');
+      if (dailyData[dateKey]) {
+        dailyData[dateKey].count += 1;
+      }
+    });
+    
+    // Convert to array and sort chronologically
+    const result = Object.values(dailyData).sort((a, b) => 
+      moment(a.date) - moment(b.date)
+    );
+    
+    res.json(result);
   } catch (err) {
-    console.error('Shipments by date error:', err.message);
-    res.status(500).json({ msg: 'Server Error' });
+    console.error('Error fetching shipments by date:', err.message);
+    res.status(500).send('Server Error');
   }
 });
 
 // @route   GET api/dashboard/overdue-non-invoiced
 // @desc    Get shipments that are delivered but not invoiced for over 7 days
-// @access  Private
-router.get('/overdue-non-invoiced', auth, async (req, res) => {
+// @access  Public (for testing, will be private later)
+router.get('/overdue-non-invoiced', async (req, res) => {
   try {
-    // Calculate date 7 days ago
-    const sevenDaysAgo = new Date();
-    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+    const sevenDaysAgo = moment().subtract(7, 'days').toDate();
     
     const overdueShipments = await Shipment.find({
-      shipmentStatus: 'Arrived',
+      status: 'delivered',
       invoiced: false,
-      dateUpdated: { $lte: sevenDaysAgo }
+      deliveryDate: { $lt: sevenDaysAgo }
     })
-    .sort({ dateUpdated: 1 })
-    .populate('customer', 'name')
-    .lean();
+    .sort({ deliveryDate: 1 })
+    .populate('consignee', ['name', 'address'])
+    .populate('shipper', ['name', 'address']);
     
     res.json(overdueShipments);
   } catch (err) {
-    console.error('Overdue non-invoiced error:', err.message);
-    res.status(500).json({ msg: 'Server Error' });
+    console.error('Error fetching overdue non-invoiced shipments:', err.message);
+    res.status(500).send('Server Error');
   }
 });
 
 // @route   GET api/dashboard/detailed-shipments
 // @desc    Get detailed shipment data for charts
-// @access  Private
-router.get('/detailed-shipments', auth, async (req, res) => {
+// @access  Public (for testing, will be private later)
+router.get('/detailed-shipments', async (req, res) => {
   try {
-    const detailedShipments = await Shipment.find()
-      .populate('customer', 'name')
-      .lean();
-      
-    res.json(detailedShipments);
+    const shipments = await Shipment.find()
+      .sort({ createdAt: -1 })
+      .limit(100)
+      .populate('user', ['name', 'email'])
+      .populate('consignee', ['name', 'address'])
+      .populate('shipper', ['name', 'address']);
+    
+    res.json({
+      shipments,
+      pagination: {
+        total: await Shipment.countDocuments(),
+        limit: 100,
+        page: 1
+      }
+    });
   } catch (err) {
-    console.error('Detailed shipments error:', err.message);
-    res.status(500).json({ msg: 'Server Error' });
+    console.error('Error fetching detailed shipments:', err.message);
+    res.status(500).send('Server Error');
+  }
+});
+
+// @route   GET api/dashboard/diagnostics
+// @desc    Get system diagnostics information
+// @access  Public (for testing, will be private later)
+router.get('/diagnostics', async (req, res) => {
+  try {
+    const diagnostics = {
+      server: {
+        status: 'online',
+        timestamp: new Date(),
+        uptime: process.uptime(),
+        memory: process.memoryUsage(),
+        node: process.version,
+        platform: process.platform
+      },
+      database: {
+        status: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected',
+        host: mongoose.connection.host || 'unknown',
+        name: mongoose.connection.name || 'unknown'
+      },
+      counts: {
+        shipments: await Shipment.countDocuments(),
+        users: await User.countDocuments()
+      }
+    };
+    
+    res.json(diagnostics);
+  } catch (err) {
+    console.error('Error fetching diagnostics:', err.message);
+    res.status(500).json({
+      server: {
+        status: 'error',
+        timestamp: new Date(),
+        error: err.message
+      },
+      database: {
+        status: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected',
+        error: err.message
+      }
+    });
   }
 });
 
