@@ -48,6 +48,22 @@ const ShipmentSchema = new Schema(
     packageCount: {
       type: Number
     },
+    // Add new dimension fields
+    length: {
+      type: Number
+    },
+    width: {
+      type: Number
+    },
+    height: {
+      type: Number
+    },
+    volumetricWeight: {
+      type: Number
+    },
+    chargeableWeight: {
+      type: Number
+    },
     fileNumber: {
       type: String
     },
@@ -87,11 +103,43 @@ const ShipmentSchema = new Schema(
     updatedBy: {
       type: String
     },
+    // References to entity IDs
+    shipper: {
+      type: Schema.Types.ObjectId,
+      ref: 'shipper'
+    },
+    consignee: {
+      type: Schema.Types.ObjectId,
+      ref: 'consignee'
+    },
+    notifyPartyId: {
+      type: Schema.Types.ObjectId,
+      ref: 'notifyParty'
+    },
     // Legs array field - changed to ensure it's always initialized
     legs: {
       type: [{
         type: Schema.Types.ObjectId,
         ref: 'shipmentLeg'
+      }],
+      default: []
+    },
+    // Add changelog to track history
+    changeLog: {
+      type: [{
+        timestamp: {
+          type: Date,
+          default: Date.now
+        },
+        user: {
+          type: String
+        },
+        action: {
+          type: String
+        },
+        details: {
+          type: String
+        }
       }],
       default: []
     }
