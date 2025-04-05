@@ -137,12 +137,21 @@ router.post(
       const leg = await newLeg.save();
       console.log(`Leg saved with ID: ${leg._id}`);
 
-      // Add this leg to the shipment's legs array
+      // IMPORTANT: Add this leg to the shipment's legs array
       if (!shipmentDoc.legs) {
         shipmentDoc.legs = [];
       }
-      shipmentDoc.legs.push(leg._id);
-      console.log(`Added leg ID ${leg._id} to shipment's legs array`);
+      
+      // Check if the leg ID is already in the array to avoid duplicates
+      const legIdStr = leg._id.toString();
+      const existingLegIds = shipmentDoc.legs.map(id => id.toString());
+      
+      if (!existingLegIds.includes(legIdStr)) {
+        shipmentDoc.legs.push(leg._id);
+        console.log(`Added leg ID ${leg._id} to shipment's legs array`);
+      } else {
+        console.log(`Leg ID ${leg._id} already in shipment's legs array`);
+      }
 
       // Add to the shipment's change log
       shipmentDoc.changeLog.push({
@@ -156,10 +165,22 @@ router.post(
       await shipmentDoc.save();
       console.log(`Shipment saved successfully with new leg`);
 
-      res.json(leg);
+      // Return full information including the leg IDs now stored in the shipment
+      res.json({
+        leg,
+        shipment: {
+          _id: shipmentDoc._id,
+          legs: shipmentDoc.legs
+        },
+        success: true
+      });
     } catch (err) {
       console.error(`Error creating shipment leg: ${err.message}`);
-      res.status(500).send('Server Error');
+      res.status(500).json({
+        error: 'Server Error', 
+        message: err.message,
+        success: false
+      });
     }
   }
 );

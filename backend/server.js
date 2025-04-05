@@ -372,5 +372,88 @@ const startListening = (port) => {
   });
 };
 
+// Debug route for legs
+app.get('/api/debug/shipment-legs/:id', async (req, res) => {
+  try {
+    const shipmentId = req.params.id;
+    console.log(`[DEBUG] Checking legs for shipment: ${shipmentId}`);
+
+    // Check if ID is valid
+    if (!mongoose.Types.ObjectId.isValid(shipmentId)) {
+      return res.json({
+        error: 'Invalid shipment ID format',
+        shipmentId: shipmentId
+      });
+    }
+
+    // 1. First check if shipment exists
+    const shipment = await mongoose.model('shipment').findById(shipmentId).lean();
+    
+    if (!shipment) {
+      return res.json({
+        error: 'Shipment not found',
+        shipmentId: shipmentId
+      });
+    }
+
+    // 2. Get legs from shipment.legs array
+    const referencedLegs = [];
+    if (shipment.legs && Array.isArray(shipment.legs)) {
+      for (const legId of shipment.legs) {
+        try {
+          const leg = await mongoose.model('shipmentLeg').findById(legId).lean();
+          if (leg) {
+            referencedLegs.push({
+              _id: leg._id,
+              from: leg.from || leg.origin,
+              to: leg.to || leg.destination,
+              legOrder: leg.legOrder
+            });
+          } else {
+            referencedLegs.push({ _id: legId, error: 'Not found' });
+          }
+        } catch (err) {
+          referencedLegs.push({ _id: legId, error: err.message });
+        }
+      }
+    }
+
+    // 3. Also search for legs with shipment reference
+    const independentLegs = await mongoose.model('shipmentLeg')
+      .find({ shipment: shipmentId })
+      .lean();
+
+    // Return complete debug information
+    res.json({
+      shipmentId: shipmentId,
+      shipment: {
+        _id: shipment._id,
+        hasLegsArray: !!shipment.legs,
+        legsArrayLength: shipment.legs ? shipment.legs.length : 0,
+        legsType: shipment.legs ? typeof shipment.legs : 'undefined',
+        isLegsArray: Array.isArray(shipment.legs)
+      },
+      referencedLegs: {
+        count: referencedLegs.length,
+        legs: referencedLegs
+      },
+      independentLegs: {
+        count: independentLegs.length,
+        legs: independentLegs.map(leg => ({
+          _id: leg._id,
+          from: leg.from || leg.origin,
+          to: leg.to || leg.destination,
+          legOrder: leg.legOrder
+        }))
+      }
+    });
+  } catch (err) {
+    res.status(500).json({
+      error: err.message,
+      stack: err.stack
+    });
+  }
+});
+
 // Start the server
 startServer();

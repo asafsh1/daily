@@ -478,33 +478,114 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
     }).filter(Boolean); // Remove any null legs
   };
 
+  // Add a function to directly check leg status in the database
+  const checkLegsInDatabase = async () => {
+    try {
+      console.log('Running direct database check for legs...');
+      const response = await axios.get(`/api/debug/shipment-legs/${shipmentId}`);
+      console.log('Direct database check result:', response.data);
+      
+      setDebugInfo({
+        shipmentId: shipmentId,
+        databaseCheck: response.data,
+        timestamp: new Date().toISOString()
+      });
+      
+      // Now directly try to use the legs found in the database
+      if (response.data.independentLegs.count > 0) {
+        console.log(`Found ${response.data.independentLegs.count} independent legs - using them`);
+        processFetchedLegs(response.data.independentLegs.legs);
+        setError(null);
+        return true;
+      } else if (response.data.referencedLegs.count > 0) {
+        console.log(`Found ${response.data.referencedLegs.count} referenced legs - using them`);
+        processFetchedLegs(response.data.referencedLegs.legs);
+        setError(null);
+        return true;
+      } else {
+        console.log('No legs found in either location');
+        return false;
+      }
+    } catch (err) {
+      console.error('Error in direct database check:', err);
+      setDebugInfo({
+        error: `Database check failed: ${err.message}`,
+        timestamp: new Date().toISOString()
+      });
+      return false;
+    }
+  };
+
   // Render function for debug info
   const renderDebugInfo = () => {
-    if (!debugInfo) return null;
+    if (!debugInfo && !error) return null;
     
     return (
       <div className="debug-info" style={{ margin: '20px 0', padding: '10px', border: '1px solid #ddd', background: '#f8f8f8' }}>
         <h4>Debug Information</h4>
-        <p>Shipment ID: {debugInfo.shipmentId}</p>
-        <p>Has legs array: {debugInfo.hasLegsArray ? 'Yes' : 'No'}</p>
-        <p>Legs array length: {debugInfo.legsArrayLength}</p>
-        <p>Legs array type: {debugInfo.legsArrayType}</p>
-        {debugInfo.firstLeg && (
+        
+        <div style={{ display: 'flex', gap: '10px', marginBottom: '15px' }}>
+          <button 
+            onClick={() => checkLegsInDatabase()} 
+            className="btn btn-warning"
+          >
+            Check Legs in Database
+          </button>
+          
+          <button 
+            onClick={() => fetchLegs()} 
+            className="btn btn-primary"
+          >
+            Retry Fetch
+          </button>
+        </div>
+        
+        {/* Database check results */}
+        {debugInfo?.databaseCheck && (
           <div>
-            <p>First leg sample:</p>
-            <pre>{JSON.stringify(debugInfo.firstLeg, null, 2)}</pre>
+            <h5>Database Check Results:</h5>
+            <p>Referenced legs: {debugInfo.databaseCheck.referencedLegs.count}</p>
+            <p>Independent legs: {debugInfo.databaseCheck.independentLegs.count}</p>
+            
+            {debugInfo.databaseCheck.referencedLegs.count > 0 && (
+              <div>
+                <p><strong>Referenced Legs:</strong></p>
+                <pre>{JSON.stringify(debugInfo.databaseCheck.referencedLegs.legs, null, 2)}</pre>
+              </div>
+            )}
+            
+            {debugInfo.databaseCheck.independentLegs.count > 0 && (
+              <div>
+                <p><strong>Independent Legs:</strong></p>
+                <pre>{JSON.stringify(debugInfo.databaseCheck.independentLegs.legs, null, 2)}</pre>
+              </div>
+            )}
           </div>
         )}
-        {debugInfo.error && (
+        
+        {/* Original debug info */}
+        {debugInfo && !debugInfo.databaseCheck && (
+          <>
+            <p>Shipment ID: {debugInfo.shipmentId}</p>
+            <p>Has legs array: {debugInfo.hasLegsArray ? 'Yes' : 'No'}</p>
+            <p>Legs array length: {debugInfo.legsArrayLength}</p>
+            <p>Legs array type: {debugInfo.legsArrayType}</p>
+            {debugInfo.firstLeg && (
+              <div>
+                <p>First leg sample:</p>
+                <pre>{JSON.stringify(debugInfo.firstLeg, null, 2)}</pre>
+              </div>
+            )}
+          </>
+        )}
+        
+        {debugInfo?.error && (
           <p>Error: {debugInfo.error}</p>
         )}
-        <button 
-          onClick={() => fetchLegs()} 
-          className="btn btn-primary"
-          style={{ marginTop: '10px' }}
-        >
-          Retry Fetch
-        </button>
+        
+        {debugInfo?.timestamp && (
+          <p>Last checked: {new Date(debugInfo.timestamp).toLocaleTimeString()}</p>
+        )}
       </div>
     );
   };
