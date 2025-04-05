@@ -116,14 +116,11 @@ const ShipmentSchema = new Schema(
       type: Schema.Types.ObjectId,
       ref: 'notifyParty'
     },
-    // Legs array field - changed to ensure it's always initialized
-    legs: {
-      type: [{
-        type: Schema.Types.ObjectId,
-        ref: 'shipmentLeg'
-      }],
-      default: []
-    },
+    // Reference to legs in the shipmentLeg collection
+    legs: [{
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'shipmentLeg'
+    }],
     // Add changelog to track history
     changeLog: {
       type: [{

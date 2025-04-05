@@ -172,46 +172,39 @@ router.get('/', async (req, res) => {
 // @access  Public
 router.get('/:id', async (req, res) => {
   try {
-    // Check database connection
-    if (mongoose.connection.readyState !== 1) {
-      console.error('Database connection is not ready');
-      return res.status(503).json({
-        error: 'Database connection is not ready'
-      });
-    }
+    console.log(`Fetching shipment with ID: ${req.params.id}`);
     
-    const shipment = await Shipment.findById(req.params.id).lean();
+    // First try to get the shipment with populated legs
+    let shipment = await Shipment.findById(req.params.id)
+      .populate('customer')
+      .populate('shipper')
+      .populate('consignee')
+      .populate('notifyParty');
     
     if (!shipment) {
-      return res.status(404).json({ msg: 'Shipment not found' });
+      console.log(`No shipment found with ID: ${req.params.id}`);
+      return res.status(404).json({ message: 'Shipment not found' });
     }
     
-    // Find legs for this shipment
-    try {
-      const legs = await ShipmentLeg.find({ shipment: req.params.id })
-        .sort({ legOrder: 1 })
-        .lean();
-      
+    // Now fetch all legs for this shipment from the ShipmentLeg collection
+    const legs = await ShipmentLeg.find({ shipment: req.params.id }).sort({ legOrder: 1 });
+    
+    // Add the found legs to the response
+    if (legs && legs.length > 0) {
+      console.log(`Found ${legs.length} legs for shipment ${req.params.id} in ShipmentLeg collection`);
+      shipment = shipment.toObject(); // Convert to plain object to allow modifications
       shipment.legs = legs;
-    } catch (err) {
-      console.error('Error fetching legs:', err.message);
+    } else if (!shipment.legs || !Array.isArray(shipment.legs) || shipment.legs.length === 0) {
+      console.log(`No legs found for shipment ${req.params.id}`);
+      shipment = shipment.toObject();
       shipment.legs = [];
     }
     
-    // Process customer field
-    if (typeof shipment.customer === 'string') {
-      shipment.customer = { name: shipment.customer };
-    }
-    
+    console.log(`Returning shipment ${req.params.id} with ${shipment.legs.length} legs`);
     res.json(shipment);
   } catch (err) {
-    console.error('Error getting shipment by ID:', err.message);
-    
-    if (err.kind === 'ObjectId') {
-      return res.status(404).json({ msg: 'Shipment not found' });
-    }
-    
-    res.status(500).json({ error: 'Server error' });
+    console.error(`Error fetching shipment ${req.params.id}:`, err.message);
+    res.status(500).send('Server Error');
   }
 });
 
