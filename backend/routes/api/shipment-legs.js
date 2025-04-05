@@ -58,16 +58,18 @@ router.post(
     }
 
     try {
+      // Extract fields, supporting both old and new field names
       const {
         shipment,
         legOrder,
-        from,
-        to,
-        carrier,
-        departureDate,
-        arrivalDate,
+        // Support both new and old field names
+        from, origin,
+        to, destination,
+        carrier, flightNumber, airline,
+        departureDate, departureTime,
+        arrivalDate, arrivalTime,
         status,
-        trackingNumber,
+        trackingNumber, awbNumber, mawbNumber,
         notes,
         legId
       } = req.body;
@@ -78,16 +80,18 @@ router.post(
         return res.status(404).json({ msg: 'Shipment not found' });
       }
 
+      // Create leg with appropriate field mapping
       const newLeg = new ShipmentLeg({
         shipment,
-        legOrder,
-        from,
-        to,
-        carrier,
-        departureDate,
-        arrivalDate,
-        status,
-        trackingNumber,
+        legOrder: legOrder || 0,
+        // Use new field names but fall back to old names if needed
+        from: from || origin || '',
+        to: to || destination || '',
+        carrier: carrier || flightNumber || airline || '',
+        departureDate: departureDate || departureTime || null,
+        arrivalDate: arrivalDate || arrivalTime || null,
+        status: status || 'pending',
+        trackingNumber: trackingNumber || awbNumber || mawbNumber || '',
         notes,
         legId
       });
@@ -99,7 +103,7 @@ router.post(
         timestamp: new Date(),
         user: req.user.id,
         action: 'added-leg',
-        details: `Added leg from ${from} to ${to}`
+        details: `Added leg from ${newLeg.from} to ${newLeg.to}`
       });
       await shipmentDoc.save();
 
@@ -115,28 +119,31 @@ router.post(
 // @desc    Update a leg
 // @access  Private
 router.put('/:id', auth, async (req, res) => {
+  // Extract fields, supporting both old and new field names
   const {
     legOrder,
-    from,
-    to,
-    carrier,
-    departureDate,
-    arrivalDate,
+    // Support both new and old field names
+    from, origin,
+    to, destination,
+    carrier, flightNumber, airline,
+    departureDate, departureTime,
+    arrivalDate, arrivalTime,
     status,
-    trackingNumber,
+    trackingNumber, awbNumber, mawbNumber,
     notes
   } = req.body;
 
-  // Build leg object
+  // Build leg object with appropriate field mapping
   const legFields = {};
-  if (legOrder) legFields.legOrder = legOrder;
-  if (from) legFields.from = from;
-  if (to) legFields.to = to;
-  if (carrier) legFields.carrier = carrier;
-  if (departureDate) legFields.departureDate = departureDate;
-  if (arrivalDate) legFields.arrivalDate = arrivalDate;
+  if (legOrder !== undefined) legFields.legOrder = legOrder;
+  if (from || origin) legFields.from = from || origin;
+  if (to || destination) legFields.to = to || destination;
+  if (carrier || flightNumber || airline) legFields.carrier = carrier || flightNumber || airline;
+  if (departureDate || departureTime) legFields.departureDate = departureDate || departureTime;
+  if (arrivalDate || arrivalTime) legFields.arrivalDate = arrivalDate || arrivalTime;
   if (status) legFields.status = status;
-  if (trackingNumber !== undefined) legFields.trackingNumber = trackingNumber;
+  if (trackingNumber !== undefined || awbNumber !== undefined || mawbNumber !== undefined) 
+    legFields.trackingNumber = trackingNumber || awbNumber || mawbNumber;
   if (notes !== undefined) legFields.notes = notes;
 
   try {

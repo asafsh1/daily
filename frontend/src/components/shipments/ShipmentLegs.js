@@ -80,12 +80,15 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
           console.log("Response from legs endpoint:", response.data);
           
           if (Array.isArray(response.data) && response.data.length > 0) {
+            // Normalize legs to handle field name differences
+            const normalizedLegs = normalizeLegs(response.data);
+            
             // Sort legs by legOrder
-            const sortedLegs = [...response.data].sort((a, b) => 
+            const sortedLegs = [...normalizedLegs].sort((a, b) => 
               (a.legOrder || 0) - (b.legOrder || 0)
             );
             
-            console.log(`Found and sorted ${sortedLegs.length} legs for shipment ${shipmentId}`);
+            console.log(`Found and normalized ${sortedLegs.length} legs for shipment ${shipmentId}`);
             setLegs(sortedLegs);
             setError(null);
           } else {
@@ -96,12 +99,15 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
             console.log("Full shipment response:", shipmentResponse.data);
             
             if (shipmentResponse.data && shipmentResponse.data.legs && Array.isArray(shipmentResponse.data.legs)) {
+              // Normalize legs to handle field name differences
+              const normalizedLegs = normalizeLegs(shipmentResponse.data.legs);
+              
               // Sort legs by legOrder
-              const sortedLegs = [...shipmentResponse.data.legs].sort((a, b) => 
+              const sortedLegs = [...normalizedLegs].sort((a, b) => 
                 (a.legOrder || 0) - (b.legOrder || 0)
               );
               
-              console.log(`Found ${sortedLegs.length} legs in full shipment data`);
+              console.log(`Found and normalized ${sortedLegs.length} legs from full shipment data`);
               setLegs(sortedLegs);
               setError(null);
             } else {
@@ -349,8 +355,14 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
       } else {
         // For real legs, delete from the server
         console.log("Deleting leg:", legId);
-        await axios.delete(`/api/shipment-legs/${shipmentId}/${legId}`);
+        await axios.delete(`/api/shipment-legs/${legId}`);
         setLegs(legs.filter(leg => leg._id !== legId));
+        
+        // Show success message
+        setSuccess('Leg deleted successfully');
+        
+        // Clear success message after a delay
+        setTimeout(() => setSuccess(''), 3000);
       }
     } catch (err) {
       console.error('Error deleting shipment leg:', err);
@@ -412,6 +424,35 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
       default:
         return status;
     }
+  };
+
+  // Helper function to map old leg fields to new field names and handle both formats
+  const normalizeLegs = (legs) => {
+    if (!Array.isArray(legs)) return [];
+    
+    return legs.map(leg => {
+      // Create normalized leg that works with both old and new field structures
+      return {
+        _id: leg._id,
+        legId: leg.legId || `LEG-${leg._id ? leg._id.substring(0, 8) : 'N/A'}`,
+        shipment: leg.shipment,
+        // Map both possible origin/destination fields
+        from: leg.from || leg.origin || '',
+        to: leg.to || leg.destination || '',
+        // Map both possible carrier/flight fields
+        carrier: leg.carrier || leg.flightNumber || leg.airline || '',
+        // Map both possible date fields
+        departureDate: leg.departureDate || leg.departureTime || null,
+        arrivalDate: leg.arrivalDate || leg.arrivalTime || null,
+        // Map tracking fields
+        trackingNumber: leg.trackingNumber || leg.awbNumber || leg.mawbNumber || '',
+        status: leg.status || 'pending',
+        legOrder: leg.legOrder || 0,
+        notes: leg.notes || '',
+        // Preserve any other relevant fields
+        changeLog: leg.changeLog || []
+      };
+    });
   };
 
   if (loading) {
