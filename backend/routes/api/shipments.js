@@ -52,15 +52,41 @@ router.get('/', async (req, res) => {
       
       console.log(`Found ${allLegs.length} total legs`);
       
-      // Organize legs by shipment ID
-      const legsByShipment = allLegs.reduce((acc, leg) => {
-        const shipmentId = leg.shipment.toString();
-        if (!acc[shipmentId]) {
-          acc[shipmentId] = [];
+      // Safely process legs with extensive error handling
+      const legsByShipment = {};
+      
+      for (const leg of allLegs) {
+        try {
+          // Skip invalid legs
+          if (!leg) {
+            console.log("Found null leg in database, skipping");
+            continue;
+          }
+          
+          // Handle missing shipment field
+          if (!leg.shipment) {
+            console.log("Found leg without shipment reference:", leg._id);
+            continue;
+          }
+          
+          // Convert ObjectId to string safely
+          let shipmentId;
+          try {
+            shipmentId = leg.shipment.toString();
+          } catch (err) {
+            console.error("Error converting leg.shipment to string:", err.message, "leg:", leg);
+            continue;
+          }
+          
+          if (!legsByShipment[shipmentId]) {
+            legsByShipment[shipmentId] = [];
+          }
+          
+          legsByShipment[shipmentId].push(leg);
+        } catch (err) {
+          console.error('Error processing leg:', err.message, 'Leg:', leg);
         }
-        acc[shipmentId].push(leg);
-        return acc;
-      }, {});
+      });
       
       // Process each shipment to format properly
       const processedShipments = await Promise.all(shipments.map(async (shipment) => {
@@ -70,7 +96,14 @@ router.get('/', async (req, res) => {
         }
         
         try {
-          const shipmentId = shipment._id.toString();
+          let shipmentId;
+          try {
+            shipmentId = shipment._id.toString();
+          } catch (err) {
+            console.error("Error converting shipment._id to string:", err.message);
+            shipmentId = "unknown";
+          }
+          
           const shipmentLegs = legsByShipment[shipmentId] || [];
           
           // Sort legs by order
@@ -499,11 +532,9 @@ router.put('/:id', async (req, res) => {
 // @access  Public
 router.delete('/:id', async (req, res) => {
   try {
-    console.log(`Deleting shipment with ID: ${req.params.id}`);
-    
     // Check database connection
     if (mongoose.connection.readyState !== 1) {
-      console.error('Database connection is not ready. Current state:', mongoose.connection.readyState);
+      console.error('Database connection is not ready');
       return res.status(503).json({ msg: 'Database connection is not ready' });
     }
     
@@ -514,9 +545,14 @@ router.delete('/:id', async (req, res) => {
       return res.status(404).json({ msg: 'Shipment not found' });
     }
     
-    // Delete associated shipment legs first
-    const legDeleteResult = await ShipmentLeg.deleteMany({ shipment: req.params.id });
-    console.log(`Deleted ${legDeleteResult.deletedCount} legs associated with shipment ${req.params.id}`);
+    try {
+      // Delete associated shipment legs first - wrap in try/catch to handle independently
+      const legDeleteResult = await ShipmentLeg.deleteMany({ shipment: req.params.id });
+      console.log(`Deleted ${legDeleteResult.deletedCount} legs associated with shipment ${req.params.id}`);
+    } catch (legErr) {
+      console.error('Error deleting legs, continuing with shipment deletion:', legErr.message);
+      // Continue with shipment deletion even if leg deletion fails
+    }
     
     // Delete the shipment using findByIdAndDelete (preferred over remove which is deprecated)
     const deleteResult = await Shipment.findByIdAndDelete(req.params.id);
