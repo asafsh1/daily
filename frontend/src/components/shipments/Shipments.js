@@ -290,48 +290,112 @@ const Shipments = ({ getShipments, updateShipment, deleteShipment, shipment: { s
     return 0;
   };
 
-  // Helper function to calculate routing from legs for display
+  // Helper function to get the routing string from shipment
   const getShipmentRouting = (shipment) => {
-    if (!shipment) return 'N/A';
+    console.log('Getting routing for shipment:', shipment?._id);
     
-    // If the shipment already has a routing property, use it
+    // If the shipment already has a routing field, use it
     if (shipment.routing && typeof shipment.routing === 'string') {
+      console.log('Using existing routing field:', shipment.routing);
       return shipment.routing;
     }
     
     // If no legs, return N/A
     if (!shipment.legs || !Array.isArray(shipment.legs) || shipment.legs.length === 0) {
+      console.log('No legs found for routing');
       return 'N/A';
     }
     
     try {
-      // Sort legs by legOrder
-      const sortedLegs = [...shipment.legs].sort((a, b) => 
-        (a.legOrder || 0) - (b.legOrder || 0)
-      );
-      
-      // Extract routing points from legs, handling both field formats
-      const routePoints = [];
+      // Sort legs by legOrder or order if available
+      const sortedLegs = [...shipment.legs].sort((a, b) => {
+        // Handle possible field names for leg order
+        const orderA = a.legOrder !== undefined ? a.legOrder : 
+                       (a.order !== undefined ? a.order : 0);
+        const orderB = b.legOrder !== undefined ? b.legOrder : 
+                       (b.order !== undefined ? b.order : 0);
+        return orderA - orderB;
+      });
+
+      // Create an array of airport codes in the correct order
+      const route = [];
       
       sortedLegs.forEach((leg, index) => {
-        // Normalize leg to handle different field formats
-        const normalizedLeg = normalizeShipmentLeg(leg);
+        // Handle possible field names for origin
+        const origin = leg.from || leg.origin || '';
+        // Handle possible field names for destination
+        const destination = leg.to || leg.destination || '';
         
-        // Add origin for first leg
-        if (index === 0) {
-          routePoints.push(normalizedLeg.from || 'N/A');
+        if (index === 0 && origin) {
+          route.push(origin);
         }
-        
-        // Add destination for all legs
-        routePoints.push(normalizedLeg.to || 'N/A');
+        if (destination) {
+          route.push(destination);
+        }
       });
       
-      // Join points with hyphens
-      return routePoints.join('-');
+      // Join the route with hyphens
+      const routingString = route.join('-');
+      console.log('Generated routing string:', routingString);
+      return routingString || 'N/A';
     } catch (err) {
-      console.error('Error calculating routing for shipment:', err);
+      console.error('Error generating routing string:', err);
       return 'Error';
     }
+  };
+
+  // Get AWB/tracking numbers from a shipment
+  const getShipmentAWB = (shipment) => {
+    console.log('Getting AWB for shipment:', shipment?._id);
+    
+    // First check for direct AWB fields on the shipment
+    if (shipment.awbNumber) {
+      console.log('Found direct AWB field:', shipment.awbNumber);
+      return shipment.awbNumber;
+    }
+    
+    if (shipment.trackingNumber) {
+      console.log('Found direct tracking number field:', shipment.trackingNumber);
+      return shipment.trackingNumber;
+    }
+    
+    if (shipment.mawbNumber) {
+      console.log('Found direct MAWB field:', shipment.mawbNumber);
+      return shipment.mawbNumber;
+    }
+    
+    // Split AWBs are sometimes in separate fields
+    if (shipment.awbNumber1) {
+      const awbs = [shipment.awbNumber1];
+      if (shipment.awbNumber2) awbs.push(shipment.awbNumber2);
+      console.log('Found split AWB fields:', awbs.join(', '));
+      return awbs.join(', ');
+    }
+    
+    // Check for AWBs in legs
+    if (shipment.legs && Array.isArray(shipment.legs) && shipment.legs.length > 0) {
+      const awbs = [];
+      
+      // Collect tracking numbers from all legs
+      shipment.legs.forEach(leg => {
+        if (!leg) return;
+        
+        // Try all possible field names
+        const trackingNumber = leg.trackingNumber || leg.awbNumber || leg.mawbNumber;
+        
+        if (trackingNumber && !awbs.includes(trackingNumber)) {
+          awbs.push(trackingNumber);
+        }
+      });
+      
+      if (awbs.length > 0) {
+        console.log('Found AWBs in legs:', awbs.join(', '));
+        return awbs.join(', ');
+      }
+    }
+    
+    console.log('No AWB found for shipment');
+    return 'N/A';
   };
 
   return loading ? (
@@ -398,102 +462,42 @@ const Shipments = ({ getShipments, updateShipment, deleteShipment, shipment: { s
           <tbody>
             {filteredData.length > 0 ? (
               filteredData.map(shipment => (
-                <tr key={shipment._id}>
-                  <td>{shipment.serialNumber || '-'}</td>
+                <tr key={shipment._id} className={shipment.invoiced ? 'row-success' : ''}>
                   <td>
-                    <Moment format="DD/MM/YYYY">{shipment.dateAdded}</Moment>
+                    <Link to={`/shipments/${shipment._id}`}>
+                      {shipment.serialId || shipment._id.substring(0, 8)}
+                    </Link>
                   </td>
                   <td>
-                    {typeof shipment.customer === 'object' 
-                      ? (shipment.customer?.name || 'Unknown') 
-                      : (typeof shipment.customer === 'string' && shipment.customer.length > 24 
-                        ? 'Unknown' // If it's an ObjectId string
-                        : shipment.customer || 'Unknown')}
-                  </td>
-                  <td>
-                    {getUniqueAWBs(shipment).map((awbInfo, index) => {
-                      const awb = awbInfo.awb;
-                      return (
-                        <div key={index} className="awb-item">
-                          {hasTracking(awb) ? (
-                            <a 
-                              href={getTrackingUrlSync(awb)} 
-                              target="_blank" 
-                              rel="noopener noreferrer"
-                              className="awb-tracking-link"
-                              title="Track shipment"
-                            >
-                              {awb} <i className="fas fa-external-link-alt fa-xs"></i>
-                            </a>
-                          ) : (
-                            <span>{awb}</span>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </td>
-                  <td>
-                    {getShipmentRouting(shipment)}
-                  </td>
-                  <td>
-                    <span 
-                      className={`status-badge order-status-${shipment.orderStatus ? shipment.orderStatus.replace(/\s+/g, '-').toLowerCase() : 'unknown'}`}
-                    >
-                      {shipment.orderStatus || 'Unknown'}
-                    </span>
-                  </td>
-                  <td>
-                    <span 
-                      className={`status-badge status-${normalizeShipmentStatus(shipment.shipmentStatus).toLowerCase().replace(/\s+/g, '-')}`}
-                    >
-                      {normalizeShipmentStatus(shipment.shipmentStatus)}
-                      {shipment.legs && shipment.legs.length > 1 && (
-                        <span className="leg-info">
-                          (Leg {getActiveLegIndex(shipment) + 1}/{shipment.legs.length})
-                        </span>
-                      )}
-                    </span>
-                    {shipment.legs && shipment.legs.length > 0 && (
-                      <div className="active-leg-route">
-                        {(() => {
-                          // Use the active leg index from our helper function
-                          const activeLegIndex = getActiveLegIndex(shipment);
-                          
-                          // If active leg found, show its route
-                          if (activeLegIndex >= 0 && activeLegIndex < shipment.legs.length) {
-                            const activeLeg = shipment.legs[activeLegIndex];
-                            return (
-                              <small>
-                                {activeLeg.origin} → {activeLeg.destination}
-                              </small>
-                            );
-                          }
-                          return null;
-                        })()}
-                      </div>
+                    {shipment.dateAdded ? (
+                      <Moment format="DD/MM/YYYY">{shipment.dateAdded}</Moment>
+                    ) : (
+                      'N/A'
                     )}
                   </td>
+                  <td>{typeof shipment.customer === 'object' ? shipment.customer?.name : (shipment.customer || 'Unknown')}</td>
+                  <td>{getShipmentAWB(shipment)}</td>
+                  <td>{getShipmentRouting(shipment)}</td>
+                  <td>{shipment.orderStatus || 'Not Set'}</td>
+                  <td className={`status-${shipment.shipmentStatus?.replace(/\s+/g, '-')?.toLowerCase() || 'undefined'}`}>
+                    {shipment.shipmentStatus || 'Not Set'}
+                  </td>
                   <td>
-                    {shipment.legs && shipment.legs.length > 0 ? (
-                      <Moment format="DD/MM/YYYY HH:mm">
-                        {shipment.legs[0].departureTime}
-                      </Moment>
-                    ) : shipment.scheduledDeparture ? (
-                      <Moment format="DD/MM/YYYY HH:mm">
-                        {shipment.scheduledDeparture}
+                    {shipment.legs && shipment.legs.length > 0 && shipment.legs[0].departureDate ? (
+                      <Moment format="DD/MM/YYYY">
+                        {shipment.legs[0].departureDate || shipment.legs[0].departureTime}
                       </Moment>
                     ) : (
                       'N/A'
                     )}
                   </td>
                   <td>
-                    {shipment.legs && shipment.legs.length > 0 ? (
-                      <Moment format="DD/MM/YYYY HH:mm">
-                        {shipment.legs[shipment.legs.length - 1].arrivalTime}
-                      </Moment>
-                    ) : shipment.scheduledArrival ? (
-                      <Moment format="DD/MM/YYYY HH:mm">
-                        {shipment.scheduledArrival}
+                    {shipment.legs && 
+                     shipment.legs.length > 0 && 
+                     shipment.legs[shipment.legs.length - 1].arrivalDate ? (
+                      <Moment format="DD/MM/YYYY">
+                        {shipment.legs[shipment.legs.length - 1].arrivalDate || 
+                         shipment.legs[shipment.legs.length - 1].arrivalTime}
                       </Moment>
                     ) : (
                       'N/A'

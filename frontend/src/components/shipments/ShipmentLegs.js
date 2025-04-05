@@ -69,59 +69,88 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
       }
       
       setLoading(true);
-      console.log("Fetching legs for shipment:", shipmentId);
+      console.log("ShipmentLegs.fetchLegs: Fetching legs for shipment:", shipmentId);
       
       // Only fetch legs from the server if this is a real shipment ID (not a temp one)
       if (shipmentId && !shipmentId.toString().startsWith('temp-')) {
         try {
           // First try the new endpoint we just added
-          console.log("Trying new legs endpoint:", `/api/shipments/${shipmentId}/legs`);
+          console.log("ShipmentLegs.fetchLegs: Trying legs endpoint:", `/api/shipments/${shipmentId}/legs`);
           const response = await axios.get(`/api/shipments/${shipmentId}/legs`);
-          console.log("Response from legs endpoint:", response.data);
+          console.log("ShipmentLegs.fetchLegs: Response from legs endpoint:", response.data);
           
-          if (Array.isArray(response.data) && response.data.length > 0) {
-            // Normalize legs to handle field name differences
-            const normalizedLegs = normalizeLegs(response.data);
+          if (response.data && (Array.isArray(response.data) || typeof response.data === 'object')) {
+            const legsArray = Array.isArray(response.data) ? response.data : [response.data];
             
-            // Sort legs by legOrder
-            const sortedLegs = [...normalizedLegs].sort((a, b) => 
-              (a.legOrder || 0) - (b.legOrder || 0)
-            );
-            
-            console.log(`Found and normalized ${sortedLegs.length} legs for shipment ${shipmentId}`);
-            setLegs(sortedLegs);
-            setError(null);
-          } else {
-            console.log("No legs found in response, trying full shipment endpoint");
-            
-            // Try getting the full shipment with populated legs
-            const shipmentResponse = await axios.get(`/api/shipments/${shipmentId}`);
-            console.log("Full shipment response:", shipmentResponse.data);
-            
-            if (shipmentResponse.data && shipmentResponse.data.legs && Array.isArray(shipmentResponse.data.legs)) {
+            if (legsArray.length > 0) {
               // Normalize legs to handle field name differences
-              const normalizedLegs = normalizeLegs(shipmentResponse.data.legs);
+              const normalizedLegs = normalizeLegs(legsArray);
               
               // Sort legs by legOrder
               const sortedLegs = [...normalizedLegs].sort((a, b) => 
                 (a.legOrder || 0) - (b.legOrder || 0)
               );
               
-              console.log(`Found and normalized ${sortedLegs.length} legs from full shipment data`);
+              console.log(`ShipmentLegs.fetchLegs: Found and normalized ${sortedLegs.length} legs for shipment ${shipmentId}`);
               setLegs(sortedLegs);
               setError(null);
+              setLoading(false);
+              return;
+            }
+          }
+          
+          console.log("ShipmentLegs.fetchLegs: No valid legs found in response, trying full shipment endpoint");
+          
+          // Try getting the full shipment with populated legs
+          const shipmentResponse = await axios.get(`/api/shipments/${shipmentId}`);
+          console.log("ShipmentLegs.fetchLegs: Full shipment response:", shipmentResponse.data);
+          
+          if (shipmentResponse.data) {
+            // Try different leg field structures
+            let shipmentLegs = null;
+            
+            // Check for legs array
+            if (shipmentResponse.data.legs && Array.isArray(shipmentResponse.data.legs)) {
+              shipmentLegs = shipmentResponse.data.legs;
+              console.log(`ShipmentLegs.fetchLegs: Found ${shipmentLegs.length} legs in shipment.legs array`);
+            } 
+            // Check for leg array (singular form)
+            else if (shipmentResponse.data.leg && Array.isArray(shipmentResponse.data.leg)) {
+              shipmentLegs = shipmentResponse.data.leg;
+              console.log(`ShipmentLegs.fetchLegs: Found ${shipmentLegs.length} legs in shipment.leg array`);
+            }
+            // Check if shipmentLegs field exists
+            else if (shipmentResponse.data.shipmentLegs && Array.isArray(shipmentResponse.data.shipmentLegs)) {
+              shipmentLegs = shipmentResponse.data.shipmentLegs;
+              console.log(`ShipmentLegs.fetchLegs: Found ${shipmentLegs.length} legs in shipment.shipmentLegs array`);
+            }
+            
+            if (shipmentLegs && shipmentLegs.length > 0) {
+              // Normalize legs to handle field name differences
+              const normalizedLegs = normalizeLegs(shipmentLegs);
+              
+              // Sort legs by legOrder
+              const sortedLegs = [...normalizedLegs].sort((a, b) => 
+                (a.legOrder || 0) - (b.legOrder || 0)
+              );
+              
+              console.log(`ShipmentLegs.fetchLegs: Found and normalized ${sortedLegs.length} legs from full shipment data`);
+              setLegs(sortedLegs);
+              setError(null);
+              setLoading(false);
+              return;
             } else {
-              console.warn("No legs found in either API response");
+              console.warn("ShipmentLegs.fetchLegs: No legs found in any expected fields in shipment data");
               setLegs([]);
               setError("No legs found for this shipment");
             }
           }
         } catch (err) {
-          console.error('API error fetching legs:', err);
+          console.error('ShipmentLegs.fetchLegs: API error fetching legs:', err);
           
           // Retry once with exponential backoff if it's a network error
           if (err.message === 'Network Error' && retryCount < 2) {
-            console.log(`Retrying fetchLegs (attempt ${retryCount + 1}) after ${(retryCount + 1) * 1000}ms`);
+            console.log(`ShipmentLegs.fetchLegs: Retrying fetchLegs (attempt ${retryCount + 1}) after ${(retryCount + 1) * 1000}ms`);
             setTimeout(() => {
               fetchLegs(retryCount + 1);
             }, (retryCount + 1) * 1000);
@@ -133,12 +162,12 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
         }
       } else {
         // For temporary IDs, just use the local state
-        console.log('Using local state for temp shipment ID');
+        console.log('ShipmentLegs.fetchLegs: Using local state for temp shipment ID');
       }
       
       setLoading(false);
     } catch (err) {
-      console.error('Error in fetchLegs function:', err);
+      console.error('ShipmentLegs.fetchLegs: Error in fetchLegs function:', err);
       setLoading(false);
       setError('Failed to load shipment legs');
       setLegs([]);
@@ -157,9 +186,27 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
     setEditingLeg(null);
   };
 
-  // Add a new leg
-  const handleAddLeg = async (e) => {
+  // Handle form submission
+  const handleSubmit = async (e) => {
     e.preventDefault();
+    
+    console.log('Form submission handler called');
+    
+    if (!validateForm()) {
+      return;
+    }
+    
+    if (editingLeg) {
+      // Call update directly without the e parameter
+      await handleUpdateLeg();
+    } else {
+      // Call add directly without the e parameter
+      await handleAddLeg();
+    }
+  };
+
+  // Add a new leg
+  const handleAddLeg = async () => {
     try {
       setLoading(true);
       const formattedData = {
@@ -218,78 +265,8 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
     }
   };
 
-  // Function to handle edit button click
-  const editLeg = (leg) => {
-    console.log('Editing leg:', leg);
-    setEditingLeg(leg);
-    
-    // Convert dates to local format for the form
-    const departureDate = leg.departureDate ? moment(leg.departureDate).format('YYYY-MM-DD') : '';
-    const arrivalDate = leg.arrivalDate ? moment(leg.arrivalDate).format('YYYY-MM-DD') : '';
-    
-    setFormData({
-      from: leg.from || '',
-      to: leg.to || '',
-      carrier: leg.carrier || '',
-      legOrder: leg.legOrder || 0,
-      departureDate: departureDate,
-      arrivalDate: arrivalDate,
-      trackingNumber: leg.trackingNumber || '',
-      status: leg.status || 'pending',
-      notes: leg.notes || ''
-    });
-    
-    setShowForm(true);
-  };
-
-  // Helper function to get the display AWB/tracking number
-  const getDisplayAwb = (leg) => {
-    if (leg.trackingNumber) {
-      return leg.trackingNumber;
-    } else if (leg.awbNumber) {
-      return leg.awbNumber;
-    } else if (leg.mawbNumber) {
-      return leg.mawbNumber;
-    }
-    return 'N/A';
-  };
-
-  // Validate form inputs
-  const validateForm = () => {
-    const newErrors = {};
-    
-    if (!formData.from) newErrors.from = 'Origin is required';
-    if (!formData.to) newErrors.to = 'Destination is required';
-    if (!formData.carrier) newErrors.carrier = 'Carrier is required';
-    if (!formData.legOrder) newErrors.legOrder = 'Leg order is required';
-    if (!formData.departureDate) newErrors.departureDate = 'Departure date is required';
-    if (!formData.arrivalDate) newErrors.arrivalDate = 'Arrival date is required';
-    
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
-  };
-
-  // Handle form submission
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    e.stopPropagation(); // Prevent the event from bubbling up to parent forms
-    
-    console.log('Form submission handler called');
-    
-    if (!validateForm()) {
-      return;
-    }
-    
-    if (editingLeg) {
-      handleUpdateLeg();
-    } else {
-      handleAddLeg();
-    }
-  };
-
   // Update an existing leg
-  const handleUpdateLeg = async (e) => {
-    e.preventDefault();
+  const handleUpdateLeg = async () => {
     try {
       setLoading(true);
       const formattedData = {
@@ -344,6 +321,57 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
     } finally {
       setLoading(false);
     }
+  };
+
+  // Function to handle edit button click
+  const editLeg = (leg) => {
+    console.log('Editing leg:', leg);
+    setEditingLeg(leg);
+    
+    // Convert dates to local format for the form
+    const departureDate = leg.departureDate ? moment(leg.departureDate).format('YYYY-MM-DD') : '';
+    const arrivalDate = leg.arrivalDate ? moment(leg.arrivalDate).format('YYYY-MM-DD') : '';
+    
+    setFormData({
+      from: leg.from || '',
+      to: leg.to || '',
+      carrier: leg.carrier || '',
+      legOrder: leg.legOrder || 0,
+      departureDate: departureDate,
+      arrivalDate: arrivalDate,
+      trackingNumber: leg.trackingNumber || '',
+      status: leg.status || 'pending',
+      notes: leg.notes || ''
+    });
+    
+    setShowForm(true);
+  };
+
+  // Helper function to get the display AWB/tracking number
+  const getDisplayAwb = (leg) => {
+    if (leg.trackingNumber) {
+      return leg.trackingNumber;
+    } else if (leg.awbNumber) {
+      return leg.awbNumber;
+    } else if (leg.mawbNumber) {
+      return leg.mawbNumber;
+    }
+    return 'N/A';
+  };
+
+  // Validate form inputs
+  const validateForm = () => {
+    const newErrors = {};
+    
+    if (!formData.from) newErrors.from = 'Origin is required';
+    if (!formData.to) newErrors.to = 'Destination is required';
+    if (!formData.carrier) newErrors.carrier = 'Carrier is required';
+    if (!formData.legOrder) newErrors.legOrder = 'Leg order is required';
+    if (!formData.departureDate) newErrors.departureDate = 'Departure date is required';
+    if (!formData.arrivalDate) newErrors.arrivalDate = 'Arrival date is required';
+    
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
   };
 
   // Delete a leg
@@ -428,14 +456,61 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
 
   // Helper function to map old leg fields to new field names and handle both formats
   const normalizeLegs = (legs) => {
-    if (!Array.isArray(legs)) return [];
+    if (!Array.isArray(legs)) {
+      console.error("ShipmentLegs.normalizeLegs: Input is not an array:", legs);
+      return [];
+    }
     
-    return legs.map(leg => {
-      // Create normalized leg that works with both old and new field structures
+    console.log("ShipmentLegs.normalizeLegs: Normalizing", legs.length, "legs");
+    
+    return legs.map((leg, index) => {
+      if (!leg) {
+        console.warn(`ShipmentLegs.normalizeLegs: Leg at index ${index} is null or undefined`);
+        return null;
+      }
+      
+      // Create a debug copy to track field mapping
+      const debugMapping = {};
+      
+      // Map ID fields
+      debugMapping._id = leg._id || `temp-leg-${index}`;
+      debugMapping.legId = leg.legId || `LEG-${leg._id ? leg._id.substring(0, 8) : index}`;
+      
+      // Map shipment reference
+      debugMapping.shipment = leg.shipment || shipmentId;
+      
+      // Map origin/destination fields
+      debugMapping.from = leg.from || leg.origin || '';
+      debugMapping.to = leg.to || leg.destination || '';
+      
+      // Map carrier/flight fields
+      debugMapping.carrier = leg.carrier || leg.flightNumber || leg.airline || '';
+      
+      // Map date fields - preserve the original date type/format
+      debugMapping.departureDate = leg.departureDate || leg.departureTime || null;
+      debugMapping.arrivalDate = leg.arrivalDate || leg.arrivalTime || null;
+      
+      // Map tracking fields
+      debugMapping.trackingNumber = leg.trackingNumber || leg.awbNumber || leg.mawbNumber || '';
+      
+      // Map status and order fields
+      debugMapping.status = leg.status || 'pending';
+      debugMapping.legOrder = typeof leg.legOrder === 'number' ? leg.legOrder : (typeof leg.order === 'number' ? leg.order : index);
+      
+      // Map notes
+      debugMapping.notes = leg.notes || '';
+      
+      // Preserve any other relevant fields
+      debugMapping.changeLog = leg.changeLog || [];
+      debugMapping.statusHistory = leg.statusHistory || [];
+      
+      console.log(`ShipmentLegs.normalizeLegs: Normalized leg ${index}:`, debugMapping);
+      
+      // Create the actual normalized leg object
       return {
-        _id: leg._id,
-        legId: leg.legId || `LEG-${leg._id ? leg._id.substring(0, 8) : 'N/A'}`,
-        shipment: leg.shipment,
+        _id: leg._id || `temp-leg-${index}`,
+        legId: leg.legId || `LEG-${leg._id ? leg._id.substring(0, 8) : index}`,
+        shipment: leg.shipment || shipmentId,
         // Map both possible origin/destination fields
         from: leg.from || leg.origin || '',
         to: leg.to || leg.destination || '',
@@ -447,12 +522,13 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
         // Map tracking fields
         trackingNumber: leg.trackingNumber || leg.awbNumber || leg.mawbNumber || '',
         status: leg.status || 'pending',
-        legOrder: leg.legOrder || 0,
+        legOrder: typeof leg.legOrder === 'number' ? leg.legOrder : (typeof leg.order === 'number' ? leg.order : index),
         notes: leg.notes || '',
         // Preserve any other relevant fields
-        changeLog: leg.changeLog || []
+        changeLog: leg.changeLog || [],
+        statusHistory: leg.statusHistory || []
       };
-    });
+    }).filter(leg => leg !== null); // Remove any null legs
   };
 
   if (loading) {
@@ -483,6 +559,15 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
           .change-entry div {
             color: #333;
           }
+          .debug-info {
+            background-color: #f8f9fa;
+            border: 1px solid #ddd;
+            padding: 10px;
+            margin-bottom: 15px;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 12px;
+          }
         `}
       </style>
       <div className="legs-header">
@@ -496,6 +581,16 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
             <i className="fas fa-plus"></i> Add Leg
           </button>
         )}
+      </div>
+
+      {/* Debug information - remove in production */}
+      <div className="debug-info">
+        <p>Shipment ID: {shipmentId || 'none'}</p>
+        <p>Legs found: {legs.length}</p>
+        <p>Loading state: {loading ? 'true' : 'false'}</p>
+        <p>Error state: {error ? error : 'none'}</p>
+        <p>Show form: {showForm ? 'true' : 'false'}</p>
+        <p>Edit mode: {editingLeg ? `true (leg ${editingLeg._id})` : 'false'}</p>
       </div>
 
       {error && (
@@ -776,7 +871,7 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
               </button>
               <button 
                 type="button"
-                onClick={(e) => handleSubmit(e)}
+                onClick={handleSubmit}
                 className="btn btn-primary"
               >
                 {editingLeg ? 'Update Leg' : 'Add Leg'}

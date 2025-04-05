@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { check, validationResult } = require('express-validator');
 const mongoose = require('mongoose');
+const auth = require('../../middleware/auth');
 
 const Shipment = require('../../models/Shipment');
 const ShipmentLeg = require('../../models/ShipmentLeg');
@@ -215,34 +216,47 @@ router.get('/:id', async (req, res) => {
 });
 
 // @route   GET api/shipments/:id/legs
-// @desc    Get all legs for a specific shipment
+// @desc    Get legs for a specific shipment
 // @access  Public
 router.get('/:id/legs', async (req, res) => {
   try {
     console.log(`Fetching legs for shipment ID: ${req.params.id}`);
     
-    // Check database connection
-    if (mongoose.connection.readyState !== 1) {
-      console.error('Database connection is not ready');
-      return res.status(503).json({
-        error: 'Database connection is not ready',
-        legs: []
-      });
+    // First try to find standalone legs in the ShipmentLeg collection
+    const legs = await ShipmentLeg.find({ shipment: req.params.id }).sort({ legOrder: 1 });
+    
+    if (legs && legs.length > 0) {
+      console.log(`Found ${legs.length} legs in the ShipmentLeg collection for shipment ${req.params.id}`);
+      return res.json(legs);
     }
     
-    // Find all legs for this shipment
-    const legs = await ShipmentLeg.find({ shipment: req.params.id })
-      .sort({ legOrder: 1 });
+    // If no standalone legs found, try to get embedded legs from the shipment
+    const shipment = await Shipment.findById(req.params.id);
     
-    console.log(`Found ${legs.length} legs for shipment ${req.params.id}`);
+    if (!shipment) {
+      console.log(`No shipment found with ID: ${req.params.id}`);
+      return res.status(404).json({ message: 'Shipment not found' });
+    }
     
-    res.json(legs);
+    // Check different possible leg structures
+    if (shipment.legs && Array.isArray(shipment.legs) && shipment.legs.length > 0) {
+      console.log(`Found ${shipment.legs.length} legs embedded in the shipment.legs field`);
+      
+      // Add the shipment ID to each leg to normalize the structure
+      const normalizedLegs = shipment.legs.map(leg => ({
+        ...leg,
+        shipment: req.params.id
+      }));
+      
+      return res.json(normalizedLegs);
+    }
+    
+    console.log(`No legs found for shipment ${req.params.id}`);
+    return res.json([]);
+    
   } catch (err) {
-    console.error('Error fetching shipment legs:', err.message);
-    res.status(500).json({ 
-      error: 'Server error when fetching shipment legs',
-      message: err.message
-    });
+    console.error(`Error fetching legs for shipment ${req.params.id}:`, err.message);
+    res.status(500).send('Server Error');
   }
 });
 

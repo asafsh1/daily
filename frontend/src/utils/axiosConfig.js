@@ -1,78 +1,60 @@
 import axios from 'axios';
 import { toast } from 'react-toastify';
 
-// Configure axios to use the backend URL from environment variables
-const baseURL = process.env.REACT_APP_API_URL || 'http://localhost:5001';
-console.log('Using API URL:', baseURL); 
-axios.defaults.baseURL = baseURL;
+// Create axios instance with base URL
+const instance = axios.create({
+  baseURL: process.env.REACT_APP_API_URL || 'http://localhost:5001',
+  timeout: 10000, // Increase timeout to 10 seconds
+  headers: {
+    'Content-Type': 'application/json'
+  }
+});
 
-// Set up request interceptor to add auth token to each request
-axios.interceptors.request.use(
+// Add request interceptor
+instance.interceptors.request.use(
   config => {
-    // Get token from localStorage
+    // Add auth token to request if available
     const token = localStorage.getItem('token');
-    
-    // If token exists, add it to headers
     if (token) {
       config.headers['x-auth-token'] = token;
-    } else {
-      // If no token found, add default headers as a fallback (for testing or dev)
-      if (process.env.NODE_ENV !== 'production') {
-        config.headers['x-auth-token'] = 'default-dev-token';
-      }
     }
     
-    console.log('Request headers:', config.headers);
-    
-    // Add timestamp to GET requests to prevent caching
-    if (config.method === 'get' && !config.url.includes('timestamp=')) {
-      const separator = config.url.includes('?') ? '&' : '?';
-      config.url = `${config.url}${separator}timestamp=${new Date().getTime()}`;
-    }
-    
+    console.log(`[Axios Request] ${config.method.toUpperCase()} ${config.url}`);
     return config;
   },
   error => {
+    console.error('[Axios Request Error]', error);
     return Promise.reject(error);
   }
 );
 
-// Set up response interceptor to handle errors
-axios.interceptors.response.use(
+// Add response interceptor
+instance.interceptors.response.use(
   response => {
-    // Log successful responses for debugging
-    console.log(`Response from ${response.config.url}:`, response.status);
+    console.log(`[Axios Response] ${response.config.method.toUpperCase()} ${response.config.url} - Status: ${response.status}`);
     return response;
   },
   error => {
-    // Log the full error for debugging
-    console.error('Axios Error:', error);
-    
     if (error.response) {
-      console.error('Response Error:', error.response.status, error.response.data);
-      
-      // Handle different error statuses
-      if (error.response.status === 401) {
-        // Handle unauthorized access
-        toast.error('Authentication error. Please log in again.');
-        localStorage.removeItem('token');
-        // Only redirect to login in production to avoid disrupting development
-        if (process.env.NODE_ENV === 'production') {
-          window.location.href = '/login';
-        }
-      } else if (error.response.status === 404) {
-        toast.error('Resource not found');
-      } else if (error.response.status >= 500) {
-        toast.error('Server error. Please try again later.');
-      }
+      // The request was made and the server responded with a status code
+      // that falls out of the range of 2xx
+      console.error(`[Axios Error] Status: ${error.response.status}`, error.response.data);
     } else if (error.request) {
-      // Request was made but no response was received
-      console.error('No response received:', error.request);
-      toast.error('No response from server. Please check your connection.');
+      // The request was made but no response was received
+      console.error('[Axios Error] No response received', error.request);
+      
+      // Create a more user-friendly error
+      return Promise.reject({
+        response: {
+          status: 0,
+          data: {
+            message: 'No response from server. Please check your connection.'
+          }
+        }
+      });
     } else {
-      // Something else happened in setting up the request
-      console.error('Request setup error:', error.message);
-      toast.error('Error setting up request: ' + error.message);
+      // Something happened in setting up the request that triggered an Error
+      console.error('[Axios Error] Request setup failed', error.message);
     }
     
     return Promise.reject(error);
@@ -112,7 +94,7 @@ const axiosRetry = (axios, options = {}) => {
 };
 
 // Apply retry logic to axios with custom settings
-axiosRetry(axios, {
+axiosRetry(instance, {
   retries: 2,
   retryDelay: 500,
   shouldRetry: (error) => {
@@ -124,4 +106,4 @@ axiosRetry(axios, {
   }
 });
 
-export default axios; 
+export default instance; 

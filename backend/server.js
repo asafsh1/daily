@@ -30,6 +30,20 @@ app.use(cors({
   credentials: true
 }));
 
+// Debug logging for all API requests
+app.use((req, res, next) => {
+  const startTime = Date.now();
+  console.log(`[${new Date().toISOString()}] ${req.method} ${req.url} started`);
+  
+  // Once the request is processed, log the completion and response time
+  res.on('finish', () => {
+    const duration = Date.now() - startTime;
+    console.log(`[${new Date().toISOString()}] ${req.method} ${req.url} completed with status ${res.statusCode} in ${duration}ms`);
+  });
+  
+  next();
+});
+
 // Connect to Database (but don't exit if it fails)
 (async () => {
   const connected = await connectDB();
