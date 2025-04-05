@@ -170,58 +170,61 @@ router.get('/', async (req, res) => {
 
 // @route   GET api/shipments/:id
 // @desc    Get shipment by ID
-// @access  Public
-router.get('/:id', async (req, res) => {
+// @access  Private
+router.get('/:id', auth, async (req, res) => {
   try {
-    console.log(`Fetching shipment with ID: ${req.params.id}`);
+    console.log(`Getting shipment with ID: ${req.params.id}`);
     
-    // First try to get the shipment with populated references
+    // Check for valid ObjectId format
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      return res.status(400).json({ msg: 'Invalid shipment ID format' });
+    }
+    
+    // Explicitly populate legs
     const shipment = await Shipment.findById(req.params.id)
-      .populate('customer')
-      .populate('shipper')
-      .populate('consignee')
-      .populate('notifyParty')
-      .lean(); // Convert to plain JavaScript object
-    
+      .populate({
+        path: 'legs',
+        model: 'shipmentLeg',
+        options: { sort: { legOrder: 1 } }
+      })
+      .populate('customer');
+
     if (!shipment) {
-      console.log(`No shipment found with ID: ${req.params.id}`);
-      return res.status(404).json({ message: 'Shipment not found' });
+      return res.status(404).json({ msg: 'Shipment not found' });
     }
     
-    // Fetch legs from shipment-legs collection
-    try {
-      const legs = await ShipmentLeg.find({ shipment: req.params.id })
-        .sort({ legOrder: 1 })
-        .lean();
+    // Check if legs array exists but is empty
+    if (!shipment.legs || shipment.legs.length === 0) {
+      console.log(`No legs found for shipment ${req.params.id}, looking for legs in shipmentLeg collection`);
       
-      console.log(`Found ${legs.length} legs for shipment ${req.params.id}`);
-      
-      // Add legs to shipment response
-      shipment.legs = legs;
-    } catch (legErr) {
-      console.error(`Error fetching legs: ${legErr.message}`);
-      // If legs can't be fetched, return empty array
-      shipment.legs = [];
+      // Try to find legs separately
+      try {
+        const legs = await mongoose.model('shipmentLeg').find({ shipment: req.params.id })
+          .sort({ legOrder: 1 });
+        
+        if (legs && legs.length > 0) {
+          console.log(`Found ${legs.length} legs in separate query`);
+          shipment.legs = legs;
+          
+          // Also update the shipment to link these legs
+          await Shipment.findByIdAndUpdate(req.params.id, 
+            { $set: { legs: legs.map(leg => leg._id) } },
+            { new: false }
+          );
+        } else {
+          console.log(`No legs found in separate query either`);
+        }
+      } catch (legErr) {
+        console.error(`Error fetching legs separately: ${legErr.message}`);
+      }
+    } else {
+      console.log(`Shipment has ${shipment.legs.length} legs already populated`);
     }
-    
-    // Ensure legs is always an array
-    if (!shipment.legs) {
-      shipment.legs = [];
-    }
-    
-    console.log(`Returning shipment ${req.params.id} with ${shipment.legs.length} legs`);
+
     res.json(shipment);
   } catch (err) {
-    console.error(`Error fetching shipment ${req.params.id}:`, err.message);
-    
-    if (err.kind === 'ObjectId') {
-      return res.status(404).json({ message: 'Shipment not found' });
-    }
-    
-    res.status(500).json({ 
-      message: 'Server Error', 
-      error: err.message 
-    });
+    console.error(err.message);
+    res.status(500).send('Server Error');
   }
 });
 

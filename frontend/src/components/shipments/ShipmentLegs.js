@@ -30,23 +30,47 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
   const [editMode, setEditMode] = useState(false);
   const [errors, setErrors] = useState({});
   const [success, setSuccess] = useState('');
+  const [debugInfo, setDebugInfo] = useState(null);
 
   // UseEffect to fetch legs on component mount or when shipmentId changes
   useEffect(() => {
+    console.log('ShipmentLegs component mounted or shipmentId changed:', shipmentId);
     if (shipmentId) {
       fetchLegs();
     }
     
-    // Set up an interval to refresh legs data every 30 seconds
+    // Set up an interval to refresh legs data every 60 seconds
     const refreshInterval = setInterval(() => {
       if (shipmentId && !shipmentId.toString().startsWith('temp-')) {
+        console.log('Auto-refreshing legs data...');
         fetchLegs();
       }
-    }, 30000);
+    }, 60000);
     
     // Clean up interval on component unmount
     return () => clearInterval(refreshInterval);
   }, [shipmentId]); // Only re-run when shipmentId changes
+
+  // Debug function to view shipment details
+  const inspectShipment = async () => {
+    try {
+      console.log('Inspecting full shipment data for legs debugging...');
+      const res = await axios.get(`/api/shipments/${shipmentId}`);
+      console.log('Full shipment data:', res.data);
+      setDebugInfo({
+        shipmentId: shipmentId,
+        hasLegsArray: !!(res.data && res.data.legs),
+        legsArrayLength: res.data && res.data.legs ? res.data.legs.length : 0,
+        legsArrayType: res.data && res.data.legs ? typeof res.data.legs : 'undefined',
+        firstLeg: res.data && res.data.legs && res.data.legs.length > 0 ? res.data.legs[0] : null
+      });
+    } catch (err) {
+      console.error('Error inspecting shipment:', err);
+      setDebugInfo({
+        error: err.message
+      });
+    }
+  };
 
   // Fetch legs for this shipment
   const fetchLegs = async () => {
@@ -86,40 +110,6 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
           }
         } catch (legErr) {
           console.error(`Error fetching from legs endpoint:`, legErr);
-          // Try to find legs in the parent shipment object format as last resort
-          if (shipmentResponse.data && typeof shipmentResponse.data === 'object') {
-            // Look for any arrays that might contain leg information
-            for (const key in shipmentResponse.data) {
-              if (Array.isArray(shipmentResponse.data[key]) && 
-                  shipmentResponse.data[key].length > 0 &&
-                  (shipmentResponse.data[key][0].origin || 
-                   shipmentResponse.data[key][0].from)) {
-                shipmentLegs = shipmentResponse.data[key];
-                console.log(`Found potential legs array in field: ${key}`);
-                break;
-              }
-            }
-          }
-        }
-      }
-      
-      // Last resort - create a basic leg from shipment origin/destination if available
-      if (shipmentLegs.length === 0 && shipmentResponse.data) {
-        const shipment = shipmentResponse.data;
-        if (shipment.origin && shipment.destination) {
-          console.log(`Creating basic leg from shipment origin/destination`);
-          shipmentLegs = [{
-            _id: `temp-leg-${Date.now()}`,
-            legOrder: 1,
-            from: shipment.origin,
-            to: shipment.destination,
-            origin: shipment.origin,
-            destination: shipment.destination,
-            departureDate: shipment.departureDate,
-            arrivalDate: shipment.arrivalDate,
-            carrier: shipment.carrier || 'Unknown',
-            status: shipment.status || 'pending'
-          }];
         }
       }
       
@@ -140,6 +130,9 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
         console.log(`No legs found for shipment ${shipmentId}`);
         setLegs([]);
         setError("No legs found for this shipment");
+        
+        // If no legs found, try to inspect the full shipment for debugging
+        inspectShipment();
       }
     } catch (err) {
       console.error(`Error fetching legs:`, err);
@@ -462,6 +455,37 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
       console.log(`Normalized leg ${normalizedLeg.legOrder}: ${normalizedLeg.from} to ${normalizedLeg.to}`);
       return normalizedLeg;
     }).filter(Boolean); // Remove any null legs
+  };
+
+  // Render function for debug info
+  const renderDebugInfo = () => {
+    if (!debugInfo) return null;
+    
+    return (
+      <div className="debug-info" style={{ margin: '20px 0', padding: '10px', border: '1px solid #ddd', background: '#f8f8f8' }}>
+        <h4>Debug Information</h4>
+        <p>Shipment ID: {debugInfo.shipmentId}</p>
+        <p>Has legs array: {debugInfo.hasLegsArray ? 'Yes' : 'No'}</p>
+        <p>Legs array length: {debugInfo.legsArrayLength}</p>
+        <p>Legs array type: {debugInfo.legsArrayType}</p>
+        {debugInfo.firstLeg && (
+          <div>
+            <p>First leg sample:</p>
+            <pre>{JSON.stringify(debugInfo.firstLeg, null, 2)}</pre>
+          </div>
+        )}
+        {debugInfo.error && (
+          <p>Error: {debugInfo.error}</p>
+        )}
+        <button 
+          onClick={() => fetchLegs()} 
+          className="btn btn-primary"
+          style={{ marginTop: '10px' }}
+        >
+          Retry Fetch
+        </button>
+      </div>
+    );
   };
 
   if (loading) {
@@ -813,6 +837,8 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
           </form>
         </div>
       )}
+
+      {renderDebugInfo()}
     </div>
   );
 };

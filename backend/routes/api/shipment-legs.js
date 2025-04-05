@@ -93,6 +93,8 @@ router.post(
     }
 
     try {
+      console.log(`Creating new shipment leg for shipment: ${req.body.shipment}`);
+      
       // Extract fields, supporting both old and new field names
       const {
         shipment,
@@ -131,7 +133,16 @@ router.post(
         legId
       });
 
+      console.log(`Saving new leg: ${newLeg.from} to ${newLeg.to}`);
       const leg = await newLeg.save();
+      console.log(`Leg saved with ID: ${leg._id}`);
+
+      // Add this leg to the shipment's legs array
+      if (!shipmentDoc.legs) {
+        shipmentDoc.legs = [];
+      }
+      shipmentDoc.legs.push(leg._id);
+      console.log(`Added leg ID ${leg._id} to shipment's legs array`);
 
       // Add to the shipment's change log
       shipmentDoc.changeLog.push({
@@ -140,11 +151,14 @@ router.post(
         action: 'added-leg',
         details: `Added leg from ${newLeg.from} to ${newLeg.to}`
       });
+      
+      console.log(`Saving updated shipment with new leg reference`);
       await shipmentDoc.save();
+      console.log(`Shipment saved successfully with new leg`);
 
       res.json(leg);
     } catch (err) {
-      console.error(err.message);
+      console.error(`Error creating shipment leg: ${err.message}`);
       res.status(500).send('Server Error');
     }
   }
