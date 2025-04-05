@@ -2,35 +2,36 @@ import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { connect } from 'react-redux';
 import PropTypes from 'prop-types';
-import { getShipments } from '../../actions/shipment';
+import Moment from 'react-moment';
+import { getShipments, updateShipment, deleteShipment } from '../../actions/shipment';
 import Spinner from '../layout/Spinner';
-import { Button, Table, Container, Row, Col, Alert } from 'react-bootstrap';
+import { toast } from 'react-toastify';
+import { Button, Table, Container, Row, Col, Alert, Form, InputGroup } from 'react-bootstrap';
+import './Shipments.css';
 
-// Super simplified component to debug rendering issues
-const Shipments = ({ getShipments, shipment: { shipments, loading, error } }) => {
+const Shipments = ({ getShipments, updateShipment, deleteShipment, shipment: { shipments, loading, error } }) => {
   const [fetchError, setFetchError] = useState(null);
   const [retryCount, setRetryCount] = useState(0);
   const [isRetrying, setIsRetrying] = useState(false);
-  const [debugInfo, setDebugInfo] = useState({});
+  const [searchTerm, setSearchTerm] = useState('');
+  const [filterStatus, setFilterStatus] = useState('');
+  const [filteredData, setFilteredData] = useState([]);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deletePassword, setDeletePassword] = useState('');
+  const [shipmentToDelete, setShipmentToDelete] = useState(null);
 
+  // Fetch shipments data
   useEffect(() => {
     const fetchData = async () => {
       try {
         setIsRetrying(true);
         console.log('Fetching shipments data...');
         const result = await getShipments();
-        console.log('Shipments fetched successfully, result:', result);
+        console.log('Shipments fetched successfully, count:', result.length);
         setFetchError(null);
-        
-        // Store debugging info
-        setDebugInfo({
-          fetchedCount: Array.isArray(result) ? result.length : 'not an array',
-          sampleData: Array.isArray(result) && result.length > 0 ? 
-            JSON.stringify(result[0]).substring(0, 100) + '...' : 'no data'
-        });
       } catch (err) {
         console.error('Failed to fetch shipments:', err);
-        setFetchError(err.message || 'Failed to load shipments. Please try again later.');
+        setFetchError(err.message || 'Failed to load shipments');
       } finally {
         setIsRetrying(false);
       }
@@ -39,95 +40,113 @@ const Shipments = ({ getShipments, shipment: { shipments, loading, error } }) =>
     fetchData();
   }, [getShipments, retryCount]);
 
+  // Filter shipments based on search and filter criteria
+  useEffect(() => {
+    if (!Array.isArray(shipments)) {
+      setFilteredData([]);
+      return;
+    }
+
+    try {
+      const filtered = shipments.filter(shipment => {
+        if (!shipment) return false;
+
+        // Get customer name safely, handling both string and object references
+        const customerName = shipment.customer && typeof shipment.customer === 'object'
+          ? (shipment.customer.name || '')
+          : (shipment.customer || '');
+
+        // Check if search term matches customer or AWB
+        const searchLower = searchTerm.toLowerCase();
+        const customerMatches = customerName.toLowerCase().includes(searchLower);
+        
+        // Get AWB numbers from either legs or direct properties
+        let awbMatches = false;
+        if (shipment.awbNumber) {
+          awbMatches = shipment.awbNumber.toLowerCase().includes(searchLower);
+        } else if (shipment.legs && Array.isArray(shipment.legs)) {
+          const awbs = shipment.legs
+            .map(leg => leg.awbNumber || leg.trackingNumber || '')
+            .join(' ');
+          awbMatches = awbs.toLowerCase().includes(searchLower);
+        }
+
+        // Check if status matches filter
+        const statusMatches = !filterStatus || 
+          shipment.status === filterStatus || 
+          shipment.shipmentStatus === filterStatus;
+
+        return (searchTerm === '' || customerMatches || awbMatches) && statusMatches;
+      });
+
+      setFilteredData(filtered);
+    } catch (err) {
+      console.error('Error filtering shipments:', err);
+      // Fallback to showing all shipments if filtering fails
+      setFilteredData(shipments);
+    }
+  }, [shipments, searchTerm, filterStatus]);
+
+  // Handle retry button
   const handleRetry = () => {
     setRetryCount(prevCount => prevCount + 1);
   };
 
-  // Debugging information
-  console.log('Shipments component rendering with state:', { 
-    loading, 
-    error: error ? JSON.stringify(error) : 'none',
-    fetchError,
-    shipmentsData: shipments, 
-    shipmentsLength: shipments ? shipments.length : 0,
-    shipmentsType: shipments ? typeof shipments : 'undefined',
-    isArray: Array.isArray(shipments),
-    debugInfo
-  });
+  // Handle status change
+  const handleStatusChange = async (shipmentId, newStatus) => {
+    try {
+      await updateShipment(shipmentId, { status: newStatus });
+      toast.success('Status updated successfully');
+    } catch (err) {
+      toast.error('Failed to update status');
+    }
+  };
 
-  // Never show error if we have data, regardless of error state
-  if (Array.isArray(shipments) && shipments.length > 0) {
-    // We have data to display, so ignore any errors
+  // Delete modal handlers
+  const handleDeleteClick = (shipment) => {
+    setShipmentToDelete(shipment);
+    setDeletePassword('');
+    setShowDeleteModal(true);
+  };
+
+  const handleCloseModal = () => {
+    setShowDeleteModal(false);
+    setShipmentToDelete(null);
+    setDeletePassword('');
+  };
+
+  const handlePasswordChange = (e) => {
+    setDeletePassword(e.target.value);
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (deletePassword === 'Admin1212') {
+      try {
+        const success = await deleteShipment(shipmentToDelete._id);
+        
+        if (success) {
+          toast.success('Shipment deleted successfully');
+          // Force refresh to update the list
+          handleRetry();
+        } else {
+          toast.error('Failed to delete shipment');
+        }
+        
+        handleCloseModal();
+      } catch (err) {
+        toast.error('Error deleting shipment');
+        console.error('Error deleting shipment:', err);
+      }
+    } else {
+      toast.error('Incorrect password');
+    }
+  };
+
+  // Error handling - only show error if we have no data
+  if (loading || (isRetrying && (!shipments || shipments.length === 0))) {
     return (
       <Container>
-        <Row className="my-4">
-          <Col>
-            <div className="d-flex justify-content-between align-items-center mb-4">
-              <h1>Shipments</h1>
-              <Button as={Link} to="/create-shipment" variant="primary">
-                Create Shipment
-              </Button>
-            </div>
-            
-            {isRetrying && (
-              <Alert variant="info" className="mb-3">
-                <small>Refreshing shipment data...</small>
-              </Alert>
-            )}
-            
-            {/* Ultra simple table with minimal rendering */}
-            <Table striped bordered hover>
-              <thead>
-                <tr>
-                  <th>#</th>
-                  <th>ID</th>
-                  <th>Shipper</th>
-                  <th>Origin/Destination</th>
-                  <th>Status</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {shipments.map((shipment, index) => (
-                  <tr key={index}>
-                    <td>{index + 1}</td>
-                    <td>{shipment._id ? shipment._id.toString().substring(0, 8) : 'No ID'}</td>
-                    <td>
-                      {shipment.shipper ? 
-                        (typeof shipment.shipper === 'string' ? 
-                          shipment.shipper : 
-                          (shipment.shipper.name || 'Unknown')) : 
-                        'Unknown'}
-                    </td>
-                    <td>
-                      {(shipment.origin || 'N/A')} → {(shipment.destination || 'N/A')}
-                    </td>
-                    <td>{shipment.status || 'Pending'}</td>
-                    <td>
-                      <Button 
-                        as={Link} 
-                        to={`/shipments/${shipment._id || 'unknown'}`} 
-                        variant="outline-primary" 
-                        size="sm"
-                      >
-                        View
-                      </Button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </Table>
-          </Col>
-        </Row>
-      </Container>
-    );
-  }
-
-  // Only show loading state when we're actually loading
-  if (loading) {
-    return (
-      <Container>
-        <h1>Shipments</h1>
+        <h1 className="large text-primary">Shipments</h1>
         <div className="text-center my-5">
           <Spinner />
           <p>Loading shipments...</p>
@@ -136,49 +155,259 @@ const Shipments = ({ getShipments, shipment: { shipments, loading, error } }) =>
     );
   }
 
-  // We have no data and no loading state - check for errors
-  const hasRealError = fetchError || (error && error.msg);
-  
-  // Show debug version of error screen with more info
+  // Display error only if we have no data
+  if ((fetchError || error) && (!shipments || shipments.length === 0)) {
+    return (
+      <Container>
+        <h1 className="large text-primary">Shipments</h1>
+        <Alert variant="danger">
+          <Alert.Heading>Error Loading Shipments</Alert.Heading>
+          <p>{fetchError || (error && error.msg) || 'Unknown error'}</p>
+          <Button onClick={handleRetry} variant="outline-danger">Retry</Button>
+        </Alert>
+      </Container>
+    );
+  }
+
+  // Main render - data display
   return (
-    <Container>
-      <h1>Shipments</h1>
-      <Alert variant={hasRealError ? "danger" : "warning"}>
-        <Alert.Heading>{hasRealError ? "Error Loading Shipments" : "No Shipments Found"}</Alert.Heading>
-        
-        {hasRealError && <p>{fetchError || (error && error.msg) || 'Unknown error'}</p>}
-        
-        {!hasRealError && (
-          <p>No shipments were found in the database. You can create a new shipment using the button below.</p>
-        )}
-        
-        <div className="d-flex justify-content-between mt-3">
-          <Button onClick={handleRetry} variant="primary">Retry Loading</Button>
-          <Button as={Link} to="/create-shipment" variant="success">Create Shipment</Button>
+    <Container fluid className="px-4">
+      <Row className="my-4">
+        <Col>
+          <div className="d-flex justify-content-between align-items-center mb-4">
+            <h1 className="large text-primary">Shipments</h1>
+            <Button as={Link} to="/create-shipment" variant="primary">
+              Create New Shipment
+            </Button>
+          </div>
+          
+          {/* Search and filter controls */}
+          <div className="mb-4">
+            <Row>
+              <Col md={6}>
+                <InputGroup>
+                  <Form.Control
+                    type="text"
+                    placeholder="Search by customer or AWB..."
+                    value={searchTerm}
+                    onChange={e => setSearchTerm(e.target.value)}
+                  />
+                </InputGroup>
+              </Col>
+              <Col md={4}>
+                <Form.Select
+                  value={filterStatus}
+                  onChange={e => setFilterStatus(e.target.value)}
+                >
+                  <option value="">All Statuses</option>
+                  <option value="Pending">Pending</option>
+                  <option value="In Transit">In Transit</option>
+                  <option value="Arrived">Arrived</option>
+                  <option value="Delayed">Delayed</option>
+                  <option value="Completed">Completed</option>
+                  <option value="Canceled">Canceled</option>
+                </Form.Select>
+              </Col>
+              <Col md={2} className="text-end">
+                <Button 
+                  variant="outline-secondary"
+                  onClick={handleRetry}
+                  disabled={isRetrying}
+                >
+                  {isRetrying ? 'Refreshing...' : 'Refresh'}
+                </Button>
+              </Col>
+            </Row>
+          </div>
+          
+          {/* Show refresh indicator */}
+          {isRetrying && (
+            <Alert variant="info" className="py-2 mb-3">
+              <small>Refreshing shipment data...</small>
+            </Alert>
+          )}
+          
+          {/* Table of shipments */}
+          {filteredData.length > 0 ? (
+            <div className="table-responsive">
+              <Table hover bordered className="shipments-table">
+                <thead>
+                  <tr>
+                    <th>ID</th>
+                    <th>Date</th>
+                    <th>Customer</th>
+                    <th>Origin</th>
+                    <th>Destination</th>
+                    <th>Status</th>
+                    <th>Mode</th>
+                    <th>Departure</th>
+                    <th>Arrival</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredData.map((shipment, index) => {
+                    // Safe property access with fallbacks
+                    const customerId = shipment._id ? shipment._id.toString() : `temp-${index}`;
+                    const shortId = customerId.substring(0, 8);
+                    
+                    const customerName = shipment.customer ?
+                      (typeof shipment.customer === 'object' ? 
+                        (shipment.customer.name || 'Unknown') : shipment.customer)
+                      : 'Unknown';
+                      
+                    const origin = shipment.origin || 
+                      (shipment.legs && shipment.legs[0] ? shipment.legs[0].origin : 'N/A');
+                      
+                    const destination = shipment.destination || 
+                      (shipment.legs && shipment.legs.length > 0 ? 
+                        shipment.legs[shipment.legs.length-1].destination : 'N/A');
+                    
+                    const status = shipment.status || shipment.shipmentStatus || 'Pending';
+                    const mode = shipment.mode || 'Air';
+                    
+                    // Get dates from either direct properties or legs
+                    const departureDate = shipment.departureDate || 
+                      (shipment.legs && shipment.legs[0] ? 
+                        (shipment.legs[0].departureDate || shipment.legs[0].departureTime) : null);
+                        
+                    const arrivalDate = shipment.arrivalDate || 
+                      (shipment.legs && shipment.legs.length > 0 ? 
+                        (shipment.legs[shipment.legs.length-1].arrivalDate || 
+                         shipment.legs[shipment.legs.length-1].arrivalTime) : null);
+                    
+                    // Status badge class
+                    const getStatusClass = (status) => {
+                      const statusLower = status.toLowerCase();
+                      if (statusLower.includes('completed')) return 'bg-success';
+                      if (statusLower.includes('transit')) return 'bg-primary';
+                      if (statusLower.includes('pending')) return 'bg-warning';
+                      if (statusLower.includes('canceled')) return 'bg-danger';
+                      if (statusLower.includes('delayed')) return 'bg-warning text-dark';
+                      return 'bg-secondary';
+                    };
+                    
+                    return (
+                      <tr key={customerId || index}>
+                        <td>
+                          <Link to={`/shipments/${customerId}`}>
+                            {shipment.serialNumber || shortId}
+                          </Link>
+                        </td>
+                        <td>
+                          {shipment.dateAdded ? (
+                            <Moment format="MM/DD/YYYY">{shipment.dateAdded}</Moment>
+                          ) : 'N/A'}
+                        </td>
+                        <td>{customerName}</td>
+                        <td>{origin}</td>
+                        <td>{destination}</td>
+                        <td>
+                          <span className={`badge ${getStatusClass(status)}`}>
+                            {status}
+                          </span>
+                        </td>
+                        <td>{mode}</td>
+                        <td>
+                          {departureDate ? (
+                            <Moment format="MM/DD/YYYY">{departureDate}</Moment>
+                          ) : 'N/A'}
+                        </td>
+                        <td>
+                          {arrivalDate ? (
+                            <Moment format="MM/DD/YYYY">{arrivalDate}</Moment>
+                          ) : 'N/A'}
+                        </td>
+                        <td>
+                          <div className="d-flex gap-1">
+                            <Button 
+                              as={Link} 
+                              to={`/shipments/${customerId}`} 
+                              variant="outline-info" 
+                              size="sm"
+                            >
+                              View
+                            </Button>
+                            <Button 
+                              as={Link} 
+                              to={`/edit-shipment/${customerId}`} 
+                              variant="outline-primary" 
+                              size="sm"
+                            >
+                              Edit
+                            </Button>
+                            <Button 
+                              variant="outline-danger" 
+                              size="sm"
+                              onClick={() => handleDeleteClick(shipment)}
+                            >
+                              Delete
+                            </Button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </Table>
+            </div>
+          ) : (
+            <Alert variant="info">
+              No shipments found matching your search criteria.
+            </Alert>
+          )}
+        </Col>
+      </Row>
+      
+      {/* Delete Confirmation Modal */}
+      {showDeleteModal && (
+        <div className="modal-backdrop">
+          <div className="modal-content" style={{ maxWidth: '500px' }}>
+            <div className="modal-header">
+              <h2>Confirm Delete</h2>
+              <button className="btn-close" onClick={handleCloseModal}></button>
+            </div>
+            <div className="modal-body">
+              <p>Are you sure you want to delete this shipment?</p>
+              {shipmentToDelete && (
+                <div className="delete-info">
+                  <p><strong>ID:</strong> {shipmentToDelete._id?.substring(0, 8) || 'N/A'}</p>
+                  <p><strong>Customer:</strong> {
+                    typeof shipmentToDelete.customer === 'object' 
+                      ? shipmentToDelete.customer?.name 
+                      : shipmentToDelete.customer || 'Unknown'
+                  }</p>
+                </div>
+              )}
+              <Form.Group className="mt-3">
+                <Form.Label>Enter Admin Password:</Form.Label>
+                <Form.Control
+                  type="password"
+                  value={deletePassword}
+                  onChange={handlePasswordChange}
+                  placeholder="Enter password"
+                />
+              </Form.Group>
+            </div>
+            <div className="modal-footer">
+              <Button variant="danger" onClick={handleDeleteConfirm}>
+                Delete
+              </Button>
+              <Button variant="secondary" onClick={handleCloseModal}>
+                Cancel
+              </Button>
+            </div>
+          </div>
         </div>
-        
-        <div className="mt-4 pt-3 border-top">
-          <small className="text-muted">Debug Info:</small>
-          <pre style={{fontSize: '0.8rem'}}>
-            {JSON.stringify({
-              fetchedData: debugInfo,
-              reduxState: {
-                loading,
-                error: error ? JSON.stringify(error) : 'none',
-                shipments: Array.isArray(shipments) ? 
-                  `Array(${shipments.length})` : 
-                  (shipments ? typeof shipments : 'undefined')
-              }
-            }, null, 2)}
-          </pre>
-        </div>
-      </Alert>
+      )}
     </Container>
   );
 };
 
 Shipments.propTypes = {
   getShipments: PropTypes.func.isRequired,
+  updateShipment: PropTypes.func.isRequired,
+  deleteShipment: PropTypes.func.isRequired,
   shipment: PropTypes.object.isRequired
 };
 
@@ -186,4 +415,4 @@ const mapStateToProps = state => ({
   shipment: state.shipment
 });
 
-export default connect(mapStateToProps, { getShipments })(Shipments); 
+export default connect(mapStateToProps, { getShipments, updateShipment, deleteShipment })(Shipments); 

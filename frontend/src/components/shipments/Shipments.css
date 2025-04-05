@@ -1,1 +1,134 @@
- 
+/* Shipments Table Styles */
+.shipments-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.shipments-table th {
+  background-color: #f8f9fa;
+  font-weight: 600;
+  text-align: left;
+  padding: 0.75rem;
+  border-bottom: 2px solid #dee2e6;
+}
+
+.shipments-table td {
+  padding: 0.75rem;
+  vertical-align: middle;
+  border-top: 1px solid #dee2e6;
+}
+
+.shipments-table tr:hover {
+  background-color: rgba(0, 123, 255, 0.05);
+}
+
+/* Status badges */
+.badge {
+  display: inline-block;
+  padding: 0.25em 0.4em;
+  font-size: 0.85em;
+  font-weight: 700;
+  line-height: 1;
+  text-align: center;
+  white-space: nowrap;
+  vertical-align: baseline;
+  border-radius: 0.25rem;
+}
+
+/* Row highlight for invoiced shipments */
+.row-success {
+  background-color: rgba(40, 167, 69, 0.1);
+}
+
+/* Search and Filter Controls */
+.search-filter {
+  display: flex;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.search-input {
+  flex-grow: 1;
+  padding: 0.5rem;
+  border: 1px solid #ced4da;
+  border-radius: 0.25rem;
+}
+
+/* Delete Modal */
+.modal-backdrop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1050;
+}
+
+.modal-content {
+  background-color: white;
+  border-radius: 0.3rem;
+  box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+  width: 100%;
+  max-width: 500px;
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid #dee2e6;
+  padding: 1rem;
+}
+
+.modal-body {
+  padding: 1rem;
+}
+
+.modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  border-top: 1px solid #dee2e6;
+  padding: 1rem;
+}
+
+.btn-close {
+  background: transparent;
+  border: 0;
+  font-size: 1.5rem;
+  opacity: 0.5;
+  cursor: pointer;
+}
+
+.btn-close:hover {
+  opacity: 1;
+}
+
+.delete-info {
+  margin-top: 1rem;
+  padding: 1rem;
+  background-color: #f8f9fa;
+  border-radius: 0.25rem;
+}
+
+/* Responsive adjustments */
+@media (max-width: 992px) {
+  .shipments-table {
+    font-size: 0.9rem;
+  }
+  
+  .d-flex.gap-1 {
+    flex-direction: column;
+    gap: 0.25rem !important;
+  }
+}
+
+@media (max-width: 768px) {
+  .search-filter {
+    flex-direction: column;
+  }
+} 
