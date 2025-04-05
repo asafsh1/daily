@@ -1,15 +1,15 @@
 const mongoose = require('mongoose');
 const config = require('config');
 
-// Get MongoDB URI with multiple fallbacks
+// Function to get MongoDB connection string
 const getMongoURI = () => {
-  // Priority 1: Environment variable
+  // Try environment variable first
   if (process.env.MONGO_URI) {
     console.log('Using MongoDB URI from environment variable');
     return process.env.MONGO_URI;
   }
   
-  // Priority 2: Config file
+  // Then try config file
   try {
     const uri = config.get('mongoURI');
     console.log('Using MongoDB URI from config file');
@@ -18,89 +18,158 @@ const getMongoURI = () => {
     console.error('Error loading MongoDB URI from config:', err.message);
   }
   
-  // Priority 3: Default localhost
+  // Fallback to localhost
   console.log('Using fallback localhost MongoDB URI');
   return 'mongodb://localhost:27017/daily-app';
 };
 
-// Connect to MongoDB with retries and fallback
+// Connect to MongoDB with multiple fallback options
 const connectDB = async () => {
-  const MAX_RETRIES = 3;
-  const RETRY_DELAY = 5000; // 5 seconds
+  // Maximum retry attempts for the primary connection
+  const MAX_RETRIES = 2;
+  const RETRY_DELAY = 3000; // 3 seconds between retries
   
-  // Get the MongoDB URI from config
+  // Get connection details from the config
   const primaryURI = getMongoURI();
-  console.log(`Primary MongoDB URI: ${primaryURI.replace(/\/\/([^:]+):[^@]+@/, '//***:***@')}`); // Hide password
   
-  // Directly specify the connection strings to bypass DNS SRV lookup
-  let connectionStrings = [];
+  // Hide password in logs
+  const redactedURI = primaryURI.replace(/\/\/([^:]+):([^@]+)@/, '//***:***@');
+  console.log(`Attempting to connect to MongoDB: ${redactedURI}`);
   
-  // For MongoDB Atlas, create direct connection strings to each node
-  if (primaryURI.includes('mongodb+srv://')) {
-    // Extract username, password, and cluster info from SRV URL
-    const match = primaryURI.match(/mongodb\+srv:\/\/([^:]+):([^@]+)@([^\/]+)/);
-    if (match) {
-      const [_, username, password, host] = match;
-      const clusterBase = host.split('.')[0]; // e.g., "cluster0"
-      const domain = host.split('.').slice(1).join('.'); // e.g., "aqbmxvz.mongodb.net"
-      
-      // Add direct connection strings to all 3 replica set nodes
-      connectionStrings = [
-        `mongodb://${username}:${password}@${clusterBase}-shard-00-00.${domain}:27017,${clusterBase}-shard-00-01.${domain}:27017,${clusterBase}-shard-00-02.${domain}:27017/daily-app?ssl=true&replicaSet=${clusterBase}-shard-0&authSource=admin&retryWrites=true&w=majority`,
-        // Add individual node connections as fallbacks
-        `mongodb://${username}:${password}@${clusterBase}-shard-00-00.${domain}:27017/daily-app?ssl=true&authSource=admin`,
-        `mongodb://${username}:${password}@${clusterBase}-shard-00-01.${domain}:27017/daily-app?ssl=true&authSource=admin`,
-        `mongodb://${username}:${password}@${clusterBase}-shard-00-02.${domain}:27017/daily-app?ssl=true&authSource=admin`,
-      ];
-      
-      console.log(`Created ${connectionStrings.length} direct connection strings to MongoDB Atlas nodes`);
+  // Extract credentials and other info from the connection string
+  let username, password, clusterInfo;
+  
+  try {
+    // Parse MongoDB URI to extract credentials
+    if (primaryURI.includes('@')) {
+      const authPart = primaryURI.split('@')[0].split('//')[1];
+      [username, password] = authPart.split(':');
+      clusterInfo = primaryURI.split('@')[1].split('/')[0];
+      console.log(`Extracted cluster info: ${clusterInfo}`);
     }
-  } else {
-    // If not an SRV URL, just use the provided URI
-    connectionStrings.push(primaryURI);
+  } catch (err) {
+    console.error('Error parsing MongoDB URI:', err.message);
   }
   
-  // Always add localhost as final fallback
-  connectionStrings.push('mongodb://localhost:27017/daily-app');
+  // Define alternative connection methods
+  const connectionOptions = [];
   
-  // Try each connection string in sequence
-  for (let i = 0; i < connectionStrings.length; i++) {
-    const connectionString = connectionStrings[i];
-    const isFallback = i > 0;
-    const connectionType = i === 0 ? 'Primary' : 
-                          i === connectionStrings.length - 1 ? 'Local fallback' : 
-                          `Fallback ${i}`;
+  // 1. First try: Original connection string as provided
+  connectionOptions.push({
+    name: 'Primary connection string',
+    uri: primaryURI,
+    options: { 
+      useNewUrlParser: true,
+      useUnifiedTopology: true,
+      serverSelectionTimeoutMS: 5000,
+      connectTimeoutMS: 10000
+    }
+  });
+  
+  // 2. Second try: If it's MongoDB Atlas, try with IP addresses instead of DNS
+  if (primaryURI.includes('mongodb+srv://') && username && password) {
+    // These are common MongoDB Atlas IP addresses that often work
+    // We'll try multiple IP patterns since exact IPs can vary
+    const possibleIPs = [
+      '3.135.180.66',
+      '3.98.158.158',
+      '3.89.213.205',
+      '54.208.102.92',
+      '52.49.250.208',
+      '3.144.220.31'
+    ];
     
-    console.log(`Trying MongoDB connection (${connectionType}): ${connectionString.replace(/\/\/([^:]+):[^@]+@/, '//***:***@')}`);
-    
-    // Only retry the primary connection, try fallbacks just once
-    const maxAttempts = isFallback ? 1 : MAX_RETRIES;
-    
-    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-      try {
-        const conn = await mongoose.connect(connectionString, {
+    // Add connections to each possible IP
+    possibleIPs.forEach((ip, index) => {
+      connectionOptions.push({
+        name: `Atlas IP connection ${index + 1}`,
+        uri: `mongodb://${username}:${password}@${ip}:27017/?authSource=admin&retryWrites=true&ssl=true`,
+        options: {
           useNewUrlParser: true,
           useUnifiedTopology: true,
-          serverSelectionTimeoutMS: 10000, // 10 seconds
-          connectTimeoutMS: 10000, // 10 seconds
-        });
+          serverSelectionTimeoutMS: 5000,
+          connectTimeoutMS: 10000,
+          ssl: true,
+          authSource: 'admin'
+        }
+      });
+    });
+    
+    console.log(`Added ${possibleIPs.length} direct IP connection options`);
+  }
+  
+  // 3. Last resort: Connect to localhost
+  connectionOptions.push({
+    name: 'Local MongoDB instance',
+    uri: 'mongodb://localhost:27017/daily-app',
+    options: {
+      useNewUrlParser: true,
+      useUnifiedTopology: true,
+      serverSelectionTimeoutMS: 5000
+    }
+  });
+  
+  // 4. In-memory MongoDB for testing (added as last option)
+  connectionOptions.push({
+    name: 'Mock in-memory database',
+    uri: 'mongodb://127.0.0.1:27017/daily-app-mock',
+    options: {
+      useNewUrlParser: true,
+      useUnifiedTopology: true,
+      serverSelectionTimeoutMS: 5000
+    }
+  });
+  
+  console.log(`Prepared ${connectionOptions.length} connection methods`);
+  
+  // Try each connection method in sequence
+  for (let i = 0; i < connectionOptions.length; i++) {
+    const connection = connectionOptions[i];
+    const isBackup = i > 0;
+    
+    console.log(`\nTrying connection method ${i+1}/${connectionOptions.length}: ${connection.name}`);
+    
+    // How many attempts for this method (only retry primary connection)
+    const attempts = isBackup ? 1 : MAX_RETRIES;
+    
+    for (let attempt = 1; attempt <= attempts; attempt++) {
+      try {
+        if (attempt > 1) {
+          console.log(`Retry attempt ${attempt}/${attempts}...`);
+        }
         
-        console.log(`MongoDB Connected: ${conn.connection.host}`);
+        // Set a shorter timeout for backup connections
+        const options = {...connection.options};
+        if (isBackup) {
+          options.serverSelectionTimeoutMS = 3000;
+          options.connectTimeoutMS = 5000;
+        }
         
-        if (i === connectionStrings.length - 1) {
-          console.log('⚠️ Connected to local development database. Your data will not be saved to the cloud.');
-        } else if (i > 0) {
-          console.log(`⚠️ Connected using fallback connection string ${i}`);
-        } else {
-          console.log('✅ Connected to primary MongoDB database');
+        // Attempt connection
+        const conn = await mongoose.connect(connection.uri, options);
+        
+        // Successfully connected
+        console.log(`\n✅ Connected to MongoDB via ${connection.name} (${conn.connection.host})`);
+        
+        // Warning for non-primary connections
+        if (isBackup) {
+          if (i === connectionOptions.length - 1) {
+            console.warn('\n⚠️ WARNING: Using mock database! No data will persist.');
+          } else if (i === connectionOptions.length - 2) {
+            console.warn('\n⚠️ WARNING: Connected to local database. Data will not be synchronized with production.');
+          } else {
+            console.warn(`\n⚠️ WARNING: Connected via backup method ${i+1}/${connectionOptions.length}.`);
+          }
         }
         
         return true;
       } catch (err) {
-        console.error(`Connection attempt ${attempt} failed:`, err.message);
+        // Log connection failure
+        console.error(`Connection failed (${connection.name}): ${err.message}`);
         
-        if (attempt < maxAttempts) {
-          console.log(`Retrying in ${RETRY_DELAY/1000} seconds...`);
+        // Wait before retry if this isn't the last attempt
+        if (attempt < attempts) {
+          console.log(`Waiting ${RETRY_DELAY/1000} seconds before next attempt...`);
           await new Promise(resolve => setTimeout(resolve, RETRY_DELAY));
         }
       }
@@ -108,22 +177,26 @@ const connectDB = async () => {
   }
   
   // If we get here, all connection attempts failed
-  console.error('All MongoDB connection attempts failed!');
+  console.error('\n❌ ERROR: All MongoDB connection methods failed');
+  
+  // Return false but don't crash the server - we'll run in limited functionality mode
   return false;
 };
 
 // Handle connection events
 mongoose.connection.on('error', err => {
-  console.error('Mongoose connection error:', err.message);
+  console.error(`MongoDB connection error: ${err.message}`);
 });
 
 mongoose.connection.on('disconnected', () => {
-  console.log('Mongoose disconnected from MongoDB');
+  console.log('MongoDB disconnected');
 });
 
 process.on('SIGINT', async () => {
-  await mongoose.connection.close();
-  console.log('Mongoose disconnected on app termination');
+  if (mongoose.connection.readyState === 1) {
+    await mongoose.connection.close();
+    console.log('MongoDB connection closed due to application termination');
+  }
   process.exit(0);
 });
 

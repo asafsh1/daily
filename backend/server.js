@@ -13,6 +13,7 @@ const Customer = require('./models/Customer');
 const { createServer } = require('http');
 const { Server } = require('socket.io');
 const bodyParser = require('body-parser');
+const net = require('net');
 
 // Initialize Express
 const app = express();
@@ -254,106 +255,121 @@ app.use((err, req, res, next) => {
 // Set the port for the server
 const PORT = process.env.PORT || 5001;
 
-// Function to check if port is available
+// Check if a port is available
 const isPortAvailable = (port) => {
   return new Promise((resolve) => {
-    const net = require('net');
-    const tester = net.createServer()
-      .once('error', () => resolve(false))
-      .once('listening', () => {
-        tester.close();
-        resolve(true);
-      })
-      .listen(port);
+    const server = net.createServer();
+    
+    server.once('error', () => {
+      resolve(false);
+    });
+    
+    server.once('listening', () => {
+      server.close();
+      resolve(true);
+    });
+    
+    server.listen(port);
   });
 };
 
-// Find an available port starting from the specified PORT
+// Find available port starting from the given port
 const findAvailablePort = async (startPort) => {
   let port = startPort;
-  while (!(await isPortAvailable(port))) {
-    console.log(`Port ${port} is not available, trying next port...`);
-    port++;
-    if (port > startPort + 10) {
-      throw new Error('Unable to find an available port after 10 attempts');
+  const MAX_PORT = startPort + 20; // Don't search indefinitely
+  
+  while (port < MAX_PORT) {
+    if (await isPortAvailable(port)) {
+      return port;
     }
+    port++;
   }
-  return port;
+  
+  // If all ports in range are taken, return null
+  return null;
 };
 
-// Start the server
+// Start server with proper error handling
 const startServer = async () => {
   try {
-    // Try to find an available port
-    const availablePort = await findAvailablePort(PORT);
-    
-    // Connect to MongoDB
+    // Connect to database
+    console.log('Connecting to MongoDB...');
     const dbConnected = await connectDB();
     
-    // Start the HTTP server
-    await new Promise((resolve) => {
-      httpServer.listen(availablePort, () => {
-        console.log(`Server started on port ${availablePort}`);
-        resolve();
-      });
-    });
-    
-    // Log database connection status
     if (!dbConnected) {
-      console.warn('\n⚠️ WARNING: Server started with limited functionality due to database connection issues.\n');
+      console.warn('\n⚠️ WARNING: Running with database connection issues. Some features may not work.');
+    } else {
+      console.log('Database connection established.');
     }
     
-    // Set up the Socket.IO server
-    const io = new Server(httpServer, {
-      cors: {
-        origin: "*",
-        methods: ["GET", "POST"],
+    // Check preferred port availability
+    console.log(`Checking if port ${PORT} is available...`);
+    const isAvailable = await isPortAvailable(PORT);
+    
+    if (!isAvailable) {
+      console.warn(`⚠️ Port ${PORT} is already in use. Searching for an available port...`);
+      
+      const alternatePort = await findAvailablePort(PORT + 1);
+      
+      if (alternatePort) {
+        console.log(`Found available port: ${alternatePort}`);
+        startListening(alternatePort);
+      } else {
+        console.error('❌ Could not find an available port! Server cannot start.');
+        process.exit(1);
       }
-    });
-    
-    // Socket.IO connection handlers
-    io.on('connection', (socket) => {
-      console.log('New client connected');
-      
-      socket.on('disconnect', () => {
-        console.log('Client disconnected');
-      });
-      
-      // Add your socket event handlers here
-    });
-    
-    // Setup graceful shutdown
-    process.on('SIGINT', gracefulShutdown);
-    process.on('SIGTERM', gracefulShutdown);
-    
+    } else {
+      startListening(PORT);
+    }
   } catch (err) {
-    console.error('Failed to start server:', err);
+    console.error(`Server initialization error: ${err.message}`);
     process.exit(1);
   }
 };
 
-// Graceful shutdown
-const gracefulShutdown = () => {
-  console.log('\nReceived shutdown signal. Closing server gracefully...');
-  
-  httpServer.close(() => {
-    console.log('HTTP server closed');
+// Helper function to start listening on a port
+const startListening = (port) => {
+  const server = app.listen(port, () => {
+    console.log(`✅ Server running on port ${port}`);
     
-    // Close MongoDB connection
-    if (mongoose.connection.readyState === 1) {
-      mongoose.connection.close();
-      console.log('MongoDB connection closed');
+    // Log all available routes
+    console.log('\nAvailable API routes:');
+    console.log('- /api/users');
+    console.log('- /api/auth');
+    console.log('- /api/profile');
+    console.log('- /api/shipments');
+    console.log('- /api/customers');
+    console.log('- /api/airlines');
+    console.log('- /api/shipment-legs');
+    console.log('- /api/dashboard');
+    console.log('- /api/shippers');
+    console.log('- /api/consignees');
+    console.log('- /api/notify-parties');
+    
+    if (process.env.NODE_ENV === 'production') {
+      console.log('\nServing static frontend files from ../frontend/build');
     }
     
-    console.log('Server shutdown complete');
-    process.exit(0);
+    console.log('\nPress Ctrl+C to stop the server');
   });
   
-  // Force exit after 10 seconds if not closed properly
-  setTimeout(() => {
-    console.log('Forcing shutdown after timeout');
+  // Handle server errors
+  server.on('error', (err) => {
+    if (err.code === 'EADDRINUSE') {
+      console.error(`Port ${port} is already in use. Please try a different port.`);
+    } else {
+      console.error(`Server error: ${err.message}`);
+    }
     process.exit(1);
-  }, 10000);
+  });
+  
+  // Graceful shutdown
+  process.on('SIGTERM', () => {
+    console.log('SIGTERM received. Shutting down gracefully...');
+    server.close(() => {
+      console.log('Process terminated');
+    });
+  });
 };
 
 // Start the server

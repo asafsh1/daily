@@ -8,21 +8,36 @@ import Spinner from '../layout/Spinner';
 import { convertToCSV, downloadCSV } from '../../utils/exportUtils';
 import { toast } from 'react-toastify';
 import { getTrackingUrlSync, hasTracking } from '../../utils/trackingUtils';
+import { Button, Table, Container, Row, Col, Card, Alert } from 'react-bootstrap';
+import './Shipments.css';
 
-const Shipments = ({ getShipments, updateShipment, deleteShipment, shipment: { shipments, loading } }) => {
+const Shipments = ({ getShipments, updateShipment, deleteShipment, shipment: { shipments, loading, error } }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
   const [filteredData, setFilteredData] = useState([]);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deletePassword, setDeletePassword] = useState('');
   const [shipmentToDelete, setShipmentToDelete] = useState(null);
+  const [fetchError, setFetchError] = useState(null);
+  const [retryCount, setRetryCount] = useState(0);
+  const [isRetrying, setIsRetrying] = useState(false);
 
   useEffect(() => {
-    console.log('Calling getShipments()...');
-    getShipments()
-      .then(() => console.log('getShipments completed successfully'))
-      .catch(err => console.error('Error in getShipments:', err));
-  }, [getShipments]);
+    const fetchData = async () => {
+      try {
+        setIsRetrying(true);
+        await getShipments();
+        setFetchError(null);
+      } catch (err) {
+        console.error('Failed to fetch shipments:', err);
+        setFetchError(err.message || 'Failed to load shipments. Please try again later.');
+      } finally {
+        setIsRetrying(false);
+      }
+    };
+
+    fetchData();
+  }, [getShipments, retryCount]);
 
   // Filter shipments when data changes
   useEffect(() => {
@@ -494,78 +509,106 @@ const Shipments = ({ getShipments, updateShipment, deleteShipment, shipment: { s
     );
   };
 
-  return loading ? (
-    <Spinner />
-  ) : (
-    <section className="container">
-      <h1 className="large text-primary">Shipments</h1>
-      <p className="lead">
-        <i className="fas fa-shipping-fast"></i> View and manage shipments
-      </p>
-      
-      <div className="shipment-controls">
-        <div className="search-filter">
-          <input
-            type="text"
-            placeholder="Search by customer or AWB..."
-            value={searchTerm}
-            onChange={e => setSearchTerm(e.target.value)}
-            className="search-input"
-          />
-          <select
-            value={filterStatus}
-            onChange={e => setFilterStatus(e.target.value)}
-          >
-            <option value="">All Statuses</option>
-            <option value="Pending">Pending</option>
-            <option value="In Transit">In Transit</option>
-            <option value="Arrived">Arrived</option>
-            <option value="Delayed">Delayed</option>
-            <option value="Canceled">Canceled</option>
-          </select>
+  // Determine what to display based on loading and error states
+  const renderContent = () => {
+    // Show spinner when initially loading
+    if (loading && !fetchError && shipments.length === 0) {
+      return (
+        <div className="d-flex justify-content-center my-5">
+          <Spinner />
         </div>
-        <div className="action-buttons">
-          <button 
-            onClick={handleExportCSV} 
-            className="btn btn-success"
-            title="Export to CSV"
-          >
-            <i className="fas fa-file-csv"></i> Export CSV
-          </button>
-          <Link to="/add-shipment" className="btn btn-primary">
-            Add Shipment
-          </Link>
-        </div>
-      </div>
+      );
+    }
 
+    // Show error message if there's an error
+    if ((fetchError || error) && shipments.length === 0) {
+      return (
+        <Alert variant="danger" className="my-3">
+          <Alert.Heading>Error Loading Shipments</Alert.Heading>
+          <p>{fetchError || error || 'There was a problem loading the shipments data.'}</p>
+          <div className="d-flex justify-content-end">
+            <Button 
+              variant="outline-danger" 
+              onClick={handleRetry}
+              disabled={isRetrying}
+            >
+              {isRetrying ? 'Retrying...' : 'Retry'}
+            </Button>
+          </div>
+        </Alert>
+      );
+    }
+
+    // Show empty state if no shipments and no error
+    if (shipments.length === 0) {
+      return (
+        <Card className="text-center my-3 border-light">
+          <Card.Body className="py-5">
+            <Card.Title>No Shipments Found</Card.Title>
+            <Card.Text>
+              There are no shipments to display at the moment.
+            </Card.Text>
+            <Button as={Link} to="/create-shipment" variant="primary">
+              Create Your First Shipment
+            </Button>
+          </Card.Body>
+        </Card>
+      );
+    }
+
+    // Show shipments table with data
+    return (
       <div className="table-responsive">
-        <table className="table">
+        <Table hover className="shipments-table">
           <thead>
             <tr>
-              <th>Serial #</th>
-              <th>Date Added</th>
-              <th>Customer</th>
-              <th>AWBs</th>
-              <th>Routing</th>
-              <th>Order Status</th>
-              <th>Shipment Status</th>
-              <th>Departure</th>
-              <th>Arrival</th>
-              <th>Invoiced</th>
-              <th>Actions</th>
+              <th className="column-sm">No.</th>
+              <th className="column-lg">Shipper</th>
+              <th className="column-md">Origin</th>
+              <th className="column-md">Destination</th>
+              <th className="column-md">Status</th>
+              <th className="column-lg">Mode</th>
+              <th className="column-md">Date</th>
+              <th className="column-sm">Actions</th>
             </tr>
           </thead>
           <tbody>
-            {filteredData.length > 0 ? (
-              filteredData.map(shipment => renderShipmentRow(shipment))
-            ) : (
-              <tr>
-                <td colSpan="11">No shipments found</td>
-              </tr>
-            )}
+            {shipments.map((shipment, index) => (
+              <ShipmentItem key={shipment._id} shipment={shipment} index={index} />
+            ))}
           </tbody>
-        </table>
+        </Table>
       </div>
+    );
+  };
+
+  const handleRetry = () => {
+    setRetryCount(prevCount => prevCount + 1);
+  };
+
+  return (
+    <Container fluid className="px-4">
+      <Row className="my-4">
+        <Col>
+          <div className="d-flex justify-content-between align-items-center mb-4">
+            <h1 className="mb-0">Shipments</h1>
+            <div>
+              <Button as={Link} to="/create-shipment" variant="primary">
+                Create New Shipment
+              </Button>
+            </div>
+          </div>
+          
+          {/* Show a small refreshing indicator when retrying but there's already data */}
+          {isRetrying && shipments.length > 0 && (
+            <Alert variant="info" className="py-2 mb-3">
+              <small>Refreshing shipments data...</small>
+            </Alert>
+          )}
+          
+          {renderContent()}
+        </Col>
+      </Row>
 
       {/* Delete Confirmation Modal */}
       {showDeleteModal && (
@@ -611,7 +654,7 @@ const Shipments = ({ getShipments, updateShipment, deleteShipment, shipment: { s
           </div>
         </div>
       )}
-    </section>
+    </Container>
   );
 };
 
