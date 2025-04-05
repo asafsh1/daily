@@ -293,4 +293,99 @@ router.put('/reassign/:tempId/:shipmentId', auth, async (req, res) => {
   }
 });
 
+// @route   POST api/shipment-legs/add-to-shipment/:shipmentId
+// @desc    Add a leg directly to a shipment by ID
+// @access  Private
+router.post(
+  '/add-to-shipment/:shipmentId',
+  [
+    auth,
+    [
+      check('from', 'Origin location is required').not().isEmpty(),
+      check('to', 'Destination location is required').not().isEmpty()
+    ]
+  ],
+  async (req, res) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
+    }
+
+    try {
+      const shipmentId = req.params.shipmentId;
+      console.log(`Adding leg directly to shipment: ${shipmentId}`);
+      
+      // Find the associated shipment
+      const shipment = await Shipment.findById(shipmentId);
+      if (!shipment) {
+        return res.status(404).json({ msg: 'Shipment not found' });
+      }
+
+      // Extract fields from request
+      const {
+        from,
+        to, 
+        carrier,
+        departureDate,
+        arrivalDate,
+        trackingNumber,
+        status,
+        notes,
+        legOrder
+      } = req.body;
+
+      // Create new leg document
+      const newLeg = new ShipmentLeg({
+        shipment: shipmentId,
+        from,
+        to,
+        carrier: carrier || '',
+        departureDate,
+        arrivalDate,
+        trackingNumber: trackingNumber || '',
+        status: status || 'pending',
+        notes: notes || '',
+        legOrder: legOrder || 0
+      });
+
+      console.log(`Saving new leg from ${from} to ${to}`);
+      const savedLeg = await newLeg.save();
+      console.log(`Leg saved with ID: ${savedLeg._id}`);
+
+      // Initialize legs array if it doesn't exist
+      if (!shipment.legs) {
+        shipment.legs = [];
+      }
+      
+      // Add the leg to the shipment's legs array
+      shipment.legs.push(savedLeg._id);
+      console.log(`Added leg ID ${savedLeg._id} to shipment's legs array`);
+
+      // Update the shipment's change log
+      shipment.changeLog.push({
+        timestamp: new Date(),
+        user: req.user.id,
+        action: 'added-leg',
+        details: `Added leg from ${from} to ${to}`
+      });
+
+      await shipment.save();
+      console.log(`Updated shipment with new leg reference`);
+
+      res.json({
+        success: true,
+        leg: savedLeg,
+        message: 'Leg added to shipment successfully'
+      });
+    } catch (err) {
+      console.error(`Error adding leg to shipment: ${err.message}`);
+      res.status(500).json({ 
+        success: false,
+        error: 'Server Error',
+        message: err.message
+      });
+    }
+  }
+);
+
 module.exports = router; 

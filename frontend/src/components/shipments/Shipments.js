@@ -256,23 +256,25 @@ const Shipments = ({ getShipments, updateShipment, deleteShipment, shipment: { s
                       : 'Unknown';
                       
                     const origin = shipment.origin || 
-                      (shipment.legs && shipment.legs[0] ? shipment.legs[0].origin : 'N/A');
+                      (shipment.legs && shipment.legs[0] ? 
+                        (shipment.legs[0].origin || shipment.legs[0].from) : 'N/A');
                       
                     const destination = shipment.destination || 
                       (shipment.legs && shipment.legs.length > 0 ? 
-                        shipment.legs[shipment.legs.length-1].destination : 'N/A');
+                        (shipment.legs[shipment.legs.length-1].destination || 
+                         shipment.legs[shipment.legs.length-1].to) : 'N/A');
                     
                     const status = shipment.shipmentStatus || 'Pending';
                     
-                    // Get dates from either direct properties or legs
+                    // Get dates from either direct properties or legs - with better fallback logic
                     const departureDate = shipment.departureDate || 
-                      (shipment.legs && shipment.legs[0] ? 
-                        (shipment.legs[0].departureDate || shipment.legs[0].departureTime) : null);
+                      (shipment.legs && shipment.legs[0] && 
+                       (shipment.legs[0].departureDate || shipment.legs[0].departureTime)) || null;
                         
                     const arrivalDate = shipment.arrivalDate || 
-                      (shipment.legs && shipment.legs.length > 0 ? 
-                        (shipment.legs[shipment.legs.length-1].arrivalDate || 
-                         shipment.legs[shipment.legs.length-1].arrivalTime) : null);
+                      (shipment.legs && shipment.legs.length > 0 && 
+                       (shipment.legs[shipment.legs.length-1].arrivalDate || 
+                        shipment.legs[shipment.legs.length-1].arrivalTime)) || null;
                     
                     // Status badge class
                     const getStatusClass = (status) => {

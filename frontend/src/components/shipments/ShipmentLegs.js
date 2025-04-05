@@ -206,17 +206,25 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
           }
         ]);
       } else {
-        // Add to existing shipment
-        const response = await axios.post(`/api/shipment-legs`, {
-          ...formattedData,
-          shipment: shipmentId,
-          changeLog: [changeLogEntry]
-        });
+        // Use the direct endpoint to add leg to the shipment
+        try {
+          // First try the direct add-to-shipment endpoint which is more reliable
+          console.log(`Using direct add-to-shipment endpoint for shipmentId: ${shipmentId}`);
+          const response = await axios.post(`/api/shipment-legs/add-to-shipment/${shipmentId}`, formattedData);
+          console.log("Server response from direct add endpoint:", response.data);
+        } catch (directAddError) {
+          // Fallback to the original endpoint if the direct one fails
+          console.warn("Direct leg add failed, using fallback endpoint:", directAddError.message);
+          const response = await axios.post(`/api/shipment-legs`, {
+            ...formattedData,
+            shipment: shipmentId,
+            changeLog: [changeLogEntry]
+          });
+          console.log("Server response from fallback endpoint:", response.data);
+        }
         
-        console.log("Server response after adding leg:", response.data);
-        
-        // Refresh the legs list
-        fetchLegs();
+        // Always refresh the legs list after adding
+        await fetchLegs();
       }
 
       // Reset form state
