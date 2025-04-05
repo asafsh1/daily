@@ -61,7 +61,8 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
         return;
       }
       
-      // Get the full shipment which should include leg information
+      // First try getting the full shipment which should include leg information
+      console.log(`Requesting shipment data for ID: ${shipmentId}`);
       const shipmentResponse = await axios.get(`/api/shipments/${shipmentId}`);
       console.log(`Received shipment data:`, shipmentResponse.data);
       
@@ -69,7 +70,7 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
       let shipmentLegs = [];
       if (shipmentResponse.data?.legs && Array.isArray(shipmentResponse.data.legs)) {
         shipmentLegs = shipmentResponse.data.legs;
-        console.log(`Found ${shipmentLegs.length} legs in shipment response`);
+        console.log(`Found ${shipmentLegs.length} legs in shipment response:`, shipmentLegs);
       }
       
       // If no legs found in the shipment, try the dedicated legs endpoint as fallback
@@ -77,6 +78,7 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
         try {
           console.log(`No legs found in shipment data, trying direct legs endpoint`);
           const legsResponse = await axios.get(`/api/shipment-legs/${shipmentId}`);
+          console.log(`Legs endpoint response:`, legsResponse.data);
           
           if (Array.isArray(legsResponse.data) && legsResponse.data.length > 0) {
             shipmentLegs = legsResponse.data;
@@ -84,6 +86,40 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
           }
         } catch (legErr) {
           console.error(`Error fetching from legs endpoint:`, legErr);
+          // Try to find legs in the parent shipment object format as last resort
+          if (shipmentResponse.data && typeof shipmentResponse.data === 'object') {
+            // Look for any arrays that might contain leg information
+            for (const key in shipmentResponse.data) {
+              if (Array.isArray(shipmentResponse.data[key]) && 
+                  shipmentResponse.data[key].length > 0 &&
+                  (shipmentResponse.data[key][0].origin || 
+                   shipmentResponse.data[key][0].from)) {
+                shipmentLegs = shipmentResponse.data[key];
+                console.log(`Found potential legs array in field: ${key}`);
+                break;
+              }
+            }
+          }
+        }
+      }
+      
+      // Last resort - create a basic leg from shipment origin/destination if available
+      if (shipmentLegs.length === 0 && shipmentResponse.data) {
+        const shipment = shipmentResponse.data;
+        if (shipment.origin && shipment.destination) {
+          console.log(`Creating basic leg from shipment origin/destination`);
+          shipmentLegs = [{
+            _id: `temp-leg-${Date.now()}`,
+            legOrder: 1,
+            from: shipment.origin,
+            to: shipment.destination,
+            origin: shipment.origin,
+            destination: shipment.destination,
+            departureDate: shipment.departureDate,
+            arrivalDate: shipment.arrivalDate,
+            carrier: shipment.carrier || 'Unknown',
+            status: shipment.status || 'pending'
+          }];
         }
       }
       
@@ -97,7 +133,7 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
           (Number(a.legOrder) || 0) - (Number(b.legOrder) || 0)
         );
         
-        console.log(`Processed ${sortedLegs.length} legs for display`);
+        console.log(`Processed ${sortedLegs.length} legs for display:`, sortedLegs);
         setLegs(sortedLegs);
         setError(null);
       } else {
@@ -397,78 +433,35 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
   // Helper function to map old leg fields to new field names and handle both formats
   const normalizeLegs = (legs) => {
     if (!Array.isArray(legs)) {
-      console.error("ShipmentLegs.normalizeLegs: Input is not an array:", legs);
+      console.error('normalizeLegs received non-array:', legs);
       return [];
     }
     
-    console.log("ShipmentLegs.normalizeLegs: Normalizing", legs.length, "legs");
-    
-    return legs.map((leg, index) => {
-      if (!leg) {
-        console.warn(`ShipmentLegs.normalizeLegs: Leg at index ${index} is null or undefined`);
-        return null;
-      }
+    return legs.map(leg => {
+      // Handle potential null legs
+      if (!leg) return null;
       
-      // Create a debug copy to track field mapping
-      const debugMapping = {};
-      
-      // Map ID fields
-      debugMapping._id = leg._id || `temp-leg-${index}`;
-      debugMapping.legId = leg.legId || `LEG-${leg._id ? leg._id.substring(0, 8) : index}`;
-      
-      // Map shipment reference
-      debugMapping.shipment = leg.shipment || shipmentId;
-      
-      // Map origin/destination fields
-      debugMapping.from = leg.from || leg.origin || '';
-      debugMapping.to = leg.to || leg.destination || '';
-      
-      // Map carrier/flight fields
-      debugMapping.carrier = leg.carrier || leg.flightNumber || leg.airline || '';
-      
-      // Map date fields - preserve the original date type/format
-      debugMapping.departureDate = leg.departureDate || leg.departureTime || null;
-      debugMapping.arrivalDate = leg.arrivalDate || leg.arrivalTime || null;
-      
-      // Map tracking fields
-      debugMapping.trackingNumber = leg.trackingNumber || leg.awbNumber || leg.mawbNumber || '';
-      
-      // Map status and order fields
-      debugMapping.status = leg.status || 'pending';
-      debugMapping.legOrder = typeof leg.legOrder === 'number' ? leg.legOrder : (typeof leg.order === 'number' ? leg.order : index);
-      
-      // Map notes
-      debugMapping.notes = leg.notes || '';
-      
-      // Preserve any other relevant fields
-      debugMapping.changeLog = leg.changeLog || [];
-      debugMapping.statusHistory = leg.statusHistory || [];
-      
-      console.log(`ShipmentLegs.normalizeLegs: Normalized leg ${index}:`, debugMapping);
-      
-      // Create the actual normalized leg object
-      return {
-        _id: leg._id || `temp-leg-${index}`,
-        legId: leg.legId || `LEG-${leg._id ? leg._id.substring(0, 8) : index}`,
-        shipment: leg.shipment || shipmentId,
-        // Map both possible origin/destination fields
+      const normalizedLeg = {
+        _id: leg._id || leg.id || `temp-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
+        legOrder: leg.legOrder || leg.order || 0,
         from: leg.from || leg.origin || '',
         to: leg.to || leg.destination || '',
-        // Map both possible carrier/flight fields
-        carrier: leg.carrier || leg.flightNumber || leg.airline || '',
-        // Map both possible date fields
+        origin: leg.origin || leg.from || '',
+        destination: leg.destination || leg.to || '',
+        carrier: leg.carrier || leg.airline || leg.shippingLine || '',
         departureDate: leg.departureDate || leg.departureTime || null,
         arrivalDate: leg.arrivalDate || leg.arrivalTime || null,
-        // Map tracking fields
-        trackingNumber: leg.trackingNumber || leg.awbNumber || leg.mawbNumber || '',
+        trackingNumber: leg.trackingNumber || leg.awbNumber || leg.trackingId || '',
         status: leg.status || 'pending',
-        legOrder: typeof leg.legOrder === 'number' ? leg.legOrder : (typeof leg.order === 'number' ? leg.order : index),
         notes: leg.notes || '',
-        // Preserve any other relevant fields
-        changeLog: leg.changeLog || [],
-        statusHistory: leg.statusHistory || []
+        
+        // Preserve any other properties
+        ...leg
       };
-    }).filter(leg => leg !== null); // Remove any null legs
+      
+      console.log(`Normalized leg ${normalizedLeg.legOrder}: ${normalizedLeg.from} to ${normalizedLeg.to}`);
+      return normalizedLeg;
+    }).filter(Boolean); // Remove any null legs
   };
 
   if (loading) {

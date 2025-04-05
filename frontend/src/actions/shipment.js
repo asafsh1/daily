@@ -20,101 +20,80 @@ const socket = io(process.env.REACT_APP_SOCKET_URL || 'http://localhost:5001');
 // Get all shipments
 export const getShipments = () => async (dispatch) => {
   try {
-    console.log('Fetching all shipments...');
-    dispatch({ type: SHIPMENTS_LOADING });
+    dispatch(setShipmentsLoading());
+    console.log('Calling API to get shipments...');
     
     const res = await axios.get('/api/shipments');
-    console.log('Raw API response:', res.data);
     
-    // Extract shipments with minimal processing
-    let shipmentData = res.data;
+    // Debug the API response
+    console.log('API response for shipments:', res.data);
     
-    // Handle case where response has a shipments property (newer API format)
-    if (res.data && typeof res.data === 'object' && res.data.shipments) {
-      console.log('Found shipments property in response, using that directly');
-      shipmentData = res.data.shipments;
-      console.log(`Shipments array has ${shipmentData.length} items`);
+    // Ensure we're getting an array of shipments
+    let shipmentsArray = [];
+    
+    if (Array.isArray(res.data)) {
+      shipmentsArray = res.data;
+    } else if (res.data && Array.isArray(res.data.shipments)) {
+      shipmentsArray = res.data.shipments;
+    } else if (res.data && typeof res.data === 'object') {
+      // If it's an object but not an array, wrap it in an array
+      shipmentsArray = [res.data];
     }
     
-    // Don't filter or transform data - just ensure it's an array
-    if (!Array.isArray(shipmentData)) {
-      console.error('Error: API did not return an array:', shipmentData);
-      shipmentData = [];
-    } else if (shipmentData.length > 0) {
-      console.log('First shipment sample:', JSON.stringify(shipmentData[0]).substring(0, 200));
-    }
-    
-    console.log(`Returning ${shipmentData.length} shipments`);
+    console.log(`Processed ${shipmentsArray.length} shipments`);
     
     dispatch({
       type: GET_SHIPMENTS,
-      payload: shipmentData
+      payload: shipmentsArray
     });
     
-    return shipmentData;
+    return shipmentsArray;
   } catch (err) {
     console.error('Error fetching shipments:', err);
     
-    // Get detailed error information
-    const errorMessage = err.response?.data?.message || err.message;
-    
     dispatch({
       type: SHIPMENT_ERROR,
-      payload: { 
-        msg: errorMessage, 
-        status: err.response?.status || 'Network Error'
-      }
+      payload: { msg: err.response?.data?.msg || 'Failed to fetch shipments', status: err.response?.status }
     });
     
-    // Return empty array to prevent UI errors
-    return [];
+    throw err;
   }
 };
 
 // Get single shipment by ID
 export const getShipment = (id) => async (dispatch) => {
   try {
-    dispatch({
-      type: SHIPMENT_LOADING
-    });
-
-    console.log(`Fetching shipment with ID: ${id}`);
+    dispatch(setShipmentsLoading());
+    
+    if (!id) {
+      throw new Error('Shipment ID is required');
+    }
+    
     const res = await axios.get(`/api/shipments/${id}`);
-    console.log(`Shipment API response:`, res.data);
     
-    let shipmentData = res.data;
+    // Log the shipment for debugging
+    console.log('Fetched shipment details:', res.data);
     
-    // Check if there are legs in the response and log them
-    if (shipmentData.legs && Array.isArray(shipmentData.legs)) {
-      console.log(`Shipment has ${shipmentData.legs.length} legs in the response`);
-    } else {
-      console.log(`Shipment has no legs array in the response`);
-      shipmentData.legs = []; // Ensure legs is always an array
+    // Make sure legs array exists
+    const shipment = res.data;
+    if (!shipment.legs) {
+      shipment.legs = [];
     }
     
     dispatch({
       type: GET_SHIPMENT,
-      payload: shipmentData
+      payload: shipment
     });
     
-    return shipmentData;
+    return shipment;
   } catch (err) {
     console.error('Error fetching shipment:', err);
     
-    // Get detailed error information
-    const errorMessage = err.response && err.response.data 
-      ? err.response.data.message 
-      : err.message;
-      
     dispatch({
       type: SHIPMENT_ERROR,
-      payload: { 
-        msg: errorMessage, 
-        status: err.response ? err.response.status : 'Network Error'
-      }
+      payload: { msg: err.response?.data?.msg || 'Failed to fetch shipment', status: err.response?.status }
     });
     
-    // Re-throw so callers can handle it
     throw err;
   }
 };

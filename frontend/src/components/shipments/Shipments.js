@@ -239,7 +239,6 @@ const Shipments = ({ getShipments, updateShipment, deleteShipment, shipment: { s
                     <th>Origin</th>
                     <th>Destination</th>
                     <th>Status</th>
-                    <th>Mode</th>
                     <th>Departure</th>
                     <th>Arrival</th>
                     <th>Actions</th>
@@ -263,8 +262,7 @@ const Shipments = ({ getShipments, updateShipment, deleteShipment, shipment: { s
                       (shipment.legs && shipment.legs.length > 0 ? 
                         shipment.legs[shipment.legs.length-1].destination : 'N/A');
                     
-                    const status = shipment.status || shipment.shipmentStatus || 'Pending';
-                    const mode = shipment.mode || 'Air';
+                    const status = shipment.shipmentStatus || 'Pending';
                     
                     // Get dates from either direct properties or legs
                     const departureDate = shipment.departureDate || 
@@ -307,7 +305,6 @@ const Shipments = ({ getShipments, updateShipment, deleteShipment, shipment: { s
                             {status}
                           </span>
                         </td>
-                        <td>{mode}</td>
                         <td>
                           {departureDate ? (
                             <Moment format="MM/DD/YYYY">{departureDate}</Moment>
