@@ -26,49 +26,32 @@ export const getShipments = () => async (dispatch) => {
     const res = await axios.get('/api/shipments');
     console.log('Raw API response:', res.data);
     
-    // Handle different response formats from API
-    // The API might return { shipments: [...] } or directly an array
+    // Extract shipments with minimal processing
     let shipmentData = res.data;
     
-    // Check if response has a shipments property (newer API format)
+    // Handle case where response has a shipments property (newer API format)
     if (res.data && typeof res.data === 'object' && res.data.shipments) {
-      console.log('Found shipments property in response');
+      console.log('Found shipments property in response, using that directly');
       shipmentData = res.data.shipments;
+      console.log(`Shipments array has ${shipmentData.length} items`);
     }
     
-    // Ensure we have an array and every item is an object
+    // Don't filter or transform data - just ensure it's an array
     if (!Array.isArray(shipmentData)) {
-      console.error('Shipment data is not an array, using empty array instead:', shipmentData);
+      console.error('Error: API did not return an array:', shipmentData);
       shipmentData = [];
+    } else if (shipmentData.length > 0) {
+      console.log('First shipment sample:', JSON.stringify(shipmentData[0]).substring(0, 200));
     }
     
-    // IMPORTANT: Do very light normalization, don't filter anything out
-    const normalizedShipments = shipmentData
-      .map(shipment => {
-        if (!shipment || typeof shipment !== 'object') {
-          console.warn('Non-object shipment found:', shipment);
-          // Convert to object if it's not already
-          return { _id: `temp-${Date.now()}-${Math.random()}`, rawValue: shipment };
-        }
-        
-        // Generate temporary ID for shipments missing ID
-        // This ensures they still show up in the UI
-        if (!shipment._id) {
-          console.warn('Shipment missing _id, generating temporary one:', shipment);
-          shipment._id = `temp-${Date.now()}-${Math.random()}`;
-        }
-        
-        return shipment;
-      });
-    
-    console.log(`Returning ${normalizedShipments.length} shipments`);
+    console.log(`Returning ${shipmentData.length} shipments`);
     
     dispatch({
       type: GET_SHIPMENTS,
-      payload: normalizedShipments
+      payload: shipmentData
     });
     
-    return normalizedShipments;
+    return shipmentData;
   } catch (err) {
     console.error('Error fetching shipments:', err);
     
