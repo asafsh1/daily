@@ -172,6 +172,25 @@ const Shipments = ({ getShipments, updateShipment, deleteShipment, shipment: { s
     downloadCSV(csvContent, fileName);
   };
 
+  // Helper function to normalize leg fields for display, handling both old and new field formats
+  const normalizeShipmentLeg = (leg) => {
+    if (!leg) return null;
+    
+    return {
+      ...leg,
+      // Map from/to fields from different possible sources
+      from: leg.from || leg.origin || '',
+      to: leg.to || leg.destination || '',
+      // Map carrier/airline fields
+      carrier: leg.carrier || leg.flightNumber || leg.airline || '',
+      // Map date fields
+      departureDate: leg.departureDate || leg.departureTime || null,
+      arrivalDate: leg.arrivalDate || leg.arrivalTime || null,
+      // Map tracking fields
+      trackingNumber: leg.trackingNumber || leg.awbNumber || leg.mawbNumber || ''
+    };
+  };
+
   // Helper function to get unique AWBs from shipment legs
   const getUniqueAWBs = (shipment) => {
     if (!shipment.legs || !Array.isArray(shipment.legs) || shipment.legs.length === 0) {
@@ -185,68 +204,37 @@ const Shipments = ({ getShipments, updateShipment, deleteShipment, shipment: { s
     // Create a map to store AWBs with their corresponding leg numbers
     const awbMap = new Map();
     
-    // DEBUG: Log leg data to see what fields are available
-    console.log('Leg data for shipment', shipment.serialNumber, ':', shipment.legs.map(leg => {
-      if (!leg) return 'null leg';
-      return {
-        legOrder: leg.legOrder,
-        awbNumber: leg.awbNumber,
-        mawbNumber: leg.mawbNumber,
-        awb: leg.awb
-      };
-    }));
-    
-    // Process all legs and their AWBs
-    shipment.legs.forEach(leg => {
+    // Process all legs and their AWBs, handling both old and new field formats
+    shipment.legs.forEach((leg, index) => {
       if (!leg) return;
       
-      // Check for all possible AWB fields in the leg
-      const awbFields = ['awbNumber', 'awb', 'awbNumber1', 'awbNumber2'];
-      let foundAwb = false;
+      // Normalize the leg to handle different field formats
+      const normalizedLeg = normalizeShipmentLeg(leg);
       
-      awbFields.forEach(field => {
-        const awbValue = leg[field];
-        if (awbValue && typeof awbValue === 'string' && awbValue.trim() !== '') {
-          foundAwb = true;
-          // If this AWB is already in the map, add this leg number to the list
-          if (awbMap.has(awbValue)) {
-            const existingData = awbMap.get(awbValue);
-            existingData.legNumbers.push(leg.legOrder || 'unknown');
-          } else {
-            // Otherwise create a new entry
-            awbMap.set(awbValue, {
-              awb: awbValue,
-              legNumbers: [leg.legOrder || 'unknown']
-            });
-          }
-        }
-      });
+      // Get leg index/number for display (1-based indexing for display)
+      const legNumber = normalizedLeg.legOrder || (index + 1);
       
-      // If no AWB was found but there's a MAWB, use the MAWB as the AWB
-      if (!foundAwb && leg.mawbNumber && typeof leg.mawbNumber === 'string' && leg.mawbNumber.trim() !== '') {
-        if (awbMap.has(leg.mawbNumber)) {
-          const existingData = awbMap.get(leg.mawbNumber);
-          existingData.legNumbers.push(leg.legOrder || 'unknown');
+      // Get AWB from any available field
+      const awb = normalizedLeg.trackingNumber || '';
+      
+      if (awb && awb.trim() !== '') {
+        // If AWB exists in map, add this leg number
+        if (awbMap.has(awb)) {
+          awbMap.get(awb).legNumbers.push(legNumber);
         } else {
-          awbMap.set(leg.mawbNumber, {
-            awb: leg.mawbNumber,
-            legNumbers: [leg.legOrder || 'unknown'],
-            isMawb: true
-          });
+          // Otherwise create a new entry
+          awbMap.set(awb, { awb, legNumbers: [legNumber] });
         }
       }
     });
     
-    // Also check for direct AWB properties on the shipment itself
-    if (shipment.awbNumber1 && !awbMap.has(shipment.awbNumber1)) {
-      awbMap.set(shipment.awbNumber1, {awb: shipment.awbNumber1, legNumbers: []});
-    }
-    if (shipment.awbNumber2 && !awbMap.has(shipment.awbNumber2)) {
-      awbMap.set(shipment.awbNumber2, {awb: shipment.awbNumber2, legNumbers: []});
-    }
-    
-    // Convert the map to an array with formatted AWB strings
-    return Array.from(awbMap.values());
+    // Convert map to array and sort by leg number (first leg first)
+    return Array.from(awbMap.values()).sort((a, b) => {
+      // Sort by the smallest leg number in each AWB's legNumbers array
+      const aMin = Math.min(...a.legNumbers);
+      const bMin = Math.min(...b.legNumbers);
+      return aMin - bMin;
+    });
   };
   
   // Helper function to normalize shipment status
@@ -300,6 +288,50 @@ const Shipments = ({ getShipments, updateShipment, deleteShipment, shipment: { s
     
     // If all legs are pending or no legs have status, return the first leg
     return 0;
+  };
+
+  // Helper function to calculate routing from legs for display
+  const getShipmentRouting = (shipment) => {
+    if (!shipment) return 'N/A';
+    
+    // If the shipment already has a routing property, use it
+    if (shipment.routing && typeof shipment.routing === 'string') {
+      return shipment.routing;
+    }
+    
+    // If no legs, return N/A
+    if (!shipment.legs || !Array.isArray(shipment.legs) || shipment.legs.length === 0) {
+      return 'N/A';
+    }
+    
+    try {
+      // Sort legs by legOrder
+      const sortedLegs = [...shipment.legs].sort((a, b) => 
+        (a.legOrder || 0) - (b.legOrder || 0)
+      );
+      
+      // Extract routing points from legs, handling both field formats
+      const routePoints = [];
+      
+      sortedLegs.forEach((leg, index) => {
+        // Normalize leg to handle different field formats
+        const normalizedLeg = normalizeShipmentLeg(leg);
+        
+        // Add origin for first leg
+        if (index === 0) {
+          routePoints.push(normalizedLeg.from || 'N/A');
+        }
+        
+        // Add destination for all legs
+        routePoints.push(normalizedLeg.to || 'N/A');
+      });
+      
+      // Join points with hyphens
+      return routePoints.join('-');
+    } catch (err) {
+      console.error('Error calculating routing for shipment:', err);
+      return 'Error';
+    }
   };
 
   return loading ? (
@@ -379,87 +411,29 @@ const Shipments = ({ getShipments, updateShipment, deleteShipment, shipment: { s
                         : shipment.customer || 'Unknown')}
                   </td>
                   <td>
-                    {shipment.legs && shipment.legs.length > 0 ? (
-                      <div className="awb-list">
-                        {getUniqueAWBs(shipment).length > 0 ? (
-                          getUniqueAWBs(shipment).map((data, index) => (
-                            <div key={index} className="leg-awb" style={{marginBottom: '3px'}}>
-                              {data.isMawb ? (
-                                <span><small>MAWB:</small> {' '}
-                                  {hasTracking(data.awb) ? (
-                                    <a 
-                                      href={getTrackingUrlSync(data.awb)} 
-                                      target="_blank" 
-                                      rel="noopener noreferrer"
-                                      className="awb-tracking-link"
-                                      title="Track shipment"
-                                    >
-                                      {data.awb} <i className="fas fa-external-link-alt fa-xs"></i>
-                                    </a>
-                                  ) : (
-                                    data.awb
-                                  )}
-                                </span>
-                              ) : (
-                                <span>
-                                  {hasTracking(data.awb) ? (
-                                    <a 
-                                      href={getTrackingUrlSync(data.awb)} 
-                                      target="_blank" 
-                                      rel="noopener noreferrer"
-                                      className="awb-tracking-link"
-                                      title="Track shipment"
-                                    >
-                                      {data.awb} <i className="fas fa-external-link-alt fa-xs"></i>
-                                    </a>
-                                  ) : (
-                                    data.awb
-                                  )}
-                                  {data.legNumbers.length > 1 
-                                    ? ` (Leg ${data.legNumbers.join('/')})`
-                                    : data.legNumbers.length === 1
-                                      ? ` (Leg ${data.legNumbers[0]})`
-                                      : ''}
-                                </span>
-                              )}
-                            </div>
-                          ))
-                        ) : (
-                          <div>No AWBs found</div>
-                        )}
-                      </div>
-                    ) : (
-                      shipment.awbNumber1 ? (
-                        hasTracking(shipment.awbNumber1) ? (
-                          <a 
-                            href={getTrackingUrlSync(shipment.awbNumber1)} 
-                            target="_blank" 
-                            rel="noopener noreferrer"
-                            className="awb-tracking-link"
-                            title="Track shipment"
-                          >
-                            {shipment.awbNumber1} <i className="fas fa-external-link-alt fa-xs"></i>
-                          </a>
-                        ) : (
-                          shipment.awbNumber1
-                        )
-                      ) : 'No AWBs'
-                    )}
+                    {getUniqueAWBs(shipment).map((awbInfo, index) => {
+                      const awb = awbInfo.awb;
+                      return (
+                        <div key={index} className="awb-item">
+                          {hasTracking(awb) ? (
+                            <a 
+                              href={getTrackingUrlSync(awb)} 
+                              target="_blank" 
+                              rel="noopener noreferrer"
+                              className="awb-tracking-link"
+                              title="Track shipment"
+                            >
+                              {awb} <i className="fas fa-external-link-alt fa-xs"></i>
+                            </a>
+                          ) : (
+                            <span>{awb}</span>
+                          )}
+                        </div>
+                      );
+                    })}
                   </td>
                   <td>
-                    {shipment.legs && shipment.legs.length > 0 ? (
-                      // Calculate routing from legs
-                      <div className="routing">
-                        {shipment.legs.map((leg, index) => (
-                          <span key={index}>
-                            {index === 0 ? leg.origin : ""}
-                            {index >= 0 ? "-" + leg.destination : ""}
-                          </span>
-                        ))}
-                      </div>
-                    ) : (
-                      shipment.routing || '-'
-                    )}
+                    {getShipmentRouting(shipment)}
                   </td>
                   <td>
                     <span 
