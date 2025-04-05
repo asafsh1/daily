@@ -575,14 +575,16 @@ const Shipments = ({ getShipments, updateShipment, deleteShipment, shipment: { s
           </thead>
           <tbody>
             {shipments && Array.isArray(shipments) ? (
-              shipments
-                .filter(shipment => shipment && typeof shipment === 'object' && shipment._id)
-                .map((shipment, index) => (
-                  <ShipmentItem key={shipment._id} shipment={shipment} index={index} />
-                ))
+              shipments.map((shipment, index) => (
+                <ShipmentItem 
+                  key={shipment._id || `fallback-key-${index}`} 
+                  shipment={shipment} 
+                  index={index} 
+                />
+              ))
             ) : (
               <tr>
-                <td colSpan="8" className="text-center">No valid shipment data found</td>
+                <td colSpan="8" className="text-center">No shipments data found</td>
               </tr>
             )}
           </tbody>

@@ -24,6 +24,7 @@ export const getShipments = () => async (dispatch) => {
     dispatch({ type: SHIPMENTS_LOADING });
     
     const res = await axios.get('/api/shipments');
+    console.log('Raw API response:', res.data);
     
     // Handle different response formats from API
     // The API might return { shipments: [...] } or directly an array
@@ -35,41 +36,32 @@ export const getShipments = () => async (dispatch) => {
       shipmentData = res.data.shipments;
     }
     
-    // Ensure we have an array
+    // Ensure we have an array and every item is an object
     if (!Array.isArray(shipmentData)) {
-      console.error('Shipment data is not an array:', shipmentData);
+      console.error('Shipment data is not an array, using empty array instead:', shipmentData);
       shipmentData = [];
     }
     
-    // Normalize and validate each shipment object
+    // IMPORTANT: Do very light normalization, don't filter anything out
     const normalizedShipments = shipmentData
-      .filter(shipment => shipment && typeof shipment === 'object')
       .map(shipment => {
-        // Create a new object with default values
-        const normalized = {
-          _id: shipment._id || null,
-          customer: shipment.customer || null,
-          shipper: shipment.shipper || null,
-          origin: shipment.origin || '',
-          destination: shipment.destination || '',
-          status: shipment.status || shipment.shipmentStatus || 'Pending',
-          mode: shipment.mode || 'Air',
-          dateAdded: shipment.dateAdded || new Date(),
-          // Ensure legs is always an array
-          legs: Array.isArray(shipment.legs) ? shipment.legs : []
-        };
-        
-        // Only include shipments with valid IDs
-        if (!normalized._id) {
-          console.error('Shipment missing _id, will be filtered out:', shipment);
-          return null;
+        if (!shipment || typeof shipment !== 'object') {
+          console.warn('Non-object shipment found:', shipment);
+          // Convert to object if it's not already
+          return { _id: `temp-${Date.now()}-${Math.random()}`, rawValue: shipment };
         }
         
-        return normalized;
-      })
-      .filter(Boolean); // Remove null entries
+        // Generate temporary ID for shipments missing ID
+        // This ensures they still show up in the UI
+        if (!shipment._id) {
+          console.warn('Shipment missing _id, generating temporary one:', shipment);
+          shipment._id = `temp-${Date.now()}-${Math.random()}`;
+        }
+        
+        return shipment;
+      });
     
-    console.log(`Normalized ${normalizedShipments.length} valid shipments`);
+    console.log(`Returning ${normalizedShipments.length} shipments`);
     
     dispatch({
       type: GET_SHIPMENTS,

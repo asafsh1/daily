@@ -5,70 +5,35 @@ import { Button } from 'react-bootstrap';
 import Moment from 'react-moment';
 
 const ShipmentItem = ({ shipment, index }) => {
-  // Guard against invalid shipment objects
-  if (!shipment || typeof shipment !== 'object') {
-    console.error('Invalid shipment data received:', shipment);
-    return null; // Don't render anything for invalid data
-  }
-
-  // Ensure shipment has an _id
-  if (!shipment._id) {
-    console.error('Shipment missing _id:', shipment);
-    return null;
-  }
-
-  // Get display values with fallbacks
-  const shipperName = shipment.shipper && shipment.shipper.name 
-    ? shipment.shipper.name 
-    : (typeof shipment.shipper === 'string' ? shipment.shipper : 'Unknown');
+  // Emergency log to debug issues
+  console.log('Rendering ShipmentItem:', index, shipment);
   
-  const origin = shipment.origin || 
-    (shipment.legs && shipment.legs[0] && shipment.legs[0].origin) || 
-    'N/A';
+  // Super simple rendering - no complex property access
+  // This ensures we avoid any property access errors
   
-  const destination = shipment.destination || 
-    (shipment.legs && shipment.legs.length > 0 && shipment.legs[shipment.legs.length-1].destination) || 
-    'N/A';
+  // Use very simple property access with explicit null checks
+  const id = shipment && shipment._id ? shipment._id : 'unknown';
+  const shipper = shipment && shipment.shipper ? 
+    (typeof shipment.shipper === 'string' ? shipment.shipper : 
+      (shipment.shipper.name ? shipment.shipper.name : 'Unknown')) 
+    : 'Unknown';
   
-  const status = shipment.status || shipment.shipmentStatus || 'Pending';
-  const mode = shipment.mode || shipment.transportMode || 'Air';
-  const dateAdded = shipment.dateAdded || new Date();
-
-  // Get status badge class based on status
-  const getStatusClass = (status) => {
-    if (!status) return 'bg-secondary';
-    
-    switch (status.toLowerCase()) {
-      case 'completed':
-        return 'bg-success';
-      case 'in transit':
-        return 'bg-primary';
-      case 'pending':
-        return 'bg-warning';
-      case 'canceled':
-        return 'bg-danger';
-      case 'delayed':
-        return 'bg-warning text-dark';
-      default:
-        return 'bg-secondary';
-    }
-  };
-
+  // Use very basic rendering that won't throw errors
   return (
     <tr>
       <td>{index + 1}</td>
-      <td>{shipperName}</td>
-      <td>{origin}</td>
-      <td>{destination}</td>
+      <td>{shipper}</td>
+      <td>{shipment && shipment.origin ? shipment.origin : 'N/A'}</td>
+      <td>{shipment && shipment.destination ? shipment.destination : 'N/A'}</td>
       <td>
-        <span className={`badge ${getStatusClass(status)}`}>
-          {status}
+        <span className="badge bg-secondary">
+          {shipment && shipment.status ? shipment.status : 'Pending'}
         </span>
       </td>
-      <td>{mode}</td>
+      <td>{shipment && shipment.mode ? shipment.mode : 'N/A'}</td>
       <td>
-        {dateAdded ? (
-          <Moment format="MM/DD/YYYY">{dateAdded}</Moment>
+        {shipment && shipment.dateAdded ? (
+          <Moment format="MM/DD/YYYY">{shipment.dateAdded}</Moment>
         ) : (
           'N/A'
         )}
@@ -76,10 +41,9 @@ const ShipmentItem = ({ shipment, index }) => {
       <td>
         <Button 
           as={Link} 
-          to={`/shipments/${shipment._id}`} 
+          to={`/shipments/${id}`} 
           variant="outline-primary" 
           size="sm"
-          className="me-1"
         >
           View
         </Button>
