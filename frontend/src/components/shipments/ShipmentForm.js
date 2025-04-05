@@ -8,6 +8,7 @@ import Spinner from '../layout/Spinner';
 import ShipmentLegs from './ShipmentLegs';
 import AutocompleteSearch from '../common/AutocompleteSearch';
 import { toast } from 'react-hot-toast';
+import ShipmentSidebar from './ShipmentSidebar';
 
 const initialState = {
   dateAdded: new Date().toISOString().split('T')[0],
@@ -49,6 +50,8 @@ const ShipmentForm = ({
   const [customers, setCustomers] = useState([]);
   const [customersLoading, setCustomersLoading] = useState(true);
   const [tempShipmentId, setTempShipmentId] = useState(null);
+  const [activeSection, setActiveSection] = useState('basic');
+  const [formInitialized, setFormInitialized] = useState(false);
   const navigate = useNavigate();
   const { id } = useParams(); // Get the shipment ID from URL params
   const isEditMode = !!id;
@@ -61,6 +64,11 @@ const ShipmentForm = ({
   const [selectedShipper, setSelectedShipper] = useState(null);
   const [selectedConsignee, setSelectedConsignee] = useState(null);
   const [selectedNotifyParty, setSelectedNotifyParty] = useState(null);
+
+  // Handle section change from sidebar
+  const handleSectionChange = (section) => {
+    setActiveSection(section);
+  };
 
   // Render the leg section even in create mode with a temp ID
   useEffect(() => {
@@ -109,61 +117,56 @@ const ShipmentForm = ({
 
   // Populate form data when shipment is loaded
   useEffect(() => {
-    if (!loading && shipment && isEditMode) {
+    if (!loading && shipment && isEditMode && !formInitialized) {
       console.log('Populating form data from shipment:', shipment);
       
-      // Only initialize once to prevent data loss during editing
-      if (formData === initialState || 
-          (formData.customer !== shipment.customer && 
-          formData.dateAdded === initialState.dateAdded)) {
+      // Format dates to match form field requirements
+      const formatDate = (dateString) => {
+        if (!dateString) return '';
+        return new Date(dateString).toISOString().split('T')[0];
+      };
+
+      const formatDateTime = (dateString) => {
+        if (!dateString) return '';
+        // Format: YYYY-MM-DDThh:mm
+        return new Date(dateString).toISOString().slice(0, 16);
+      };
+
+      // Create a new object to hold shipment data
+      const shipmentData = {}; 
       
-        // Format dates to match form field requirements
-        const formatDate = (dateString) => {
-          if (!dateString) return '';
-          return new Date(dateString).toISOString().split('T')[0];
-        };
-
-        const formatDateTime = (dateString) => {
-          if (!dateString) return '';
-          // Format: YYYY-MM-DDThh:mm
-          return new Date(dateString).toISOString().slice(0, 16);
-        };
-
-        // Create a new object to hold shipment data
-        const shipmentData = {}; 
-        
-        // Copy all fields from shipment to data object
-        for (const key in shipment) {
-          if (key in initialState || key === '_id' || key === 'legs') {
-            if (key === 'dateAdded' || key === 'fileCreatedDate') {
-              shipmentData[key] = formatDate(shipment[key]);
-            } else if (key === 'scheduledArrival') {
-              shipmentData[key] = formatDateTime(shipment[key]);
-            } else if (key === 'customer') {
-              // Handle customer object versus ID
-              if (typeof shipment[key] === 'object' && shipment[key] !== null) {
-                shipmentData[key] = shipment[key]._id || shipment[key];
-              } else {
-                shipmentData[key] = shipment[key];
-              }
+      // Copy all fields from shipment to data object
+      for (const key in shipment) {
+        if (key in initialState || key === '_id' || key === 'legs') {
+          if (key === 'dateAdded' || key === 'fileCreatedDate') {
+            shipmentData[key] = formatDate(shipment[key]);
+          } else if (key === 'scheduledArrival') {
+            shipmentData[key] = formatDateTime(shipment[key]);
+          } else if (key === 'customer') {
+            // Handle customer object versus ID
+            if (typeof shipment[key] === 'object' && shipment[key] !== null) {
+              shipmentData[key] = shipment[key]._id || shipment[key];
             } else {
               shipmentData[key] = shipment[key];
             }
+          } else {
+            shipmentData[key] = shipment[key];
           }
         }
-        
-        // Fill any missing fields with defaults
-        for (const key in initialState) {
-          if (!(key in shipmentData)) {
-            shipmentData[key] = initialState[key];
-          }
-        }
-        
-        console.log('Setting form data to:', shipmentData);
-        setFormData(shipmentData);
       }
+      
+      // Fill any missing fields with defaults
+      for (const key in initialState) {
+        if (!(key in shipmentData) && key !== 'legs') {
+          shipmentData[key] = initialState[key];
+        }
+      }
+      
+      console.log('Setting form data to:', shipmentData);
+      setFormData(shipmentData);
+      setFormInitialized(true);
     }
-  }, [loading, shipment, isEditMode, formData]);
+  }, [loading, shipment, isEditMode, formInitialized]);
 
   // Fetch customers from API
   const fetchCustomers = async () => {
@@ -261,23 +264,23 @@ const ShipmentForm = ({
   
   // Update the selected entities when editing an existing shipment
   useEffect(() => {
-    if (isEditMode && shipment) {
+    if (isEditMode && shipment && !loading) {
       if (shipment.shipper) {
-        const shipper = shippers.find(s => s._id === shipment.shipper._id);
+        const shipper = shippers.find(s => s._id === (typeof shipment.shipper === 'object' ? shipment.shipper._id : shipment.shipper));
         setSelectedShipper(shipper || null);
       }
       
       if (shipment.consignee) {
-        const consignee = consignees.find(c => c._id === shipment.consignee._id);
+        const consignee = consignees.find(c => c._id === (typeof shipment.consignee === 'object' ? shipment.consignee._id : shipment.consignee));
         setSelectedConsignee(consignee || null);
       }
       
       if (shipment.notifyParty) {
-        const notifyParty = notifyParties.find(np => np._id === shipment.notifyParty._id);
+        const notifyParty = notifyParties.find(np => np._id === (typeof shipment.notifyParty === 'object' ? shipment.notifyParty._id : shipment.notifyParty));
         setSelectedNotifyParty(notifyParty || null);
       }
     }
-  }, [isEditMode, shipment, shippers, consignees, notifyParties]);
+  }, [isEditMode, shipment, shippers, consignees, notifyParties, loading]);
 
   const {
     dateAdded,
@@ -409,11 +412,11 @@ const ShipmentForm = ({
     e.preventDefault();
     if (!validateForm()) return;
 
-    const currentLegs = legs.map(leg => {
+    const currentLegs = formData.legs ? formData.legs.map(leg => {
       // Exclude the tempId used for tracking during editing
       const { tempId, ...legData } = leg;
       return legData;
-    });
+    }) : [];
 
     const newShipment = {
       ...formData,
@@ -421,18 +424,18 @@ const ShipmentForm = ({
       shipper: selectedShipper ? selectedShipper._id : null,
       consignee: selectedConsignee ? selectedConsignee._id : null,
       notifyParty: selectedNotifyParty ? selectedNotifyParty._id : null,
-      changeLog: isEditMode ? 
+      changeLog: isEditMode && shipment.changeLog ? 
         [...(shipment.changeLog || []), {
           timestamp: new Date(),
-          user: users.find(u => u._id === createdBy) ? users.find(u => u._id === createdBy).name : 'Unknown user',
+          user: users.find(u => u._id === formData.createdBy) ? users.find(u => u._id === formData.createdBy).name : 'Unknown user',
           action: isEditMode ? 'updated' : 'created',
-          details: `Shipment ${isEditMode ? 'updated' : 'created'} by ${users.find(u => u._id === createdBy) ? users.find(u => u._id === createdBy).name : 'Unknown user'}`
+          details: `Shipment ${isEditMode ? 'updated' : 'created'} by ${users.find(u => u._id === formData.createdBy) ? users.find(u => u._id === formData.createdBy).name : 'Unknown user'}`
         }] : 
         [{
           timestamp: new Date(),
-          user: users.find(u => u._id === createdBy) ? users.find(u => u._id === createdBy).name : 'Unknown user',
+          user: users.find(u => u._id === formData.createdBy) ? users.find(u => u._id === formData.createdBy).name : 'Unknown user',
           action: 'created',
-          details: `Shipment created by ${users.find(u => u._id === createdBy) ? users.find(u => u._id === createdBy).name : 'Unknown user'}`
+          details: `Shipment created by ${users.find(u => u._id === formData.createdBy) ? users.find(u => u._id === formData.createdBy).name : 'Unknown user'}`
         }]
     };
 
@@ -443,12 +446,14 @@ const ShipmentForm = ({
         addShipment(newShipment);
       }
       
-      // Reset form
-      setFormData(initialState);
-      setErrors({});
-      setSelectedShipper(null);
-      setSelectedConsignee(null);
-      setSelectedNotifyParty(null);
+      // Reset form only if not editing
+      if (!isEditMode) {
+        setFormData(initialState);
+        setErrors({});
+        setSelectedShipper(null);
+        setSelectedConsignee(null);
+        setSelectedNotifyParty(null);
+      }
       
       // Show feedback
       toast.success(`Shipment ${isEditMode ? 'updated' : 'created'} successfully`);
@@ -487,412 +492,444 @@ const ShipmentForm = ({
         <div className="alert alert-danger">{errors.submit}</div>
       )}
 
-      <form className="form shipment-form" onSubmit={handleSubmit}>
-        <div className="form-group">
-          <label htmlFor="dateAdded">Date Added</label>
-          <input
-            type="date"
-            id="dateAdded"
-            name="dateAdded"
-            value={dateAdded}
-            onChange={onChange}
-            className={errors.dateAdded ? 'form-control is-invalid' : 'form-control'}
-            disabled
-          />
-          {errors.dateAdded && <div className="invalid-feedback">{errors.dateAdded}</div>}
-        </div>
+      <div className="shipment-container">
+        <ShipmentSidebar 
+          activeSection={activeSection}
+          onSectionChange={handleSectionChange}
+          isEditMode={true}
+        />
         
-        {/* SECTION 1: Customer, Shipper, Consignee, Notify Party */}
-        <div className="form-section">
-          <h3 className="section-title">Customer & Parties Information</h3>
-          <div className="form-group">
-            <label htmlFor="customer">Customer*</label>
-            {customersLoading ? (
-              <p>Loading customers...</p>
-            ) : (
-              <select
-                id="customer"
-                name="customerId"
-                value={formData.customerId}
-                onChange={onChange}
-                className={errors.customerId ? 'form-control is-invalid' : 'form-control'}
-                required
-              >
-                <option value="">Select Customer</option>
-                {customers.map(customer => (
-                  <option key={customer._id} value={customer._id}>
-                    {customer.name || customer.companyName} {customer.customerId ? `(${customer.customerId})` : ''}
-                  </option>
-                ))}
-              </select>
-            )}
-            {errors.customerId && <div className="invalid-feedback">{errors.customerId}</div>}
-          </div>
-          
-          <div className="form-row">
+        <div className="shipment-main-content">
+          <form className="form shipment-form" onSubmit={handleSubmit}>
             <div className="form-group">
-              <label htmlFor="shipper">Shipper*</label>
-              <AutocompleteSearch
-                items={shippers}
-                displayField="name"
-                secondaryField="shipperId"
-                placeholder="Search shippers..."
-                selectedItem={selectedShipper}
-                onItemSelect={setSelectedShipper}
-              />
-              {errors.shipperName && <div className="invalid-feedback">{errors.shipperName}</div>}
-            </div>
-            
-            <div className="form-group">
-              <label htmlFor="consignee">Consignee*</label>
-              <AutocompleteSearch
-                items={consignees}
-                displayField="name"
-                secondaryField="consigneeId"
-                placeholder="Search consignees..."
-                selectedItem={selectedConsignee}
-                onItemSelect={setSelectedConsignee}
-              />
-              {errors.consigneeName && <div className="invalid-feedback">{errors.consigneeName}</div>}
-            </div>
-          </div>
-          
-          <div className="form-group">
-            <label htmlFor="notifyParty">Notify Party</label>
-            <AutocompleteSearch
-              items={notifyParties}
-              displayField="name"
-              secondaryField="notifyPartyId"
-              placeholder="Search notify parties..."
-              selectedItem={selectedNotifyParty}
-              onItemSelect={setSelectedNotifyParty}
-            />
-          </div>
-        </div>
-        
-        {/* SECTION 2: Weight, Packages, Dimensions, Volume */}
-        <div className="form-section">
-          <h3 className="section-title">Weight & Dimensions</h3>
-          <div className="form-row">
-            <div className="form-group">
-              <label htmlFor="weight">Actual Weight (kg)*</label>
-              <input
-                type="number"
-                id="weight"
-                name="weight"
-                value={weight}
-                onChange={onChange}
-                className={errors.weight ? 'form-control is-invalid' : 'form-control'}
-                placeholder="Total weight in kg"
-                step="0.01"
-                min="0"
-              />
-              {errors.weight && <div className="invalid-feedback">{errors.weight}</div>}
-            </div>
-            
-            <div className="form-group">
-              <label htmlFor="packageCount">Number of Packages*</label>
-              <input
-                type="number"
-                id="packageCount"
-                name="packageCount"
-                value={packageCount}
-                onChange={onChange}
-                className={errors.packageCount ? 'form-control is-invalid' : 'form-control'}
-                placeholder="Number of packages"
-                min="0"
-              />
-              {errors.packageCount && <div className="invalid-feedback">{errors.packageCount}</div>}
-            </div>
-          </div>
-          
-          <div className="form-row">
-            <div className="form-group">
-              <label htmlFor="length">Length (cm)</label>
-              <input
-                type="number"
-                id="length"
-                name="length"
-                value={formData.length}
-                onChange={onChange}
-                className={errors.length ? 'form-control is-invalid' : 'form-control'}
-                placeholder="Length in cm"
-                step="0.1"
-                min="0"
-              />
-              {errors.length && <div className="invalid-feedback">{errors.length}</div>}
-            </div>
-            
-            <div className="form-group">
-              <label htmlFor="width">Width (cm)</label>
-              <input
-                type="number"
-                id="width"
-                name="width"
-                value={formData.width}
-                onChange={onChange}
-                className={errors.width ? 'form-control is-invalid' : 'form-control'}
-                placeholder="Width in cm"
-                step="0.1"
-                min="0"
-              />
-              {errors.width && <div className="invalid-feedback">{errors.width}</div>}
-            </div>
-            
-            <div className="form-group">
-              <label htmlFor="height">Height (cm)</label>
-              <input
-                type="number"
-                id="height"
-                name="height"
-                value={formData.height}
-                onChange={onChange}
-                className={errors.height ? 'form-control is-invalid' : 'form-control'}
-                placeholder="Height in cm"
-                step="0.1"
-                min="0"
-              />
-              {errors.height && <div className="invalid-feedback">{errors.height}</div>}
-            </div>
-          </div>
-          
-          <div className="form-row">
-            <div className="form-group">
-              <label htmlFor="volumetricWeight">Volumetric Weight (kg)</label>
-              <input
-                type="text"
-                id="volumetricWeight"
-                value={formData.volumetricWeight}
-                className="form-control"
-                readOnly
-                disabled
-                title="Calculated as (Length × Width × Height) / 6000"
-              />
-              <small className="form-text text-muted">Calculated as (L × W × H) / 6000</small>
-            </div>
-            
-            <div className="form-group">
-              <label htmlFor="chargeableWeight">Chargeable Weight (kg)</label>
-              <input
-                type="text"
-                id="chargeableWeight"
-                value={formData.chargeableWeight}
-                className="form-control"
-                readOnly
-                disabled
-                title="The higher of actual weight or volumetric weight"
-              />
-              <small className="form-text text-muted">Higher of actual or volumetric weight</small>
-            </div>
-          </div>
-        </div>
-        
-        {/* SECTION 3: Shipment Status and Order Status */}
-        <div className="form-section">
-          <h3 className="section-title">Shipment Status</h3>
-          <div className="form-row">
-            <div className="form-group">
-              <label htmlFor="orderStatus">Order Status*</label>
-              <select
-                id="orderStatus"
-                name="orderStatus"
-                value={orderStatus}
-                onChange={onChange}
-                className={errors.orderStatus ? 'form-control is-invalid' : 'form-control'}
-              >
-                <option value="planned">Planned</option>
-                <option value="confirmed">Confirmed</option>
-                <option value="done">Done</option>
-                <option value="canceled">Canceled</option>
-              </select>
-              {errors.orderStatus && <div className="invalid-feedback">{errors.orderStatus}</div>}
-            </div>
-          </div>
-        </div>
-        
-        {/* SECTION 4: Shipment Legs */}
-        <div className="form-section">
-          <h3 className="section-title">Shipment Legs</h3>
-          <div className="shipment-legs-section">
-            <ShipmentLegs shipmentId={isEditMode ? id : tempShipmentId} />
-            {!isEditMode && (
-              <div className="alert alert-warning">
-                <i className="fas fa-exclamation-triangle"></i> Legs added here will be associated with the shipment when saved.
-              </div>
-            )}
-          </div>
-        </div>
-        
-        {/* SECTION 5: File Info & Financials */}
-        <div className="form-section">
-          <h3 className="section-title">File Information & Financials</h3>
-          <div className="form-row">
-            <div className="form-group">
-              <label htmlFor="fileNumber">File Number</label>
-              <input
-                type="text"
-                id="fileNumber"
-                name="fileNumber"
-                value={fileNumber}
-                onChange={onChange}
-                className="form-control"
-                placeholder="Internal file number"
-              />
-            </div>
-            
-            <div className="form-group">
-              <label htmlFor="fileCreatedDate">File Created Date</label>
+              <label htmlFor="dateAdded">Date Added</label>
               <input
                 type="date"
-                id="fileCreatedDate"
-                name="fileCreatedDate"
-                value={fileCreatedDate}
+                id="dateAdded"
+                name="dateAdded"
+                value={formData.dateAdded}
                 onChange={onChange}
-                className="form-control"
+                className={errors.dateAdded ? 'form-control is-invalid' : 'form-control'}
+                disabled
               />
+              {errors.dateAdded && <div className="invalid-feedback">{errors.dateAdded}</div>}
             </div>
-          </div>
-          
-          <div className="form-row">
-            <div className="form-group">
-              <label>Cost (USD)</label>
-              <input
-                type="number"
-                name="cost"
-                value={cost}
-                onChange={onChange}
-                className={errors.cost ? 'form-control is-invalid' : 'form-control'}
-                step="0.01"
-                min="0"
-                placeholder="Cost amount"
-              />
-              {errors.cost && <div className="invalid-feedback">{errors.cost}</div>}
-            </div>
-
-            <div className="form-group">
-              <label>Receivables (USD)</label>
-              <input
-                type="number"
-                name="receivables"
-                value={receivables}
-                onChange={onChange}
-                className="form-control"
-                step="0.01"
-                min="0"
-                placeholder="Receivables amount"
-              />
-            </div>
-          </div>
-        </div>
-        
-        {/* SECTION 6: Invoice Information */}
-        <div className="form-section">
-          <h3 className="section-title">Invoice Information</h3>
-          <div className="form-row">
-            <div className="form-group">
-              <label>Invoice Number</label>
-              <input
-                type="text"
-                name="invoiceNumber"
-                value={invoiceNumber}
-                onChange={onChange}
-                className="form-control"
-                placeholder="Invoice number if available"
-              />
-            </div>
-
-            <div className="form-group">
-              <label>Invoice Status</label>
-              <select
-                name="invoiceStatus"
-                value={invoiceStatus}
-                onChange={onChange}
-                className={errors.invoiceStatus ? 'form-control is-invalid' : 'form-control'}
-              >
-                <option value="Pending">Pending</option>
-                <option value="Confirmed">Confirmed</option>
-                <option value="Paid">Paid</option>
-              </select>
-              {errors.invoiceStatus && <div className="invalid-feedback">{errors.invoiceStatus}</div>}
-            </div>
-          </div>
-          
-          <div className="form-row checkbox-row">
-            <div className="form-group">
-              <div className="form-check">
-                <input
-                  type="checkbox"
-                  name="invoiced"
-                  id="invoiced"
-                  checked={invoiced}
+            
+            {/* SECTION 1: Basic Information */}
+            <div id="basic" className="form-section">
+              <h3 className="section-title">Basic Information</h3>
+              <div className="form-group">
+                <label htmlFor="shipmentStatus">Shipment Status</label>
+                <select
+                  id="shipmentStatus"
+                  name="shipmentStatus"
+                  value={formData.shipmentStatus}
                   onChange={onChange}
-                  className="form-check-input"
+                  className={errors.shipmentStatus ? 'form-control is-invalid' : 'form-control'}
+                >
+                  <option value="Pending">Pending</option>
+                  <option value="In Transit">In Transit</option>
+                  <option value="Arrived">Arrived</option>
+                  <option value="Delayed">Delayed</option>
+                  <option value="Canceled">Canceled</option>
+                </select>
+                {errors.shipmentStatus && <div className="invalid-feedback">{errors.shipmentStatus}</div>}
+              </div>
+            </div>
+            
+            {/* SECTION 2: Customer & Parties Information */}
+            <div id="parties" className="form-section">
+              <h3 className="section-title">Customer & Parties Information</h3>
+              <div className="form-group">
+                <label htmlFor="customer">Customer*</label>
+                {customersLoading ? (
+                  <p>Loading customers...</p>
+                ) : (
+                  <select
+                    id="customer"
+                    name="customerId"
+                    value={formData.customerId}
+                    onChange={onChange}
+                    className={errors.customerId ? 'form-control is-invalid' : 'form-control'}
+                    required
+                  >
+                    <option value="">Select Customer</option>
+                    {customers.map(customer => (
+                      <option key={customer._id} value={customer._id}>
+                        {customer.name || customer.companyName} {customer.customerId ? `(${customer.customerId})` : ''}
+                      </option>
+                    ))}
+                  </select>
+                )}
+                {errors.customerId && <div className="invalid-feedback">{errors.customerId}</div>}
+              </div>
+              
+              <div className="form-row">
+                <div className="form-group">
+                  <label htmlFor="shipper">Shipper*</label>
+                  <AutocompleteSearch
+                    items={shippers}
+                    displayField="name"
+                    secondaryField="shipperId"
+                    placeholder="Search shippers..."
+                    selectedItem={selectedShipper}
+                    onItemSelect={setSelectedShipper}
+                  />
+                  {errors.shipperName && <div className="invalid-feedback">{errors.shipperName}</div>}
+                </div>
+                
+                <div className="form-group">
+                  <label htmlFor="consignee">Consignee*</label>
+                  <AutocompleteSearch
+                    items={consignees}
+                    displayField="name"
+                    secondaryField="consigneeId"
+                    placeholder="Search consignees..."
+                    selectedItem={selectedConsignee}
+                    onItemSelect={setSelectedConsignee}
+                  />
+                  {errors.consigneeName && <div className="invalid-feedback">{errors.consigneeName}</div>}
+                </div>
+              </div>
+              
+              <div className="form-group">
+                <label htmlFor="notifyParty">Notify Party</label>
+                <AutocompleteSearch
+                  items={notifyParties}
+                  displayField="name"
+                  secondaryField="notifyPartyId"
+                  placeholder="Search notify parties..."
+                  selectedItem={selectedNotifyParty}
+                  onItemSelect={setSelectedNotifyParty}
                 />
-                <label className="form-check-label" htmlFor="invoiced">Invoiced</label>
+              </div>
+            </div>
+            
+            {/* SECTION 3: Weight, Packages, Dimensions, Volume */}
+            <div id="dimensions" className="form-section">
+              <h3 className="section-title">Weight & Dimensions</h3>
+              <div className="form-row">
+                <div className="form-group">
+                  <label htmlFor="weight">Actual Weight (kg)*</label>
+                  <input
+                    type="number"
+                    id="weight"
+                    name="weight"
+                    value={weight}
+                    onChange={onChange}
+                    className={errors.weight ? 'form-control is-invalid' : 'form-control'}
+                    placeholder="Total weight in kg"
+                    step="0.01"
+                    min="0"
+                  />
+                  {errors.weight && <div className="invalid-feedback">{errors.weight}</div>}
+                </div>
+                
+                <div className="form-group">
+                  <label htmlFor="packageCount">Number of Packages*</label>
+                  <input
+                    type="number"
+                    id="packageCount"
+                    name="packageCount"
+                    value={packageCount}
+                    onChange={onChange}
+                    className={errors.packageCount ? 'form-control is-invalid' : 'form-control'}
+                    placeholder="Number of packages"
+                    min="0"
+                  />
+                  {errors.packageCount && <div className="invalid-feedback">{errors.packageCount}</div>}
+                </div>
+              </div>
+              
+              <div className="form-row">
+                <div className="form-group">
+                  <label htmlFor="length">Length (cm)</label>
+                  <input
+                    type="number"
+                    id="length"
+                    name="length"
+                    value={formData.length}
+                    onChange={onChange}
+                    className={errors.length ? 'form-control is-invalid' : 'form-control'}
+                    placeholder="Length in cm"
+                    step="0.1"
+                    min="0"
+                  />
+                  {errors.length && <div className="invalid-feedback">{errors.length}</div>}
+                </div>
+                
+                <div className="form-group">
+                  <label htmlFor="width">Width (cm)</label>
+                  <input
+                    type="number"
+                    id="width"
+                    name="width"
+                    value={formData.width}
+                    onChange={onChange}
+                    className={errors.width ? 'form-control is-invalid' : 'form-control'}
+                    placeholder="Width in cm"
+                    step="0.1"
+                    min="0"
+                  />
+                  {errors.width && <div className="invalid-feedback">{errors.width}</div>}
+                </div>
+                
+                <div className="form-group">
+                  <label htmlFor="height">Height (cm)</label>
+                  <input
+                    type="number"
+                    id="height"
+                    name="height"
+                    value={formData.height}
+                    onChange={onChange}
+                    className={errors.height ? 'form-control is-invalid' : 'form-control'}
+                    placeholder="Height in cm"
+                    step="0.1"
+                    min="0"
+                  />
+                  {errors.height && <div className="invalid-feedback">{errors.height}</div>}
+                </div>
+              </div>
+              
+              <div className="form-row">
+                <div className="form-group">
+                  <label htmlFor="volumetricWeight">Volumetric Weight (kg)</label>
+                  <input
+                    type="text"
+                    id="volumetricWeight"
+                    value={formData.volumetricWeight}
+                    className="form-control"
+                    readOnly
+                    disabled
+                    title="Calculated as (Length × Width × Height) / 6000"
+                  />
+                  <small className="form-text text-muted">Calculated as (L × W × H) / 6000</small>
+                </div>
+                
+                <div className="form-group">
+                  <label htmlFor="chargeableWeight">Chargeable Weight (kg)</label>
+                  <input
+                    type="text"
+                    id="chargeableWeight"
+                    value={formData.chargeableWeight}
+                    className="form-control"
+                    readOnly
+                    disabled
+                    title="The higher of actual weight or volumetric weight"
+                  />
+                  <small className="form-text text-muted">Higher of actual or volumetric weight</small>
+                </div>
+              </div>
+            </div>
+            
+            {/* SECTION 4: Shipment Status and Order Status */}
+            <div id="status" className="form-section">
+              <h3 className="section-title">Shipment Status</h3>
+              <div className="form-row">
+                <div className="form-group">
+                  <label htmlFor="orderStatus">Order Status*</label>
+                  <select
+                    id="orderStatus"
+                    name="orderStatus"
+                    value={orderStatus}
+                    onChange={onChange}
+                    className={errors.orderStatus ? 'form-control is-invalid' : 'form-control'}
+                  >
+                    <option value="planned">Planned</option>
+                    <option value="confirmed">Confirmed</option>
+                    <option value="done">Done</option>
+                    <option value="canceled">Canceled</option>
+                  </select>
+                  {errors.orderStatus && <div className="invalid-feedback">{errors.orderStatus}</div>}
+                </div>
+              </div>
+            </div>
+            
+            {/* SECTION 5: Shipment Legs */}
+            <div id="legs" className="form-section">
+              <h3 className="section-title">Shipment Legs</h3>
+              <div className="shipment-legs-section">
+                <ShipmentLegs shipmentId={isEditMode ? id : tempShipmentId} />
+                {!isEditMode && (
+                  <div className="alert alert-warning">
+                    <i className="fas fa-exclamation-triangle"></i> Legs added here will be associated with the shipment when saved.
+                  </div>
+                )}
+              </div>
+            </div>
+            
+            {/* SECTION 6: File Info & Financials */}
+            <div id="file" className="form-section">
+              <h3 className="section-title">File Information & Financials</h3>
+              <div className="form-row">
+                <div className="form-group">
+                  <label htmlFor="fileNumber">File Number</label>
+                  <input
+                    type="text"
+                    id="fileNumber"
+                    name="fileNumber"
+                    value={fileNumber}
+                    onChange={onChange}
+                    className="form-control"
+                    placeholder="Internal file number"
+                  />
+                </div>
+                
+                <div className="form-group">
+                  <label htmlFor="fileCreatedDate">File Created Date</label>
+                  <input
+                    type="date"
+                    id="fileCreatedDate"
+                    name="fileCreatedDate"
+                    value={fileCreatedDate}
+                    onChange={onChange}
+                    className="form-control"
+                  />
+                </div>
+              </div>
+              
+              <div className="form-row">
+                <div className="form-group">
+                  <label>Cost (USD)</label>
+                  <input
+                    type="number"
+                    name="cost"
+                    value={cost}
+                    onChange={onChange}
+                    className={errors.cost ? 'form-control is-invalid' : 'form-control'}
+                    step="0.01"
+                    min="0"
+                    placeholder="Cost amount"
+                  />
+                  {errors.cost && <div className="invalid-feedback">{errors.cost}</div>}
+                </div>
+
+                <div className="form-group">
+                  <label>Receivables (USD)</label>
+                  <input
+                    type="number"
+                    name="receivables"
+                    value={receivables}
+                    onChange={onChange}
+                    className="form-control"
+                    step="0.01"
+                    min="0"
+                    placeholder="Receivables amount"
+                  />
+                </div>
+              </div>
+            </div>
+            
+            {/* SECTION 7: Invoice Information */}
+            <div id="invoice" className="form-section">
+              <h3 className="section-title">Invoice Information</h3>
+              <div className="form-row">
+                <div className="form-group">
+                  <label>Invoice Number</label>
+                  <input
+                    type="text"
+                    name="invoiceNumber"
+                    value={invoiceNumber}
+                    onChange={onChange}
+                    className="form-control"
+                    placeholder="Invoice number if available"
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label>Invoice Status</label>
+                  <select
+                    name="invoiceStatus"
+                    value={invoiceStatus}
+                    onChange={onChange}
+                    className={errors.invoiceStatus ? 'form-control is-invalid' : 'form-control'}
+                  >
+                    <option value="Pending">Pending</option>
+                    <option value="Confirmed">Confirmed</option>
+                    <option value="Paid">Paid</option>
+                  </select>
+                  {errors.invoiceStatus && <div className="invalid-feedback">{errors.invoiceStatus}</div>}
+                </div>
+              </div>
+              
+              <div className="form-row checkbox-row">
+                <div className="form-group">
+                  <div className="form-check">
+                    <input
+                      type="checkbox"
+                      name="invoiced"
+                      id="invoiced"
+                      checked={invoiced}
+                      onChange={onChange}
+                      className="form-check-input"
+                    />
+                    <label className="form-check-label" htmlFor="invoiced">Invoiced</label>
+                  </div>
+                </div>
+
+                <div className="form-group">
+                  <div className="form-check">
+                    <input
+                      type="checkbox"
+                      name="invoiceSent"
+                      id="invoiceSent"
+                      checked={invoiceSent}
+                      onChange={onChange}
+                      className="form-check-input"
+                    />
+                    <label className="form-check-label" htmlFor="invoiceSent">Invoice Sent</label>
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            {/* SECTION 8: Created By and Comments */}
+            <div id="additional" className="form-section">
+              <h3 className="section-title">Additional Information</h3>
+              <div className="form-group">
+                <label htmlFor="createdBy">Created By*</label>
+                <select
+                  id="createdBy"
+                  name="createdBy"
+                  value={createdBy}
+                  onChange={(e) => setFormData({ ...formData, createdBy: e.target.value })}
+                  className={errors.createdBy ? 'form-control is-invalid' : 'form-control'}
+                  required
+                >
+                  <option value="">Select User</option>
+                  {users.map(user => (
+                    <option key={user._id} value={user._id}>
+                      {user.name} ({user.email})
+                    </option>
+                  ))}
+                </select>
+                {errors.createdBy && <div className="invalid-feedback">{errors.createdBy}</div>}
+              </div>
+
+              <div className="form-group">
+                <label>Comments</label>
+                <textarea
+                  name="comments"
+                  value={comments}
+                  onChange={onChange}
+                  className="form-control"
+                  rows="4"
+                  placeholder="Add any additional comments about this shipment"
+                />
               </div>
             </div>
 
-            <div className="form-group">
-              <div className="form-check">
-                <input
-                  type="checkbox"
-                  name="invoiceSent"
-                  id="invoiceSent"
-                  checked={invoiceSent}
-                  onChange={onChange}
-                  className="form-check-input"
-                />
-                <label className="form-check-label" htmlFor="invoiceSent">Invoice Sent</label>
-              </div>
+            <div className="form-actions">
+              <button type="submit" className="btn btn-primary">
+                {isEditMode ? 'Update Shipment' : 'Create Shipment'}
+              </button>
+              <Link to="/shipments" className="btn btn-light">
+                Cancel
+              </Link>
             </div>
-          </div>
+          </form>
         </div>
-        
-        {/* SECTION 7: Created By and Comments */}
-        <div className="form-section">
-          <h3 className="section-title">Additional Information</h3>
-          <div className="form-group">
-            <label htmlFor="createdBy">Created By*</label>
-            <select
-              id="createdBy"
-              name="createdBy"
-              value={createdBy}
-              onChange={(e) => setFormData({ ...formData, createdBy: e.target.value })}
-              className={errors.createdBy ? 'form-control is-invalid' : 'form-control'}
-              required
-            >
-              <option value="">Select User</option>
-              {users.map(user => (
-                <option key={user._id} value={user._id}>
-                  {user.name} ({user.email})
-                </option>
-              ))}
-            </select>
-            {errors.createdBy && <div className="invalid-feedback">{errors.createdBy}</div>}
-          </div>
-
-          <div className="form-group">
-            <label>Comments</label>
-            <textarea
-              name="comments"
-              value={comments}
-              onChange={onChange}
-              className="form-control"
-              rows="4"
-              placeholder="Add any additional comments about this shipment"
-            />
-          </div>
-        </div>
-
-        <div className="form-actions">
-          <button type="submit" className="btn btn-primary">
-            {isEditMode ? 'Update Shipment' : 'Create Shipment'}
-          </button>
-          <Link to="/shipments" className="btn btn-light">
-            Cancel
-          </Link>
-        </div>
-      </form>
+      </div>
     </section>
   );
 };
