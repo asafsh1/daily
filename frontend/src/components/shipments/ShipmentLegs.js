@@ -35,7 +35,12 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
   useEffect(() => {
     console.log("ShipmentLegs component mounted with shipmentId:", shipmentId);
     if (shipmentId) {
-      fetchLegs();
+      // Add debouncing to prevent excessive calls
+      const timer = setTimeout(() => {
+        fetchLegs();
+      }, 500);
+      
+      return () => clearTimeout(timer);
     }
   }, [shipmentId]);
   
@@ -53,8 +58,16 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
   }, [shipmentId]);
 
   // Fetch legs for this shipment
-  const fetchLegs = async () => {
+  const fetchLegs = async (retryCount = 0) => {
     try {
+      // Limit retries to avoid excessive API calls
+      if (retryCount > 2) {
+        console.log("Maximum retry attempts reached for legs, stopping.");
+        setError("Unable to load shipment legs after multiple attempts");
+        setLoading(false);
+        return;
+      }
+      
       setLoading(true);
       console.log("Fetching legs for shipment:", shipmentId);
       
@@ -99,6 +112,16 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
           }
         } catch (err) {
           console.error('API error fetching legs:', err);
+          
+          // Retry once with exponential backoff if it's a network error
+          if (err.message === 'Network Error' && retryCount < 2) {
+            console.log(`Retrying fetchLegs (attempt ${retryCount + 1}) after ${(retryCount + 1) * 1000}ms`);
+            setTimeout(() => {
+              fetchLegs(retryCount + 1);
+            }, (retryCount + 1) * 1000);
+            return;
+          }
+          
           setError(`Error fetching legs: ${err.message}`);
           setLegs([]);
         }
