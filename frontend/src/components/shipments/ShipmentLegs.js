@@ -31,146 +31,86 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
   const [errors, setErrors] = useState({});
   const [success, setSuccess] = useState('');
 
-  // Once the component mounts, fetch legs
+  // UseEffect to fetch legs on component mount or when shipmentId changes
   useEffect(() => {
-    console.log("ShipmentLegs component mounted with shipmentId:", shipmentId);
     if (shipmentId) {
-      // Add debouncing to prevent excessive calls
-      const timer = setTimeout(() => {
-        fetchLegs();
-      }, 500);
-      
-      return () => clearTimeout(timer);
+      fetchLegs();
     }
-  }, [shipmentId]);
-  
-  // Periodically refresh legs data
-  useEffect(() => {
-    // Only set up refresh for real shipments, not temporary ones
-    if (shipmentId && !shipmentId.toString().startsWith('temp-')) {
-      const refreshInterval = setInterval(() => {
-        console.log('Auto-refreshing legs data');
+    
+    // Set up an interval to refresh legs data every 30 seconds
+    const refreshInterval = setInterval(() => {
+      if (shipmentId && !shipmentId.toString().startsWith('temp-')) {
         fetchLegs();
-      }, 30000); // Refresh every 30 seconds
-      
-      return () => clearInterval(refreshInterval);
-    }
-  }, [shipmentId]);
+      }
+    }, 30000);
+    
+    // Clean up interval on component unmount
+    return () => clearInterval(refreshInterval);
+  }, [shipmentId]); // Only re-run when shipmentId changes
 
   // Fetch legs for this shipment
-  const fetchLegs = async (retryCount = 0) => {
+  const fetchLegs = async () => {
     try {
-      // Limit retries to avoid excessive API calls
-      if (retryCount > 2) {
-        console.log("Maximum retry attempts reached for legs, stopping.");
-        setError("Unable to load shipment legs after multiple attempts");
+      setLoading(true);
+      console.log(`Getting legs for shipment: ${shipmentId}`);
+      
+      // Skip API calls for temporary shipments
+      if (!shipmentId || shipmentId.toString().startsWith('temp-')) {
+        console.log('Using local state for temporary shipment ID');
         setLoading(false);
         return;
       }
       
-      setLoading(true);
-      console.log("ShipmentLegs.fetchLegs: Fetching legs for shipment:", shipmentId);
+      // Get the full shipment which should include leg information
+      const shipmentResponse = await axios.get(`/api/shipments/${shipmentId}`);
+      console.log(`Received shipment data:`, shipmentResponse.data);
       
-      // Only fetch legs from the server if this is a real shipment ID (not a temp one)
-      if (shipmentId && !shipmentId.toString().startsWith('temp-')) {
-        try {
-          // First try the new endpoint we just added
-          console.log("ShipmentLegs.fetchLegs: Trying legs endpoint:", `/api/shipments/${shipmentId}/legs`);
-          const response = await axios.get(`/api/shipments/${shipmentId}/legs`);
-          console.log("ShipmentLegs.fetchLegs: Response from legs endpoint:", response.data);
-          
-          if (response.data && (Array.isArray(response.data) || typeof response.data === 'object')) {
-            const legsArray = Array.isArray(response.data) ? response.data : [response.data];
-            
-            if (legsArray.length > 0) {
-              // Normalize legs to handle field name differences
-              const normalizedLegs = normalizeLegs(legsArray);
-              
-              // Sort legs by legOrder
-              const sortedLegs = [...normalizedLegs].sort((a, b) => 
-                (a.legOrder || 0) - (b.legOrder || 0)
-              );
-              
-              console.log(`ShipmentLegs.fetchLegs: Found and normalized ${sortedLegs.length} legs for shipment ${shipmentId}`);
-              setLegs(sortedLegs);
-              setError(null);
-              setLoading(false);
-              return;
-            }
-          }
-          
-          console.log("ShipmentLegs.fetchLegs: No valid legs found in response, trying full shipment endpoint");
-          
-          // Try getting the full shipment with populated legs
-          const shipmentResponse = await axios.get(`/api/shipments/${shipmentId}`);
-          console.log("ShipmentLegs.fetchLegs: Full shipment response:", shipmentResponse.data);
-          
-          if (shipmentResponse.data) {
-            // Try different leg field structures
-            let shipmentLegs = null;
-            
-            // Check for legs array
-            if (shipmentResponse.data.legs && Array.isArray(shipmentResponse.data.legs)) {
-              shipmentLegs = shipmentResponse.data.legs;
-              console.log(`ShipmentLegs.fetchLegs: Found ${shipmentLegs.length} legs in shipment.legs array`);
-            } 
-            // Check for leg array (singular form)
-            else if (shipmentResponse.data.leg && Array.isArray(shipmentResponse.data.leg)) {
-              shipmentLegs = shipmentResponse.data.leg;
-              console.log(`ShipmentLegs.fetchLegs: Found ${shipmentLegs.length} legs in shipment.leg array`);
-            }
-            // Check if shipmentLegs field exists
-            else if (shipmentResponse.data.shipmentLegs && Array.isArray(shipmentResponse.data.shipmentLegs)) {
-              shipmentLegs = shipmentResponse.data.shipmentLegs;
-              console.log(`ShipmentLegs.fetchLegs: Found ${shipmentLegs.length} legs in shipment.shipmentLegs array`);
-            }
-            
-            if (shipmentLegs && shipmentLegs.length > 0) {
-              // Normalize legs to handle field name differences
-              const normalizedLegs = normalizeLegs(shipmentLegs);
-              
-              // Sort legs by legOrder
-              const sortedLegs = [...normalizedLegs].sort((a, b) => 
-                (a.legOrder || 0) - (b.legOrder || 0)
-              );
-              
-              console.log(`ShipmentLegs.fetchLegs: Found and normalized ${sortedLegs.length} legs from full shipment data`);
-              setLegs(sortedLegs);
-              setError(null);
-              setLoading(false);
-              return;
-            } else {
-              console.warn("ShipmentLegs.fetchLegs: No legs found in any expected fields in shipment data");
-              setLegs([]);
-              setError("No legs found for this shipment");
-            }
-          }
-        } catch (err) {
-          console.error('ShipmentLegs.fetchLegs: API error fetching legs:', err);
-          
-          // Retry once with exponential backoff if it's a network error
-          if (err.message === 'Network Error' && retryCount < 2) {
-            console.log(`ShipmentLegs.fetchLegs: Retrying fetchLegs (attempt ${retryCount + 1}) after ${(retryCount + 1) * 1000}ms`);
-            setTimeout(() => {
-              fetchLegs(retryCount + 1);
-            }, (retryCount + 1) * 1000);
-            return;
-          }
-          
-          setError(`Error fetching legs: ${err.message}`);
-          setLegs([]);
-        }
-      } else {
-        // For temporary IDs, just use the local state
-        console.log('ShipmentLegs.fetchLegs: Using local state for temp shipment ID');
+      // Extract legs array from response
+      let shipmentLegs = [];
+      if (shipmentResponse.data?.legs && Array.isArray(shipmentResponse.data.legs)) {
+        shipmentLegs = shipmentResponse.data.legs;
+        console.log(`Found ${shipmentLegs.length} legs in shipment response`);
       }
       
-      setLoading(false);
+      // If no legs found in the shipment, try the dedicated legs endpoint as fallback
+      if (shipmentLegs.length === 0) {
+        try {
+          console.log(`No legs found in shipment data, trying direct legs endpoint`);
+          const legsResponse = await axios.get(`/api/shipment-legs/${shipmentId}`);
+          
+          if (Array.isArray(legsResponse.data) && legsResponse.data.length > 0) {
+            shipmentLegs = legsResponse.data;
+            console.log(`Found ${shipmentLegs.length} legs from dedicated endpoint`);
+          }
+        } catch (legErr) {
+          console.error(`Error fetching from legs endpoint:`, legErr);
+        }
+      }
+      
+      // Process and set legs
+      if (shipmentLegs.length > 0) {
+        // Normalize legs to handle different field naming conventions
+        const normalizedLegs = normalizeLegs(shipmentLegs);
+        
+        // Sort legs by order
+        const sortedLegs = [...normalizedLegs].sort((a, b) => 
+          (Number(a.legOrder) || 0) - (Number(b.legOrder) || 0)
+        );
+        
+        console.log(`Processed ${sortedLegs.length} legs for display`);
+        setLegs(sortedLegs);
+        setError(null);
+      } else {
+        console.log(`No legs found for shipment ${shipmentId}`);
+        setLegs([]);
+        setError("No legs found for this shipment");
+      }
     } catch (err) {
-      console.error('ShipmentLegs.fetchLegs: Error in fetchLegs function:', err);
-      setLoading(false);
-      setError('Failed to load shipment legs');
+      console.error(`Error fetching legs:`, err);
+      setError(`Failed to load shipment legs: ${err.message}`);
       setLegs([]);
+    } finally {
+      setLoading(false);
     }
   };
 

@@ -28,87 +28,115 @@ const connectDB = async () => {
   const MAX_RETRIES = 3;
   const RETRY_DELAY = 5000; // 5 seconds
   
-  // First try the primary URI
+  // Get the MongoDB URI
   const primaryURI = getMongoURI();
   console.log(`Primary MongoDB URI: ${primaryURI.replace(/\/\/([^:]+):[^@]+@/, '//***:***@')}`); // Hide password
   
-  // Try to connect using SRV-less direct connection pattern if we have an SRV URL
-  // This helps bypass DNS SRV lookup issues
-  let urisToTry = [primaryURI];
+  // Determine if we're in development or production
+  const isDev = process.env.NODE_ENV === 'development';
   
-  // Add direct connection URLs as a fallback if using SRV format
+  // Define all the connection methods to try
+  const connectionMethods = [];
+  
+  // Method 1: Direct standard MongoDB URI connection
+  connectionMethods.push({
+    name: 'Primary URI',
+    uri: primaryURI,
+    options: {
+      useNewUrlParser: true,
+      useUnifiedTopology: true,
+      serverSelectionTimeoutMS: 10000, // 10 seconds
+      connectTimeoutMS: 10000 // 10 seconds
+    }
+  });
+  
+  // Method 2: If it's an SRV URI, try direct connections to avoid DNS issues
   if (primaryURI.includes('mongodb+srv://')) {
     // Extract credentials and cluster name from SRV URL 
     const match = primaryURI.match(/mongodb\+srv:\/\/([^:]+):([^@]+)@([^\/]+)/);
     if (match) {
       const [_, username, password, host] = match;
       // Construct direct connection URLs to specific MongoDB Atlas nodes
-      // Usually the pattern is cluster0-shard-00-00, cluster0-shard-00-01, cluster0-shard-00-02
       const clusterName = host.split('.')[0]; // e.g., "cluster0" from "cluster0.aqbmxvz.mongodb.net"
       const domain = host.split('.').slice(1).join('.'); // e.g., "aqbmxvz.mongodb.net"
       
-      // Add direct connection URLs (no SRV lookup required)
+      // Add direct connection URLs to bypass SRV lookup
       for (let i = 0; i < 3; i++) {
-        const directURI = `mongodb://${username}:${password}@${clusterName}-shard-00-0${i}.${domain}:27017/?ssl=true&authSource=admin&replicaSet=${clusterName}`;
-        urisToTry.push(directURI);
+        connectionMethods.push({
+          name: `Direct shard connection ${i}`,
+          uri: `mongodb://${username}:${password}@${clusterName}-shard-00-0${i}.${domain}:27017/?ssl=true&authSource=admin&replicaSet=${clusterName}`,
+          options: {
+            useNewUrlParser: true,
+            useUnifiedTopology: true,
+            serverSelectionTimeoutMS: 10000,
+            connectTimeoutMS: 10000,
+            ssl: true,
+            replicaSet: clusterName,
+            authSource: 'admin'
+          }
+        });
       }
       
-      console.log(`Created ${urisToTry.length - 1} direct connection URLs as fallbacks`);
+      console.log(`Added ${connectionMethods.length - 1} direct connection methods as fallbacks`);
     }
   }
   
-  // Try all connection URIs in sequence
-  for (const [index, uri] of urisToTry.entries()) {
-    const isFallback = index > 0;
-    const displayURI = uri.replace(/\/\/([^:]+):[^@]+@/, '//***:***@'); // Hide password
+  // Method 3: Local development fallback
+  if (isDev) {
+    connectionMethods.push({
+      name: 'Local development database',
+      uri: 'mongodb://localhost:27017/daily-app',
+      options: {
+        useNewUrlParser: true,
+        useUnifiedTopology: true,
+        serverSelectionTimeoutMS: 5000 // 5 seconds
+      }
+    });
+  }
+  
+  // Try each connection method
+  let connected = false;
+  
+  for (const [index, method] of connectionMethods.entries()) {
+    console.log(`\n⏳ Trying connection method ${index + 1}/${connectionMethods.length}: ${method.name}`);
     
-    // Try the connection with retries
-    for (let attempt = 1; attempt <= (isFallback ? 1 : MAX_RETRIES); attempt++) {
-      console.log(`MongoDB connection attempt ${attempt} of ${isFallback ? 1 : MAX_RETRIES} to ${isFallback ? 'fallback' : 'primary'} URI ${index}...`);
+    // Try up to MAX_RETRIES for primary URI, only once for fallbacks
+    const attempts = index === 0 ? MAX_RETRIES : 1;
+    
+    for (let attempt = 1; attempt <= attempts; attempt++) {
+      if (attempt > 1) {
+        console.log(`Re-attempting connection (${attempt}/${attempts})...`);
+      }
       
       try {
-        const conn = await mongoose.connect(uri, {
-          useNewUrlParser: true,
-          useUnifiedTopology: true,
-          serverSelectionTimeoutMS: 10000, // 10 seconds
-          connectTimeoutMS: 10000, // 10 seconds
-        });
+        const conn = await mongoose.connect(method.uri, method.options);
+        console.log(`\n✅ MongoDB Connected: ${conn.connection.host}`);
         
-        console.log(`MongoDB Connected: ${conn.connection.host}`);
-        console.log('✅ Database connection successful - all functionality available');
+        if (index > 0) {
+          console.log(`Note: Using fallback connection method (${method.name}) instead of primary.`);
+          if (index === connectionMethods.length - 1 && isDev) {
+            console.log('\n⚠️ Using local development database. Data will not persist to production.\n');
+          }
+        }
+        
+        connected = true;
         return true;
       } catch (err) {
-        console.error(`Connection attempt ${attempt} to URI ${index} failed:`, err.message);
+        console.error(`❌ Connection attempt failed: ${err.message}`);
         
-        if (attempt < MAX_RETRIES && !isFallback) {
-          console.log(`Retrying in ${RETRY_DELAY/1000} seconds...`);
+        if (attempt < attempts) {
+          console.log(`Waiting ${RETRY_DELAY/1000} seconds before retry...`);
           await new Promise(resolve => setTimeout(resolve, RETRY_DELAY));
         }
       }
     }
   }
   
-  // If we get here, we've tried all connection strings including fallbacks
-  console.log('All remote connection attempts failed. Trying localhost fallback...');
+  // If we reach here, all connection methods failed
+  console.error('\n❌ All MongoDB connection methods failed.');
+  console.error('The application will run with limited functionality.\n');
   
-  // Try localhost as final fallback
-  try {
-    const conn = await mongoose.connect('mongodb://localhost:27017/daily-app', {
-      useNewUrlParser: true,
-      useUnifiedTopology: true,
-      serverSelectionTimeoutMS: 5000, // 5 seconds
-    });
-    
-    console.log(`Connected to local MongoDB: ${conn.connection.host}`);
-    console.log('✅ Database connection successful - all functionality available (using local database)');
-    return true;
-  } catch (localErr) {
-    console.error('Failed to connect to local MongoDB:', localErr.message);
-    
-    // Final fallback - operate in limited functionality mode
-    console.error('All MongoDB connection attempts failed. Running with limited functionality.');
-    return false;
-  }
+  return false;
 };
 
 // Handle connection events

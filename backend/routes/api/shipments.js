@@ -6,6 +6,7 @@ const auth = require('../../middleware/auth');
 
 const Shipment = require('../../models/Shipment');
 const ShipmentLeg = require('../../models/ShipmentLeg');
+const Customer = require('../../models/Customer');
 
 // @route   GET api/shipments
 // @desc    Get all shipments
@@ -174,29 +175,37 @@ router.get('/:id', async (req, res) => {
   try {
     console.log(`Fetching shipment with ID: ${req.params.id}`);
     
-    // First try to get the shipment with populated legs
-    let shipment = await Shipment.findById(req.params.id)
+    // First try to get the shipment with populated references
+    const shipment = await Shipment.findById(req.params.id)
       .populate('customer')
       .populate('shipper')
       .populate('consignee')
-      .populate('notifyParty');
+      .populate('notifyParty')
+      .lean(); // Convert to plain JavaScript object
     
     if (!shipment) {
       console.log(`No shipment found with ID: ${req.params.id}`);
       return res.status(404).json({ message: 'Shipment not found' });
     }
     
-    // Now fetch all legs for this shipment from the ShipmentLeg collection
-    const legs = await ShipmentLeg.find({ shipment: req.params.id }).sort({ legOrder: 1 });
-    
-    // Add the found legs to the response
-    if (legs && legs.length > 0) {
-      console.log(`Found ${legs.length} legs for shipment ${req.params.id} in ShipmentLeg collection`);
-      shipment = shipment.toObject(); // Convert to plain object to allow modifications
+    // Fetch legs from shipment-legs collection
+    try {
+      const legs = await ShipmentLeg.find({ shipment: req.params.id })
+        .sort({ legOrder: 1 })
+        .lean();
+      
+      console.log(`Found ${legs.length} legs for shipment ${req.params.id}`);
+      
+      // Add legs to shipment response
       shipment.legs = legs;
-    } else if (!shipment.legs || !Array.isArray(shipment.legs) || shipment.legs.length === 0) {
-      console.log(`No legs found for shipment ${req.params.id}`);
-      shipment = shipment.toObject();
+    } catch (legErr) {
+      console.error(`Error fetching legs: ${legErr.message}`);
+      // If legs can't be fetched, return empty array
+      shipment.legs = [];
+    }
+    
+    // Ensure legs is always an array
+    if (!shipment.legs) {
       shipment.legs = [];
     }
     
@@ -204,7 +213,15 @@ router.get('/:id', async (req, res) => {
     res.json(shipment);
   } catch (err) {
     console.error(`Error fetching shipment ${req.params.id}:`, err.message);
-    res.status(500).send('Server Error');
+    
+    if (err.kind === 'ObjectId') {
+      return res.status(404).json({ message: 'Shipment not found' });
+    }
+    
+    res.status(500).json({ 
+      message: 'Server Error', 
+      error: err.message 
+    });
   }
 });
 

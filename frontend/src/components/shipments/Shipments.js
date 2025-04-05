@@ -398,6 +398,102 @@ const Shipments = ({ getShipments, updateShipment, deleteShipment, shipment: { s
     return 'N/A';
   };
 
+  // Helper function to normalize shipment data for display
+  const normalizeShipmentForDisplay = (shipment) => {
+    if (!shipment) return null;
+    
+    // Create a normalized copy
+    const normalized = {...shipment};
+    
+    // Ensure legs is always an array
+    if (!normalized.legs || !Array.isArray(normalized.legs)) {
+      normalized.legs = [];
+    }
+    
+    // Extract customer name from either string or object
+    normalized.customerName = 
+      (typeof normalized.customer === 'object') ? 
+        (normalized.customer?.name || 'Unknown') : 
+        (normalized.customer || 'Unknown');
+    
+    // Get AWB/tracking numbers
+    normalized.awbs = getShipmentAWB(normalized);
+    
+    // Get routing information
+    normalized.routingString = getShipmentRouting(normalized);
+    
+    return normalized;
+  };
+
+  // Render the table row for a shipment
+  const renderShipmentRow = (shipment) => {
+    const normalizedShipment = normalizeShipmentForDisplay(shipment);
+    
+    return (
+      <tr key={normalizedShipment._id} className={normalizedShipment.invoiced ? 'row-success' : ''}>
+        <td>
+          <Link to={`/shipments/${normalizedShipment._id}`}>
+            {normalizedShipment.serialId || normalizedShipment._id.substring(0, 8)}
+          </Link>
+        </td>
+        <td>
+          {normalizedShipment.dateAdded ? (
+            <Moment format="DD/MM/YYYY">{normalizedShipment.dateAdded}</Moment>
+          ) : (
+            'N/A'
+          )}
+        </td>
+        <td>{normalizedShipment.customerName}</td>
+        <td>{normalizedShipment.awbs}</td>
+        <td>{normalizedShipment.routingString}</td>
+        <td>{normalizedShipment.orderStatus || 'Not Set'}</td>
+        <td className={`status-${normalizedShipment.shipmentStatus?.replace(/\s+/g, '-')?.toLowerCase() || 'undefined'}`}>
+          {normalizedShipment.shipmentStatus || 'Not Set'}
+        </td>
+        <td>
+          {normalizedShipment.legs && normalizedShipment.legs.length > 0 && 
+           (normalizedShipment.legs[0].departureDate || normalizedShipment.legs[0].departureTime) ? (
+            <Moment format="DD/MM/YYYY">
+              {normalizedShipment.legs[0].departureDate || normalizedShipment.legs[0].departureTime}
+            </Moment>
+          ) : (
+            'N/A'
+          )}
+        </td>
+        <td>
+          {normalizedShipment.legs && 
+           normalizedShipment.legs.length > 0 && 
+           (normalizedShipment.legs[normalizedShipment.legs.length - 1].arrivalDate || 
+            normalizedShipment.legs[normalizedShipment.legs.length - 1].arrivalTime) ? (
+            <Moment format="DD/MM/YYYY">
+              {normalizedShipment.legs[normalizedShipment.legs.length - 1].arrivalDate || 
+               normalizedShipment.legs[normalizedShipment.legs.length - 1].arrivalTime}
+            </Moment>
+          ) : (
+            'N/A'
+          )}
+        </td>
+        <td>{normalizedShipment.invoiced ? 'Yes' : 'No'}</td>
+        <td>
+          <div className="action-buttons">
+            <Link to={`/shipments/${normalizedShipment._id}`} className="btn btn-info btn-sm">
+              View
+            </Link>
+            <Link to={`/edit-shipment/${normalizedShipment._id}`} className="btn btn-primary btn-sm">
+              Edit
+            </Link>
+            <button 
+              onClick={() => handleDeleteClick(normalizedShipment)} 
+              className="btn btn-danger btn-sm"
+            >
+              Delete
+            </button>
+          </div>
+        </td>
+      </tr>
+    );
+  };
+
   return loading ? (
     <Spinner />
   ) : (
@@ -461,84 +557,7 @@ const Shipments = ({ getShipments, updateShipment, deleteShipment, shipment: { s
           </thead>
           <tbody>
             {filteredData.length > 0 ? (
-              filteredData.map(shipment => (
-                <tr key={shipment._id} className={shipment.invoiced ? 'row-success' : ''}>
-                  <td>
-                    <Link to={`/shipments/${shipment._id}`}>
-                      {shipment.serialId || shipment._id.substring(0, 8)}
-                    </Link>
-                  </td>
-                  <td>
-                    {shipment.dateAdded ? (
-                      <Moment format="DD/MM/YYYY">{shipment.dateAdded}</Moment>
-                    ) : (
-                      'N/A'
-                    )}
-                  </td>
-                  <td>{typeof shipment.customer === 'object' ? shipment.customer?.name : (shipment.customer || 'Unknown')}</td>
-                  <td>{getShipmentAWB(shipment)}</td>
-                  <td>{getShipmentRouting(shipment)}</td>
-                  <td>{shipment.orderStatus || 'Not Set'}</td>
-                  <td className={`status-${shipment.shipmentStatus?.replace(/\s+/g, '-')?.toLowerCase() || 'undefined'}`}>
-                    {shipment.shipmentStatus || 'Not Set'}
-                  </td>
-                  <td>
-                    {shipment.legs && shipment.legs.length > 0 && shipment.legs[0].departureDate ? (
-                      <Moment format="DD/MM/YYYY">
-                        {shipment.legs[0].departureDate || shipment.legs[0].departureTime}
-                      </Moment>
-                    ) : (
-                      'N/A'
-                    )}
-                  </td>
-                  <td>
-                    {shipment.legs && 
-                     shipment.legs.length > 0 && 
-                     shipment.legs[shipment.legs.length - 1].arrivalDate ? (
-                      <Moment format="DD/MM/YYYY">
-                        {shipment.legs[shipment.legs.length - 1].arrivalDate || 
-                         shipment.legs[shipment.legs.length - 1].arrivalTime}
-                      </Moment>
-                    ) : (
-                      'N/A'
-                    )}
-                  </td>
-                  <td>
-                    {shipment.invoiced ? (
-                      <div className="invoiced-info">
-                        <span className="text-success">Yes</span>
-                        {shipment.invoiceNumber && (
-                          <div className="invoice-number">
-                            <small>#{shipment.invoiceNumber}</small>
-                          </div>
-                        )}
-                      </div>
-                    ) : (
-                      'No'
-                    )}
-                  </td>
-                  <td>
-                    <Link
-                      to={`/shipments/${shipment._id}`}
-                      className="btn btn-sm"
-                    >
-                      View
-                    </Link>
-                    <Link
-                      to={`/edit-shipment/${shipment._id}`}
-                      className="btn btn-sm"
-                    >
-                      Edit
-                    </Link>
-                    <button
-                      className="btn btn-sm btn-danger"
-                      onClick={() => handleDeleteClick(shipment)}
-                    >
-                      Delete
-                    </button>
-                  </td>
-                </tr>
-              ))
+              filteredData.map(shipment => renderShipmentRow(shipment))
             ) : (
               <tr>
                 <td colSpan="11">No shipments found</td>

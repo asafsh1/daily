@@ -250,7 +250,78 @@ app.use((err, req, res, next) => {
 
 const PORT = process.env.PORT || 5001;
 
-server.listen(PORT, () => console.log(`Server started on port ${PORT}`));
+// Add a function to handle graceful shutdown and remove port conflict
+const checkPortAvailability = (port) => {
+  return new Promise((resolve, reject) => {
+    const net = require('net');
+    const tester = net.createServer()
+      .once('error', err => {
+        if (err.code === 'EADDRINUSE') {
+          console.error(`Port ${port} is already in use.`);
+          resolve(false);
+        } else {
+          reject(err);
+        }
+      })
+      .once('listening', () => {
+        tester.close();
+        resolve(true);
+      })
+      .listen(port);
+  });
+};
+
+// Main server function 
+const startServer = async () => {
+  try {
+    // Check if port is available
+    const portAvailable = await checkPortAvailability(PORT);
+    
+    if (!portAvailable) {
+      console.error(`Port ${PORT} is in use. Please close other instances or use a different port.`);
+      console.error('You can kill all processes on this port with: kill -9 $(lsof -t -i:' + PORT + ')');
+      process.exit(1);
+    }
+    
+    // Connect to MongoDB
+    const dbConnected = await connectDB();
+    
+    // Start Express server
+    app.listen(PORT, () => {
+      console.log(`Server started on port ${PORT}`);
+      
+      if (!dbConnected) {
+        console.warn('\nWARNING: Server started with limited functionality due to database issues.\n');
+      }
+    });
+    
+    // Setup graceful shutdown
+    process.on('SIGINT', gracefulShutdown);
+    process.on('SIGTERM', gracefulShutdown);
+    
+  } catch (err) {
+    console.error('Failed to start server:', err);
+    process.exit(1);
+  }
+};
+
+// Graceful shutdown handler
+const gracefulShutdown = () => {
+  console.log('\nReceived shutdown signal. Closing server gracefully...');
+  
+  // Close MongoDB connection
+  if (mongoose.connection.readyState === 1) {
+    mongoose.connection.close();
+    console.log('MongoDB connection closed');
+  }
+  
+  // Exit process
+  console.log('Server shutdown complete');
+  process.exit(0);
+};
+
+// Start the server
+startServer();
 
 // Set up websocket communication
 io.on('connection', (socket) => {
