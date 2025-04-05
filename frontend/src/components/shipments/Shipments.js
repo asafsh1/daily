@@ -10,6 +10,7 @@ import { toast } from 'react-toastify';
 import { getTrackingUrlSync, hasTracking } from '../../utils/trackingUtils';
 import { Button, Table, Container, Row, Col, Card, Alert } from 'react-bootstrap';
 import './Shipments.css';
+import ShipmentItem from './ShipmentItem';
 
 const Shipments = ({ getShipments, updateShipment, deleteShipment, shipment: { shipments, loading, error } }) => {
   const [searchTerm, setSearchTerm] = useState('');
