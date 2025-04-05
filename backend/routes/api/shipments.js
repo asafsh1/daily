@@ -180,50 +180,60 @@ router.get('/:id', auth, async (req, res) => {
       return res.status(400).json({ msg: 'Invalid shipment ID format' });
     }
     
-    // Explicitly populate legs
-    const shipment = await Shipment.findById(req.params.id)
+    // First try to get the shipment with populated legs
+    let shipment = await Shipment.findById(req.params.id)
       .populate({
         path: 'legs',
         model: 'shipmentLeg',
         options: { sort: { legOrder: 1 } }
       })
       .populate('customer');
-
+    
     if (!shipment) {
       return res.status(404).json({ msg: 'Shipment not found' });
     }
     
-    // Check if legs array exists but is empty
+    console.log(`Found shipment with ID ${req.params.id}`);
+    
+    // If legs array is empty or missing, try to find legs separately
     if (!shipment.legs || shipment.legs.length === 0) {
-      console.log(`No legs found for shipment ${req.params.id}, looking for legs in shipmentLeg collection`);
+      console.log(`No legs found in shipment object, searching separately...`);
       
-      // Try to find legs separately
-      try {
-        const legs = await mongoose.model('shipmentLeg').find({ shipment: req.params.id })
-          .sort({ legOrder: 1 });
+      // Directly find legs in shipmentLeg collection
+      const separateLegs = await mongoose.model('shipmentLeg').find({ 
+        shipment: req.params.id 
+      }).sort({ legOrder: 1 });
+      
+      console.log(`Found ${separateLegs.length} legs in separate query`);
+      
+      // If legs found separately, add them to shipment and update the shipment
+      if (separateLegs.length > 0) {
+        // Add legs to shipment response
+        shipment = shipment.toObject();  // Convert to plain object for modification
+        shipment.legs = separateLegs;
         
-        if (legs && legs.length > 0) {
-          console.log(`Found ${legs.length} legs in separate query`);
-          shipment.legs = legs;
-          
-          // Also update the shipment to link these legs
-          await Shipment.findByIdAndUpdate(req.params.id, 
-            { $set: { legs: legs.map(leg => leg._id) } },
-            { new: false }
+        // Also update the database to link these legs
+        try {
+          console.log(`Updating shipment in database to link ${separateLegs.length} legs`);
+          await Shipment.findByIdAndUpdate(
+            req.params.id,
+            { $set: { legs: separateLegs.map(leg => leg._id) } }
           );
-        } else {
-          console.log(`No legs found in separate query either`);
+        } catch (updateErr) {
+          console.error(`Error updating shipment with legs: ${updateErr.message}`);
         }
-      } catch (legErr) {
-        console.error(`Error fetching legs separately: ${legErr.message}`);
+      } else {
+        console.log(`No legs found for shipment ${req.params.id} in separate query`);
+        shipment = shipment.toObject();  // Convert to plain object for modification
+        shipment.legs = [];  // Ensure legs is at least an empty array
       }
     } else {
-      console.log(`Shipment has ${shipment.legs.length} legs already populated`);
+      console.log(`Shipment already has ${shipment.legs.length} legs`);
     }
-
+    
     res.json(shipment);
   } catch (err) {
-    console.error(err.message);
+    console.error(`Error fetching shipment: ${err.message}`);
     res.status(500).send('Server Error');
   }
 });

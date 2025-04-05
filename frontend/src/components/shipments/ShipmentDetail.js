@@ -19,11 +19,17 @@ const ShipmentDetail = ({
   const [activeSection, setActiveSection] = useState('basic');
 
   useEffect(() => {
+    console.log(`ShipmentDetail - Loading shipment with ID: ${id}`);
     getShipment(id);
 
-    // Debug shipment legs
-    if (shipment && shipment.legs) {
-      console.log("Shipment legs in detail view:", shipment.legs);
+    // Provide detailed logging for shipment and legs data
+    if (shipment) {
+      console.log("Current shipment data:", shipment);
+      if (shipment.legs) {
+        console.log(`Shipment has ${shipment.legs.length} legs:`, shipment.legs);
+      } else {
+        console.log("Shipment has no legs array");
+      }
     }
 
     // Refresh the shipment data every minute to catch updates
@@ -36,7 +42,7 @@ const ShipmentDetail = ({
       clearInterval(refreshInterval);
       clearShipment();
     };
-  }, [getShipment, clearShipment, id, shipment]);
+  }, [getShipment, clearShipment, id]);
 
   const handleSectionChange = (section) => {
     setActiveSection(section);
@@ -194,6 +200,19 @@ const ShipmentDetail = ({
           <div id="legs" className="shipment-section">
             <h2 className="section-title">Shipment Legs</h2>
             <div className="shipment-legs-container">
+              {/* Debug information about legs */}
+              <div style={{ marginBottom: '20px', padding: '10px', border: '1px solid #ddd', background: '#f5f5f5' }}>
+                <p>Shipment ID: {id}</p>
+                <p>Has legs array: {shipment.legs ? 'Yes' : 'No'}</p>
+                <p>Number of legs: {shipment.legs ? shipment.legs.length : 0}</p>
+                {shipment.legs && shipment.legs.length > 0 && (
+                  <div>
+                    <p>First leg from: {shipment.legs[0].from || shipment.legs[0].origin || 'N/A'}</p>
+                    <p>First leg to: {shipment.legs[0].to || shipment.legs[0].destination || 'N/A'}</p>
+                  </div>
+                )}
+              </div>
+              
               <ShipmentLegs shipmentId={id} readOnly={true} />
             </div>
           </div>

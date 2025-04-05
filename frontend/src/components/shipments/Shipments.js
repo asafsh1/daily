@@ -142,6 +142,24 @@ const Shipments = ({ getShipments, updateShipment, deleteShipment, shipment: { s
     }
   };
 
+  // Add a debugShipmentField function to log field extraction logic
+  const debugShipmentField = (shipment, fieldName, extractedValue) => {
+    // Skip debugging for non-problematic fields
+    if (['_id', 'dateAdded', 'serialNumber', 'customer', 'customerName', 'shipmentStatus'].includes(fieldName)) {
+      return;
+    }
+    
+    // Log detailed information about the field extraction
+    console.log(`Field extraction for ${fieldName}:`, {
+      shipmentId: shipment._id,
+      extractedValue,
+      hasLegs: shipment.legs ? true : false,
+      legsCount: shipment.legs ? shipment.legs.length : 0,
+      directField: shipment[fieldName],
+      firstLegField: shipment.legs && shipment.legs[0] ? shipment.legs[0][fieldName] : undefined
+    });
+  };
+
   // Error handling - only show error if we have no data
   if (loading || (isRetrying && (!shipments || shipments.length === 0))) {
     return (
@@ -258,11 +276,13 @@ const Shipments = ({ getShipments, updateShipment, deleteShipment, shipment: { s
                     const origin = shipment.origin || 
                       (shipment.legs && shipment.legs[0] ? 
                         (shipment.legs[0].origin || shipment.legs[0].from) : 'N/A');
+                    debugShipmentField(shipment, 'origin', origin);
                       
                     const destination = shipment.destination || 
                       (shipment.legs && shipment.legs.length > 0 ? 
                         (shipment.legs[shipment.legs.length-1].destination || 
                          shipment.legs[shipment.legs.length-1].to) : 'N/A');
+                    debugShipmentField(shipment, 'destination', destination);
                     
                     const status = shipment.shipmentStatus || 'Pending';
                     
@@ -270,11 +290,13 @@ const Shipments = ({ getShipments, updateShipment, deleteShipment, shipment: { s
                     const departureDate = shipment.departureDate || 
                       (shipment.legs && shipment.legs[0] && 
                        (shipment.legs[0].departureDate || shipment.legs[0].departureTime)) || null;
+                    debugShipmentField(shipment, 'departureDate', departureDate);
                         
                     const arrivalDate = shipment.arrivalDate || 
                       (shipment.legs && shipment.legs.length > 0 && 
                        (shipment.legs[shipment.legs.length-1].arrivalDate || 
                         shipment.legs[shipment.legs.length-1].arrivalTime)) || null;
+                    debugShipmentField(shipment, 'arrivalDate', arrivalDate);
                     
                     // Status badge class
                     const getStatusClass = (status) => {

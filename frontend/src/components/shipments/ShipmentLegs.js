@@ -85,62 +85,75 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
         return;
       }
       
-      // First try getting the full shipment which should include leg information
-      console.log(`Requesting shipment data for ID: ${shipmentId}`);
-      const shipmentResponse = await axios.get(`/api/shipments/${shipmentId}`);
-      console.log(`Received shipment data:`, shipmentResponse.data);
-      
-      // Extract legs array from response
-      let shipmentLegs = [];
-      if (shipmentResponse.data?.legs && Array.isArray(shipmentResponse.data.legs)) {
-        shipmentLegs = shipmentResponse.data.legs;
-        console.log(`Found ${shipmentLegs.length} legs in shipment response:`, shipmentLegs);
-      }
-      
-      // If no legs found in the shipment, try the dedicated legs endpoint as fallback
-      if (shipmentLegs.length === 0) {
-        try {
-          console.log(`No legs found in shipment data, trying direct legs endpoint`);
-          const legsResponse = await axios.get(`/api/shipment-legs/${shipmentId}`);
-          console.log(`Legs endpoint response:`, legsResponse.data);
-          
-          if (Array.isArray(legsResponse.data) && legsResponse.data.length > 0) {
-            shipmentLegs = legsResponse.data;
-            console.log(`Found ${shipmentLegs.length} legs from dedicated endpoint`);
-          }
-        } catch (legErr) {
-          console.error(`Error fetching from legs endpoint:`, legErr);
+      // DIRECT METHOD: Get the legs directly from the legs endpoint
+      try {
+        console.log(`Fetching legs directly from legs endpoint for shipment ${shipmentId}`);
+        const directResponse = await axios.get(`/api/shipment-legs/${shipmentId}`);
+        
+        if (Array.isArray(directResponse.data) && directResponse.data.length > 0) {
+          console.log(`Successfully fetched ${directResponse.data.length} legs from direct endpoint`);
+          processFetchedLegs(directResponse.data);
+          return;
+        } else {
+          console.log(`Direct legs endpoint returned no legs, trying shipment endpoint...`);
         }
+      } catch (directError) {
+        console.error(`Error fetching from direct legs endpoint:`, directError);
       }
       
-      // Process and set legs
-      if (shipmentLegs.length > 0) {
-        // Normalize legs to handle different field naming conventions
-        const normalizedLegs = normalizeLegs(shipmentLegs);
+      // FALLBACK METHOD: Get legs through shipment endpoint
+      try {
+        console.log(`Fetching full shipment data for ID: ${shipmentId}`);
+        const shipmentResponse = await axios.get(`/api/shipments/${shipmentId}`);
+        console.log(`Full shipment data received:`, shipmentResponse.data);
         
-        // Sort legs by order
-        const sortedLegs = [...normalizedLegs].sort((a, b) => 
-          (Number(a.legOrder) || 0) - (Number(b.legOrder) || 0)
-        );
-        
-        console.log(`Processed ${sortedLegs.length} legs for display:`, sortedLegs);
-        setLegs(sortedLegs);
-        setError(null);
-      } else {
-        console.log(`No legs found for shipment ${shipmentId}`);
+        if (shipmentResponse.data?.legs && Array.isArray(shipmentResponse.data.legs) && shipmentResponse.data.legs.length > 0) {
+          console.log(`Found ${shipmentResponse.data.legs.length} legs in shipment response`);
+          processFetchedLegs(shipmentResponse.data.legs);
+          return;
+        } else {
+          console.log(`No legs found in shipment response either`);
+          setLegs([]);
+          setError("No legs found for this shipment");
+          inspectShipment();
+        }
+      } catch (shipmentError) {
+        console.error(`Error fetching from shipment endpoint:`, shipmentError);
+        setError(`Failed to load shipment legs: ${shipmentError.message}`);
         setLegs([]);
-        setError("No legs found for this shipment");
-        
-        // If no legs found, try to inspect the full shipment for debugging
-        inspectShipment();
       }
     } catch (err) {
-      console.error(`Error fetching legs:`, err);
+      console.error(`General error fetching legs:`, err);
       setError(`Failed to load shipment legs: ${err.message}`);
       setLegs([]);
     } finally {
       setLoading(false);
     }
+  };
+
+  // Extract the processing of fetched legs to a separate function
+  const processFetchedLegs = (legsData) => {
+    if (!Array.isArray(legsData)) {
+      console.error(`processFetchedLegs received non-array:`, legsData);
+      setLegs([]);
+      setError("Invalid leg data format");
+      return;
+    }
+    
+    // Log raw legs before processing
+    console.log(`Processing ${legsData.length} raw legs:`, legsData);
+    
+    // Normalize legs for consistency
+    const normalizedLegs = normalizeLegs(legsData);
+    
+    // Sort legs by order
+    const sortedLegs = [...normalizedLegs].sort((a, b) => 
+      (Number(a.legOrder) || 0) - (Number(b.legOrder) || 0)
+    );
+    
+    console.log(`Finished processing ${sortedLegs.length} legs:`, sortedLegs);
+    setLegs(sortedLegs);
+    setError(null);
   };
 
   // Handle form input changes
