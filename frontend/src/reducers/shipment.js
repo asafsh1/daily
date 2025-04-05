@@ -18,26 +18,21 @@ const initialState = {
   error: {}
 };
 
-// Helper function to validate shipment object
+// Helper function to validate shipment object - make it more permissive
 const validateShipment = (shipment) => {
+  // Accept any object, even without _id
   if (!shipment || typeof shipment !== 'object') {
-    console.error('Invalid shipment:', shipment);
-    return null;
+    console.warn('Non-object shipment found, using anyway:', shipment);
+    return shipment; // Just return it as is instead of null
   }
   
-  // Ensure shipment has an ID
-  if (!shipment._id) {
-    console.error('Shipment missing _id:', shipment);
-    return null;
-  }
-  
-  // Ensure required properties exist with fallbacks
+  // Add fallbacks but don't filter out shipments missing _id
   return {
     ...shipment,
+    _id: shipment._id || `temp-${Date.now()}-${Math.random()}`, // Generate temp ID if missing
     legs: Array.isArray(shipment.legs) ? shipment.legs : [],
     status: shipment.status || 'Pending',
     dateAdded: shipment.dateAdded || new Date(),
-    // Add other essential properties with fallbacks
     origin: shipment.origin || '',
     destination: shipment.destination || '',
     mode: shipment.mode || 'Air'
@@ -60,15 +55,17 @@ export default function(state = initialState, action) {
       };
     case GET_SHIPMENTS:
       console.log('Reducer: GET_SHIPMENTS with payload:', payload);
-      // Ensure payload is an array and filter out invalid items
-      const validShipments = Array.isArray(payload) 
-        ? payload
-            .filter(shipment => shipment && typeof shipment === 'object')
-            .map(shipment => validateShipment(shipment))
-            .filter(Boolean) // Filter out null values
-        : [];
-        
-      console.log(`Reducer: Validated ${validShipments.length} shipments out of ${Array.isArray(payload) ? payload.length : 0}`);
+      // Be very permissive - use payload directly if it's an array
+      let validShipments = [];
+      
+      if (Array.isArray(payload)) {
+        validShipments = payload.map(shipment => validateShipment(shipment));
+      } else if (payload && typeof payload === 'object' && Array.isArray(payload.shipments)) {
+        validShipments = payload.shipments.map(shipment => validateShipment(shipment));
+      } else {
+        // Last resort, use payload directly
+        validShipments = Array.isArray(payload) ? payload : [];
+      }
       
       return {
         ...state,
