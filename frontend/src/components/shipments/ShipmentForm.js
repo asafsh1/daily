@@ -133,7 +133,7 @@ const ShipmentForm = ({
       };
 
       // Create a new object to hold shipment data
-      const shipmentData = {}; 
+      const shipmentData = { ...initialState }; 
       
       // Copy all fields from shipment to data object
       for (const key in shipment) {
@@ -149,16 +149,12 @@ const ShipmentForm = ({
             } else {
               shipmentData[key] = shipment[key];
             }
+          } else if (key === 'legs') {
+            // Preserve legs array
+            shipmentData.legs = shipment.legs || [];
           } else {
             shipmentData[key] = shipment[key];
           }
-        }
-      }
-      
-      // Fill any missing fields with defaults
-      for (const key in initialState) {
-        if (!(key in shipmentData) && key !== 'legs') {
-          shipmentData[key] = initialState[key];
         }
       }
       
@@ -166,7 +162,7 @@ const ShipmentForm = ({
       setFormData(shipmentData);
       setFormInitialized(true);
     }
-  }, [loading, shipment, isEditMode, formInitialized]);
+  }, [loading, shipment, isEditMode, formInitialized, initialState]);
 
   // Fetch customers from API
   const fetchCustomers = async () => {
@@ -412,11 +408,20 @@ const ShipmentForm = ({
     e.preventDefault();
     if (!validateForm()) return;
 
-    const currentLegs = formData.legs ? formData.legs.map(leg => {
-      // Exclude the tempId used for tracking during editing
-      const { tempId, ...legData } = leg;
-      return legData;
-    }) : [];
+    // Create a deep clone of the current legs (if any)
+    const currentLegs = formData.legs && Array.isArray(formData.legs) 
+      ? formData.legs.map(leg => {
+          // Exclude the tempId used for tracking during editing
+          if (leg.tempId) {
+            const { tempId, ...legData } = leg;
+            return legData;
+          }
+          return { ...leg };
+        })
+      : [];
+
+    // Log what legs we're submitting
+    console.log("Submitting shipment with legs:", currentLegs);
 
     const newShipment = {
       ...formData,
@@ -547,10 +552,10 @@ const ShipmentForm = ({
                 ) : (
                   <select
                     id="customer"
-                    name="customerId"
-                    value={formData.customerId}
+                    name="customer" 
+                    value={formData.customer}
                     onChange={onChange}
-                    className={errors.customerId ? 'form-control is-invalid' : 'form-control'}
+                    className={errors.customer ? 'form-control is-invalid' : 'form-control'}
                     required
                   >
                     <option value="">Select Customer</option>
@@ -561,7 +566,7 @@ const ShipmentForm = ({
                     ))}
                   </select>
                 )}
-                {errors.customerId && <div className="invalid-feedback">{errors.customerId}</div>}
+                {errors.customer && <div className="invalid-feedback">{errors.customer}</div>}
               </div>
               
               <div className="form-row">

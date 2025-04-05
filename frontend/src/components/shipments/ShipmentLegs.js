@@ -71,14 +71,25 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
       // Only fetch legs from the server if this is a real shipment ID (not a temp one)
       if (shipmentId && !shipmentId.toString().startsWith('temp-')) {
         try {
-          // Changed the endpoint URL to match the backend route
-          const res = await axios.get(`/api/shipment-legs/${shipmentId}`);
-          console.log("Legs response:", res.data);
-          if (Array.isArray(res.data)) {
-            setLegs(res.data);
+          // Try both endpoints to ensure compatibility
+          let response;
+          try {
+            response = await axios.get(`/api/shipment-legs/${shipmentId}`);
+          } catch (err) {
+            console.log("First endpoint failed, trying alternative endpoint");
+            response = await axios.get(`/api/shipments/${shipmentId}/legs`);
+          }
+          
+          console.log("Legs response:", response.data);
+          if (Array.isArray(response.data)) {
+            setLegs(response.data);
+            setError(null);
+          } else if (response.data.legs && Array.isArray(response.data.legs)) {
+            // Handle case where legs are in a nested property
+            setLegs(response.data.legs);
             setError(null);
           } else {
-            console.error("Unexpected response format:", res.data);
+            console.error("Unexpected response format:", response.data);
             setError('Received invalid leg data format from server');
             setLegs([]);
           }

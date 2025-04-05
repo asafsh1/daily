@@ -21,6 +21,11 @@ const ShipmentDetail = ({
   useEffect(() => {
     getShipment(id);
 
+    // Debug shipment legs
+    if (shipment && shipment.legs) {
+      console.log("Shipment legs in detail view:", shipment.legs);
+    }
+
     // Refresh the shipment data every minute to catch updates
     const refreshInterval = setInterval(() => {
       console.log('Auto-refreshing shipment details');
@@ -31,7 +36,7 @@ const ShipmentDetail = ({
       clearInterval(refreshInterval);
       clearShipment();
     };
-  }, [getShipment, clearShipment, id]);
+  }, [getShipment, clearShipment, id, shipment]);
 
   const handleSectionChange = (section) => {
     setActiveSection(section);
