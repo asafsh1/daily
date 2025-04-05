@@ -79,4 +79,49 @@ axios.interceptors.response.use(
   }
 );
 
+// Import axios retry extension
+// For now we'll implement this directly, should be added as a dependency later
+const axiosRetry = (axios, options = {}) => {
+  const maxRetries = options.retries || 3;
+  const retryDelay = options.retryDelay || 1000;
+  const shouldRetry = options.shouldRetry || ((error) => {
+    return error.message === 'Network Error' || error.code === 'ERR_NETWORK';
+  });
+
+  axios.interceptors.response.use(null, async (error) => {
+    const config = error.config;
+    
+    // Only retry if it meets our criteria and hasn't exceeded max retries
+    if (shouldRetry(error) && (!config._retryCount || config._retryCount < maxRetries)) {
+      config._retryCount = config._retryCount || 0;
+      config._retryCount += 1;
+      
+      console.log(`Retrying request (${config._retryCount}/${maxRetries}): ${config.url}`);
+      
+      // Add a delay between retries with exponential backoff
+      const delay = retryDelay * Math.pow(2, config._retryCount - 1);
+      await new Promise(resolve => setTimeout(resolve, delay));
+      
+      // Return the retry request
+      return axios(config);
+    }
+    
+    // If we've exhausted retries or it's not a retryable error, continue with rejection
+    return Promise.reject(error);
+  });
+};
+
+// Apply retry logic to axios with custom settings
+axiosRetry(axios, {
+  retries: 2,
+  retryDelay: 500,
+  shouldRetry: (error) => {
+    return (
+      error.message === 'Network Error' || 
+      error.code === 'ERR_NETWORK' || 
+      (error.response && error.response.status >= 500)
+    );
+  }
+});
+
 export default axios; 

@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const auth = require('../../middleware/auth');
 const { check, validationResult } = require('express-validator');
+const mongoose = require('mongoose');
 
 const ShipmentLeg = require('../../models/ShipmentLeg');
 const Shipment = require('../../models/Shipment');
@@ -11,11 +12,29 @@ const Shipment = require('../../models/Shipment');
 // @access  Private
 router.get('/:shipmentId', auth, async (req, res) => {
   try {
-    const legs = await ShipmentLeg.find({ shipment: req.params.shipmentId }).sort({ legOrder: 1 });
+    // Check for valid database connection
+    if (mongoose.connection.readyState !== 1) {
+      console.error('Database connection is not ready. Current state:', mongoose.connection.readyState);
+      return res.status(503).json({
+        error: 'Database connection is not ready',
+        legs: []
+      });
+    }
+    
+    // Limit the number of returned legs to prevent resource exhaustion
+    const legs = await ShipmentLeg.find({ shipment: req.params.shipmentId })
+      .sort({ legOrder: 1 })
+      .limit(20); // Limit to 20 legs per shipment
+    
+    console.log(`Found ${legs.length} legs for shipment ${req.params.shipmentId}`);
     res.json(legs);
   } catch (err) {
     console.error(err.message);
-    res.status(500).send('Server Error');
+    res.status(500).json({
+      error: 'Server Error',
+      message: err.message,
+      legs: []
+    });
   }
 });
 
