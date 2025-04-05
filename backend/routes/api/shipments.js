@@ -283,4 +283,86 @@ router.get('/:id/legs', async (req, res) => {
   }
 });
 
+// @route   GET api/shipments/repair-legs/:id
+// @desc    Special endpoint to fix legs for a shipment
+// @access  Public
+router.get('/repair-legs/:id', async (req, res) => {
+  try {
+    const shipmentId = req.params.id;
+    console.log(`[REPAIR] Repairing legs for shipment: ${shipmentId}`);
+    
+    // Check for valid ObjectId format
+    if (!mongoose.Types.ObjectId.isValid(shipmentId)) {
+      return res.status(400).json({ 
+        success: false, 
+        msg: 'Invalid shipment ID format' 
+      });
+    }
+    
+    // 1. Find the shipment
+    const shipment = await Shipment.findById(shipmentId);
+    if (!shipment) {
+      return res.status(404).json({ 
+        success: false, 
+        msg: 'Shipment not found' 
+      });
+    }
+    
+    // 2. Get all legs from shipmentLeg collection
+    const allLegs = await mongoose.model('shipmentLeg').find({ 
+      shipment: shipmentId 
+    }).sort({ legOrder: 1 });
+    
+    console.log(`[REPAIR] Found ${allLegs.length} independent legs for shipment ${shipmentId}`);
+    
+    // 3. Record initial state for reporting
+    const initialLegsLength = shipment.legs ? shipment.legs.length : 0;
+    
+    // 4. Reset shipment legs array and add all legs found
+    shipment.legs = allLegs.map(leg => leg._id);
+    
+    // 5. Update the shipment with the correct legs
+    await shipment.save();
+    
+    console.log(`[REPAIR] Updated shipment ${shipmentId} with ${shipment.legs.length} legs (was ${initialLegsLength})`);
+    
+    // 6. Get the updated shipment with populated legs
+    const updatedShipment = await Shipment.findById(shipmentId)
+      .populate({
+        path: 'legs',
+        model: 'shipmentLeg',
+        options: { sort: { legOrder: 1 } }
+      });
+    
+    // 7. Send response with complete repair information
+    res.json({
+      success: true,
+      message: `Repaired shipment legs. Found and linked ${allLegs.length} legs.`,
+      shipment: {
+        _id: updatedShipment._id,
+        serialNumber: updatedShipment.serialNumber || 'N/A',
+        origin: updatedShipment.origin,
+        destination: updatedShipment.destination
+      },
+      legs: {
+        before: initialLegsLength,
+        after: shipment.legs.length,
+        list: updatedShipment.legs.map(leg => ({
+          _id: leg._id,
+          legOrder: leg.legOrder,
+          from: leg.from || leg.origin || 'Unknown',
+          to: leg.to || leg.destination || 'Unknown'
+        }))
+      }
+    });
+  } catch (err) {
+    console.error(`[REPAIR] Error repairing shipment legs: ${err.message}`);
+    res.status(500).json({
+      success: false,
+      error: 'Server Error',
+      message: err.message
+    });
+  }
+});
+
 module.exports = router;

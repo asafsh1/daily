@@ -516,6 +516,44 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
     }
   };
 
+  // Add a repairLegs function to fix shipment legs
+  const repairLegs = async () => {
+    try {
+      console.log(`Running repair function for shipment legs: ${shipmentId}`);
+      setLoading(true);
+      
+      // Call the special repair endpoint
+      const response = await axios.get(`/api/shipments/repair-legs/${shipmentId}`);
+      console.log('Repair response:', response.data);
+      
+      if (response.data.success) {
+        // Set success message
+        setSuccess(`Repair successful: ${response.data.message}`);
+        
+        // Update debug info
+        setDebugInfo({
+          repairResult: response.data,
+          timestamp: new Date().toISOString()
+        });
+        
+        // If legs were found, refresh and display them
+        if (response.data.legs.after > 0) {
+          // Wait a moment for database to update
+          setTimeout(() => {
+            fetchLegs();
+          }, 1000);
+        }
+      } else {
+        setError(`Repair failed: ${response.data.message || 'Unknown error'}`);
+      }
+    } catch (err) {
+      console.error('Error repairing legs:', err);
+      setError(`Repair failed: ${err.message}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // Render function for debug info
   const renderDebugInfo = () => {
     if (!debugInfo && !error) return null;
@@ -525,6 +563,13 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
         <h4>Debug Information</h4>
         
         <div style={{ display: 'flex', gap: '10px', marginBottom: '15px' }}>
+          <button 
+            onClick={() => repairLegs()} 
+            className="btn btn-danger"
+          >
+            Repair Shipment Legs
+          </button>
+          
           <button 
             onClick={() => checkLegsInDatabase()} 
             className="btn btn-warning"
@@ -539,6 +584,24 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
             Retry Fetch
           </button>
         </div>
+        
+        {/* Repair results */}
+        {debugInfo?.repairResult && (
+          <div>
+            <h5>Repair Results:</h5>
+            <p><strong>Status:</strong> {debugInfo.repairResult.success ? 'Success' : 'Failed'}</p>
+            <p><strong>Message:</strong> {debugInfo.repairResult.message}</p>
+            <p><strong>Legs Before:</strong> {debugInfo.repairResult.legs.before}</p>
+            <p><strong>Legs After:</strong> {debugInfo.repairResult.legs.after}</p>
+            
+            {debugInfo.repairResult.legs.list && debugInfo.repairResult.legs.list.length > 0 && (
+              <div>
+                <p><strong>Repaired Legs:</strong></p>
+                <pre>{JSON.stringify(debugInfo.repairResult.legs.list, null, 2)}</pre>
+              </div>
+            )}
+          </div>
+        )}
         
         {/* Database check results */}
         {debugInfo?.databaseCheck && (
@@ -564,7 +627,7 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
         )}
         
         {/* Original debug info */}
-        {debugInfo && !debugInfo.databaseCheck && (
+        {debugInfo && !debugInfo.databaseCheck && !debugInfo.repairResult && (
           <>
             <p>Shipment ID: {debugInfo.shipmentId}</p>
             <p>Has legs array: {debugInfo.hasLegsArray ? 'Yes' : 'No'}</p>
