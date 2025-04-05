@@ -55,6 +55,7 @@ router.get('/', async (req, res) => {
       // Safely process legs with extensive error handling
       const legsByShipment = {};
       
+      // Process legs one by one
       for (const leg of allLegs) {
         try {
           // Skip invalid legs
@@ -84,108 +85,67 @@ router.get('/', async (req, res) => {
           
           legsByShipment[shipmentId].push(leg);
         } catch (err) {
-          console.error('Error processing leg:', err.message, 'Leg:', leg);
+          console.error("Error processing leg:", err.message, "leg:", leg);
         }
-      });
+      }
       
       // Process each shipment to format properly
-      const processedShipments = await Promise.all(shipments.map(async (shipment) => {
-        if (!shipment) {
-          console.warn('Null shipment found in database results');
-          return null;
-        }
-        
+      const processedShipments = [];
+      for (const shipment of shipments) {
         try {
+          if (!shipment) {
+            console.warn('Null shipment found in database results');
+            continue;
+          }
+          
           let shipmentId;
           try {
             shipmentId = shipment._id.toString();
           } catch (err) {
             console.error("Error converting shipment._id to string:", err.message);
             shipmentId = "unknown";
+            continue;
           }
           
           const shipmentLegs = legsByShipment[shipmentId] || [];
-          
-          // Sort legs by order
-          shipmentLegs.sort((a, b) => a.legOrder - b.legOrder);
           
           // Calculate departure and arrival times
           let departureTime = null;
           let arrivalTime = null;
           
           if (shipmentLegs.length === 1) {
-            // If single leg, use its departure and arrival
             departureTime = shipmentLegs[0].departureTime;
             arrivalTime = shipmentLegs[0].arrivalTime;
           } else if (shipmentLegs.length > 1) {
-            // If multiple legs, use first leg departure and last leg arrival
             departureTime = shipmentLegs[0].departureTime;
             arrivalTime = shipmentLegs[shipmentLegs.length - 1].arrivalTime;
           }
           
           // Process customer field to handle both string and ObjectId references
           let customerDisplay = shipment.customer || { name: 'Unknown' };
-          if (typeof shipment.customer === 'string' && shipment.customer.length > 24) {
-            console.log('Processing ObjectId string customer:', shipment.customer);
-            // Try to fetch the actual customer by ID
-            try {
-              const customerDoc = await mongoose.model('customer').findById(shipment.customer);
-              if (customerDoc) {
-                customerDisplay = { 
-                  _id: customerDoc._id, 
-                  name: customerDoc.name 
-                };
-                console.log('Found customer name:', customerDoc.name);
-              } else {
-                customerDisplay = { _id: shipment.customer, name: 'Unknown' };
-                console.log('Customer not found for ID:', shipment.customer);
-              }
-            } catch (err) {
-              console.error('Error looking up customer:', err.message);
-              customerDisplay = { _id: shipment.customer, name: 'Unknown' };
-            }
-          } else if (typeof shipment.customer === 'string') {
+          if (typeof shipment.customer === 'string') {
             customerDisplay = { name: shipment.customer };
-          } else if (shipment.customer && typeof shipment.customer === 'object') {
-            // It's already an object but might not have been populated
-            if (!shipment.customer.name && mongoose.Types.ObjectId.isValid(shipment.customer._id)) {
-              try {
-                const customerDoc = await mongoose.model('customer').findById(shipment.customer._id);
-                if (customerDoc) {
-                  customerDisplay = { 
-                    _id: customerDoc._id, 
-                    name: customerDoc.name 
-                  };
-                }
-              } catch (err) {
-                console.error('Error looking up customer from object:', err.message);
-              }
-            }
-          }
-        
-          return {
+          } 
+          
+          processedShipments.push({
             ...shipment,
             legs: shipmentLegs,
             customer: customerDisplay,
             scheduledDeparture: departureTime,
             scheduledArrival: arrivalTime
-          };
-        } catch (shipmentErr) {
-          console.error('Error processing shipment:', shipmentErr, 'Shipment:', shipment ? shipment._id : 'null');
-          return shipment;
+          });
+        } catch (err) {
+          console.error('Error processing shipment:', err.message);
         }
-      }));
-      
-      // Filter out null shipments
-      const validShipments = processedShipments.filter(shipment => shipment !== null);
+      }
       
       // Calculate total
-      const total = validShipments.length;
+      const total = processedShipments.length;
       
-      console.log(`Returning ${validShipments.length} processed shipments`);
+      console.log(`Returning ${processedShipments.length} processed shipments`);
       
       return res.json({
-        shipments: validShipments,
+        shipments: processedShipments,
         pagination: {
           total,
           page: 1,
@@ -194,39 +154,6 @@ router.get('/', async (req, res) => {
       });
     } catch (queryErr) {
       console.error('Error in main query:', queryErr.message);
-      
-      // If the error is due to customer ObjectId casting, try a fallback approach
-      if (queryErr.message && queryErr.message.includes('Cast to ObjectId failed')) {
-        console.log('Detected customer casting error, using fallback query');
-        
-        try {
-          // Get all shipments with absolutely no filtering or population
-          const basicShipments = await Shipment.find({}, null, { lean: true });
-          console.log(`Fallback query found ${basicShipments.length} shipments`);
-          
-          // Format them minimally for display
-          const simpleShipments = basicShipments.map(ship => ({
-            ...ship,
-            customer: typeof ship.customer === 'string' 
-              ? { name: ship.customer } 
-              : (ship.customer || { name: 'Unknown' })
-          }));
-          
-          return res.json({
-            shipments: simpleShipments,
-            pagination: {
-              total: simpleShipments.length,
-              page: 1,
-              pages: 1
-            },
-            note: 'Using fallback data due to customer reference issues'
-          });
-        } catch (fallbackErr) {
-          console.error('Even fallback approach failed:', fallbackErr);
-          throw fallbackErr;
-        }
-      }
-      
       throw queryErr;
     }
   } catch (err) {
@@ -244,78 +171,46 @@ router.get('/', async (req, res) => {
 // @access  Public
 router.get('/:id', async (req, res) => {
   try {
-    // Check database connection - if not connected, return empty data
+    // Check database connection
     if (mongoose.connection.readyState !== 1) {
-      console.error('Database connection is not ready. Current state:', mongoose.connection.readyState);
-      
-      // Return empty shipment data to avoid frontend errors
-      return res.json({
-        _id: req.params.id,
-        dateAdded: new Date(),
-        customer: null,
-        legs: [],
-        shipmentStatus: 'Pending',
-        orderStatus: 'planned',
-        invoiced: false
+      console.error('Database connection is not ready');
+      return res.status(503).json({
+        error: 'Database connection is not ready'
       });
     }
     
-    // Get shipment without populating customer to avoid ObjectId casting errors
-    const shipment = await Shipment.findById(req.params.id)
-      .populate({
-        path: 'legs',
-        options: { sort: { legOrder: 1 } }, // Sort legs by order
-        select: 'awbNumber departureTime arrivalTime origin destination legOrder flightNumber'
-      });
+    const shipment = await Shipment.findById(req.params.id).lean();
     
     if (!shipment) {
       return res.status(404).json({ msg: 'Shipment not found' });
     }
     
-    // Process customer field manually to handle both string and ObjectId references
-    let result = shipment.toObject();
-    
-    // If customer is a string (name), convert to object format
-    if (typeof result.customer === 'string') {
-      result.customer = { name: result.customer };
-    } 
-    // If customer is an ObjectId, try to populate it
-    else if (result.customer && mongoose.Types.ObjectId.isValid(result.customer)) {
-      try {
-        const customerDoc = await mongoose.model('customer').findById(result.customer);
-        if (customerDoc) {
-          result.customer = {
-            _id: customerDoc._id,
-            name: customerDoc.name,
-            contactPerson: customerDoc.contactPerson,
-            email: customerDoc.email,
-            phone: customerDoc.phone
-          };
-        }
-      } catch (err) {
-        console.error('Error populating customer:', err.message);
-      }
+    // Find legs for this shipment
+    try {
+      const legs = await ShipmentLeg.find({ shipment: req.params.id })
+        .sort({ legOrder: 1 })
+        .lean();
+      
+      shipment.legs = legs;
+    } catch (err) {
+      console.error('Error fetching legs:', err.message);
+      shipment.legs = [];
     }
-
-    res.json(result);
+    
+    // Process customer field
+    if (typeof shipment.customer === 'string') {
+      shipment.customer = { name: shipment.customer };
+    }
+    
+    res.json(shipment);
   } catch (err) {
     console.error('Error getting shipment by ID:', err.message);
     
-    // For ObjectId errors, return 404
     if (err.kind === 'ObjectId') {
       return res.status(404).json({ msg: 'Shipment not found' });
     }
     
-    // Return empty shipment data for other errors
-    res.json({
-      _id: req.params.id,
-      dateAdded: new Date(),
-      customer: null,
-      legs: [],
-      shipmentStatus: 'Pending',
-      orderStatus: 'planned',
-      invoiced: false
-    });
+    res.status(500).json({ error: 'Server error' });
   }
 });
 
@@ -328,17 +223,11 @@ router.get('/:id/legs', async (req, res) => {
     
     // Check database connection
     if (mongoose.connection.readyState !== 1) {
-      console.error('Database connection is not ready. Current state:', mongoose.connection.readyState);
+      console.error('Database connection is not ready');
       return res.status(503).json({
         error: 'Database connection is not ready',
         legs: []
       });
-    }
-    
-    // Get the shipment to verify it exists
-    const shipment = await Shipment.findById(req.params.id);
-    if (!shipment) {
-      return res.status(404).json({ msg: 'Shipment not found' });
     }
     
     // Find all legs for this shipment
@@ -357,353 +246,4 @@ router.get('/:id/legs', async (req, res) => {
   }
 });
 
-// @route   POST api/shipments
-// @desc    Create a shipment
-// @access  Public
-router.post(
-  '/',
-  [
-    check('dateAdded', 'Date added is required').not().isEmpty(),
-    check('orderStatus', 'Order status is required').not().isEmpty(),
-    check('customer', 'Customer is required').not().isEmpty(),
-    check('shipperName', 'Shipper name is required').not().isEmpty(),
-    check('consigneeName', 'Consignee name is required').not().isEmpty()
-  ],
-  async (req, res) => {
-    console.log('Received shipment data:', req.body);
-    
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      console.log('Validation errors:', errors.array());
-      return res.status(400).json({ errors: errors.array() });
-    }
-
-    try {
-      // Generate serial number (format: SHP-YYYY-XXXX)
-      const currentYear = new Date().getFullYear();
-      
-      // Find the highest serial number for this year
-      const latestShipment = await Shipment.findOne(
-        { serialNumber: new RegExp(`SHP-${currentYear}-\\d+`) },
-        { serialNumber: 1 }
-      ).sort({ serialNumber: -1 });
-      
-      let nextNumber = 1;
-      if (latestShipment && latestShipment.serialNumber) {
-        const parts = latestShipment.serialNumber.split('-');
-        if (parts.length === 3) {
-          nextNumber = parseInt(parts[2], 10) + 1;
-        }
-      }
-      
-      // Format with leading zeros (e.g., SHP-2023-0001)
-      const serialNumber = `SHP-${currentYear}-${nextNumber.toString().padStart(4, '0')}`;
-      
-      // Ensure dates are properly formatted
-      let shipmentData = {...req.body, serialNumber};
-      
-      try {
-        // Format dateAdded if it exists
-        if (shipmentData.dateAdded) {
-          shipmentData.dateAdded = new Date(shipmentData.dateAdded);
-        }
-        
-        // Format scheduledArrival if it exists
-        if (shipmentData.scheduledArrival) {
-          shipmentData.scheduledArrival = new Date(shipmentData.scheduledArrival);
-        }
-        
-        // Format fileCreatedDate if it exists
-        if (shipmentData.fileCreatedDate) {
-          shipmentData.fileCreatedDate = new Date(shipmentData.fileCreatedDate);
-        }
-      } catch (dateErr) {
-        console.error('Error formatting dates:', dateErr.message);
-        return res.status(400).json({ 
-          errors: [{ msg: 'Invalid date format. Please use ISO format (YYYY-MM-DD)' }] 
-        });
-      }
-      
-      const newShipment = new Shipment(shipmentData);
-
-      console.log('Created shipment object:', newShipment);
-      
-      const shipment = await newShipment.save();
-      
-      console.log('Saved shipment:', shipment);
-
-      res.json(shipment);
-    } catch (err) {
-      console.error('Error saving shipment:', err.message);
-      
-      // Handle mongoose validation errors
-      if (err.name === 'ValidationError') {
-        const validationErrors = Object.values(err.errors).map(error => ({
-          msg: error.message
-        }));
-        return res.status(400).json({ errors: validationErrors });
-      }
-      
-      res.status(500).send('Server Error');
-    }
-  }
-);
-
-// @route   PUT api/shipments/:id
-// @desc    Update a shipment
-// @access  Public
-router.put('/:id', async (req, res) => {
-  try {
-    console.log('Update request for shipment:', req.params.id);
-    console.log('Update data:', req.body);
-    
-    // Check database connection - if not connected, return error
-    if (mongoose.connection.readyState !== 1) {
-      console.error('Database connection is not ready. Current state:', mongoose.connection.readyState);
-      return res.status(500).json({ 
-        msg: 'Database connection is not ready'
-      });
-    }
-    
-    // Validate the ID format
-    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
-      return res.status(400).json({ 
-        msg: 'Invalid shipment ID format'
-      });
-    }
-    
-    // Get the current shipment data
-    const currentShipment = await Shipment.findById(req.params.id).lean();
-    if (!currentShipment) {
-      return res.status(404).json({ msg: 'Shipment not found' });
-    }
-    
-    // Prepare update data
-    const updateData = { ...req.body };
-    
-    // Special handling for customer field
-    if (updateData.customer) {
-      // If the customer is unchanged (same ID), preserve the original customer object
-      if (typeof currentShipment.customer === 'object' && 
-          currentShipment.customer && 
-          currentShipment.customer._id && 
-          updateData.customer === currentShipment.customer._id.toString()) {
-        console.log('Customer unchanged, preserving original customer data');
-        updateData.customer = currentShipment.customer;
-      }
-      // Otherwise, if it's a new customer ID, try to look up the customer
-      else if (mongoose.Types.ObjectId.isValid(updateData.customer)) {
-        try {
-          const customerDoc = await mongoose.model('customer').findById(updateData.customer);
-          if (customerDoc) {
-            console.log('Found customer:', customerDoc.name);
-            updateData.customer = { 
-              _id: customerDoc._id, 
-              name: customerDoc.name 
-            };
-          }
-        } catch (err) {
-          console.error('Error looking up customer:', err.message);
-          // Keep the customer ID as is if lookup fails
-        }
-      }
-    }
-    
-    // Update the shipment
-    const shipment = await Shipment.findByIdAndUpdate(
-      req.params.id,
-      { $set: updateData },
-      { new: true, runValidators: true }
-    );
-    
-    if (!shipment) {
-      return res.status(404).json({ msg: 'Shipment not found' });
-    }
-    
-    res.json(shipment);
-  } catch (err) {
-    console.error('Error updating shipment:', err.message);
-    res.status(500).json({ msg: 'Server error' });
-  }
-});
-
-// @route   DELETE api/shipments/:id
-// @desc    Delete a shipment
-// @access  Public
-router.delete('/:id', async (req, res) => {
-  try {
-    // Check database connection
-    if (mongoose.connection.readyState !== 1) {
-      console.error('Database connection is not ready');
-      return res.status(503).json({ msg: 'Database connection is not ready' });
-    }
-    
-    // First check if the shipment exists
-    const shipment = await Shipment.findById(req.params.id);
-    if (!shipment) {
-      console.log(`Shipment with ID ${req.params.id} not found`);
-      return res.status(404).json({ msg: 'Shipment not found' });
-    }
-    
-    try {
-      // Delete associated shipment legs first - wrap in try/catch to handle independently
-      const legDeleteResult = await ShipmentLeg.deleteMany({ shipment: req.params.id });
-      console.log(`Deleted ${legDeleteResult.deletedCount} legs associated with shipment ${req.params.id}`);
-    } catch (legErr) {
-      console.error('Error deleting legs, continuing with shipment deletion:', legErr.message);
-      // Continue with shipment deletion even if leg deletion fails
-    }
-    
-    // Delete the shipment using findByIdAndDelete (preferred over remove which is deprecated)
-    const deleteResult = await Shipment.findByIdAndDelete(req.params.id);
-    
-    if (!deleteResult) {
-      console.error(`Shipment with ID ${req.params.id} not deleted - findByIdAndDelete returned null`);
-      return res.status(500).json({ msg: 'Failed to delete shipment' });
-    }
-    
-    console.log(`Successfully deleted shipment with ID: ${req.params.id}`);
-    res.json({ msg: 'Shipment removed', id: req.params.id });
-  } catch (err) {
-    console.error('Error deleting shipment:', err);
-    
-    if (err.kind === 'ObjectId') {
-      return res.status(404).json({ msg: 'Shipment not found - invalid ObjectId' });
-    }
-    
-    res.status(500).json({ 
-      msg: 'Server Error', 
-      error: err.message,
-      stack: process.env.NODE_ENV === 'production' ? undefined : err.stack
-    });
-  }
-});
-
-// Add this new diagnostic endpoint:
-// @route   GET api/shipments/diagnostic/count
-// @desc    Get shipment count with detailed diagnostics
-// @access  Public
-router.get('/diagnostic/count', async (req, res) => {
-  try {
-    console.log('Running shipment count diagnostic');
-    
-    // Check MongoDB connection state 
-    const dbState = mongoose.connection.readyState;
-    const dbStateText = ['disconnected', 'connected', 'connecting', 'disconnecting'];
-    console.log(`Database connection state: ${dbState} (${dbStateText[dbState]})`);
-    
-    // Check environment
-    console.log(`NODE_ENV: ${process.env.NODE_ENV}`);
-    
-    // Log database connection details (without exposing credentials)
-    const dbURI = mongoose.connection.client.s.url || 'Unknown';
-    const maskedURI = dbURI.replace(/:\/\/[^@]*@/, '://****:****@');
-    console.log(`MongoDB URI (masked): ${maskedURI}`);
-    
-    // Get counts of various collections
-    const shipmentCount = await Shipment.countDocuments();
-    const customerCount = await mongoose.model('customer').countDocuments();
-    const userCount = await mongoose.model('user').countDocuments();
-    
-    // Return diagnostic data
-    return res.json({
-      database: {
-        state: dbState,
-        stateText: dbStateText[dbState],
-        uri: maskedURI,
-        connectionName: mongoose.connection.name || 'Unknown'
-      },
-      collections: {
-        shipments: shipmentCount,
-        customers: customerCount,
-        users: userCount
-      },
-      environment: process.env.NODE_ENV || 'Unknown'
-    });
-  } catch (err) {
-    console.error('Diagnostic error:', err.message);
-    return res.status(500).json({ error: 'Diagnostic error', message: err.message });
-  }
-});
-
-// @route   PUT api/shipments/generate-serials
-// @desc    Generate serial numbers for all shipments without one
-// @access  Public
-router.put('/generate-serials', async (req, res) => {
-  try {
-    console.log('Starting serial number generation for existing shipments');
-    
-    // Find all shipments without serial numbers
-    const shipmentsWithoutSerials = await Shipment.find(
-      { serialNumber: { $exists: false } }
-    ).sort({ dateAdded: 1 });
-    
-    console.log(`Found ${shipmentsWithoutSerials.length} shipments without serial numbers`);
-    
-    if (shipmentsWithoutSerials.length === 0) {
-      return res.json({ message: 'No shipments need serial numbers', count: 0 });
-    }
-    
-    // Group shipments by year
-    const shipmentsByYear = {};
-    shipmentsWithoutSerials.forEach(shipment => {
-      const year = new Date(shipment.dateAdded).getFullYear();
-      if (!shipmentsByYear[year]) {
-        shipmentsByYear[year] = [];
-      }
-      shipmentsByYear[year].push(shipment);
-    });
-    
-    // Process each year
-    const results = [];
-    for (const year of Object.keys(shipmentsByYear)) {
-      console.log(`Processing ${shipmentsByYear[year].length} shipments from ${year}`);
-      
-      // Find highest serial for this year
-      const latestShipment = await Shipment.findOne(
-        { serialNumber: new RegExp(`SHP-${year}-\\d+`) },
-        { serialNumber: 1 }
-      ).sort({ serialNumber: -1 });
-      
-      let nextNumber = 1;
-      if (latestShipment && latestShipment.serialNumber) {
-        const parts = latestShipment.serialNumber.split('-');
-        if (parts.length === 3) {
-          nextNumber = parseInt(parts[2], 10) + 1;
-        }
-      }
-      
-      // Update each shipment
-      for (const shipment of shipmentsByYear[year]) {
-        const serialNumber = `SHP-${year}-${nextNumber.toString().padStart(4, '0')}`;
-        await Shipment.findByIdAndUpdate(
-          shipment._id,
-          { $set: { serialNumber } }
-        );
-        
-        results.push({
-          id: shipment._id,
-          serialNumber
-        });
-        
-        nextNumber++;
-      }
-    }
-    
-    console.log(`Successfully generated ${results.length} serial numbers`);
-    
-    res.json({
-      message: `Generated serial numbers for ${results.length} shipments`,
-      count: results.length,
-      results
-    });
-  } catch (err) {
-    console.error('Error generating serial numbers:', err);
-    res.status(500).json({ 
-      error: 'Failed to generate serial numbers',
-      message: err.message
-    });
-  }
-});
-
-module.exports = router; 
+module.exports = router;
