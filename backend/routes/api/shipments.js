@@ -236,7 +236,7 @@ router.get('/:id/legs', async (req, res) => {
     const legs = await ShipmentLeg.find({ shipment: req.params.id }).sort({ legOrder: 1 });
     
     if (legs && legs.length > 0) {
-      console.log(`Found ${legs.length} legs in the ShipmentLeg collection for shipment ${req.params.id}`);
+      console.log(`Found ${legs.length} legs for shipment ${req.params.id} in ShipmentLeg collection`);
       return res.json(legs);
     }
     

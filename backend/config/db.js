@@ -28,114 +28,87 @@ const connectDB = async () => {
   const MAX_RETRIES = 3;
   const RETRY_DELAY = 5000; // 5 seconds
   
-  // Get the MongoDB URI
+  // Get the MongoDB URI from config
   const primaryURI = getMongoURI();
   console.log(`Primary MongoDB URI: ${primaryURI.replace(/\/\/([^:]+):[^@]+@/, '//***:***@')}`); // Hide password
   
-  // Determine if we're in development or production
-  const isDev = process.env.NODE_ENV === 'development';
+  // Directly specify the connection strings to bypass DNS SRV lookup
+  let connectionStrings = [];
   
-  // Define all the connection methods to try
-  const connectionMethods = [];
-  
-  // Method 1: Direct standard MongoDB URI connection
-  connectionMethods.push({
-    name: 'Primary URI',
-    uri: primaryURI,
-    options: {
-      useNewUrlParser: true,
-      useUnifiedTopology: true,
-      serverSelectionTimeoutMS: 10000, // 10 seconds
-      connectTimeoutMS: 10000 // 10 seconds
-    }
-  });
-  
-  // Method 2: If it's an SRV URI, try direct connections to avoid DNS issues
+  // For MongoDB Atlas, create direct connection strings to each node
   if (primaryURI.includes('mongodb+srv://')) {
-    // Extract credentials and cluster name from SRV URL 
+    // Extract username, password, and cluster info from SRV URL
     const match = primaryURI.match(/mongodb\+srv:\/\/([^:]+):([^@]+)@([^\/]+)/);
     if (match) {
       const [_, username, password, host] = match;
-      // Construct direct connection URLs to specific MongoDB Atlas nodes
-      const clusterName = host.split('.')[0]; // e.g., "cluster0" from "cluster0.aqbmxvz.mongodb.net"
+      const clusterBase = host.split('.')[0]; // e.g., "cluster0"
       const domain = host.split('.').slice(1).join('.'); // e.g., "aqbmxvz.mongodb.net"
       
-      // Add direct connection URLs to bypass SRV lookup
-      for (let i = 0; i < 3; i++) {
-        connectionMethods.push({
-          name: `Direct shard connection ${i}`,
-          uri: `mongodb://${username}:${password}@${clusterName}-shard-00-0${i}.${domain}:27017/?ssl=true&authSource=admin&replicaSet=${clusterName}`,
-          options: {
-            useNewUrlParser: true,
-            useUnifiedTopology: true,
-            serverSelectionTimeoutMS: 10000,
-            connectTimeoutMS: 10000,
-            ssl: true,
-            replicaSet: clusterName,
-            authSource: 'admin'
-          }
-        });
-      }
+      // Add direct connection strings to all 3 replica set nodes
+      connectionStrings = [
+        `mongodb://${username}:${password}@${clusterBase}-shard-00-00.${domain}:27017,${clusterBase}-shard-00-01.${domain}:27017,${clusterBase}-shard-00-02.${domain}:27017/daily-app?ssl=true&replicaSet=${clusterBase}-shard-0&authSource=admin&retryWrites=true&w=majority`,
+        // Add individual node connections as fallbacks
+        `mongodb://${username}:${password}@${clusterBase}-shard-00-00.${domain}:27017/daily-app?ssl=true&authSource=admin`,
+        `mongodb://${username}:${password}@${clusterBase}-shard-00-01.${domain}:27017/daily-app?ssl=true&authSource=admin`,
+        `mongodb://${username}:${password}@${clusterBase}-shard-00-02.${domain}:27017/daily-app?ssl=true&authSource=admin`,
+      ];
       
-      console.log(`Added ${connectionMethods.length - 1} direct connection methods as fallbacks`);
+      console.log(`Created ${connectionStrings.length} direct connection strings to MongoDB Atlas nodes`);
     }
+  } else {
+    // If not an SRV URL, just use the provided URI
+    connectionStrings.push(primaryURI);
   }
   
-  // Method 3: Local development fallback
-  if (isDev) {
-    connectionMethods.push({
-      name: 'Local development database',
-      uri: 'mongodb://localhost:27017/daily-app',
-      options: {
-        useNewUrlParser: true,
-        useUnifiedTopology: true,
-        serverSelectionTimeoutMS: 5000 // 5 seconds
-      }
-    });
-  }
+  // Always add localhost as final fallback
+  connectionStrings.push('mongodb://localhost:27017/daily-app');
   
-  // Try each connection method
-  let connected = false;
-  
-  for (const [index, method] of connectionMethods.entries()) {
-    console.log(`\n⏳ Trying connection method ${index + 1}/${connectionMethods.length}: ${method.name}`);
+  // Try each connection string in sequence
+  for (let i = 0; i < connectionStrings.length; i++) {
+    const connectionString = connectionStrings[i];
+    const isFallback = i > 0;
+    const connectionType = i === 0 ? 'Primary' : 
+                          i === connectionStrings.length - 1 ? 'Local fallback' : 
+                          `Fallback ${i}`;
     
-    // Try up to MAX_RETRIES for primary URI, only once for fallbacks
-    const attempts = index === 0 ? MAX_RETRIES : 1;
+    console.log(`Trying MongoDB connection (${connectionType}): ${connectionString.replace(/\/\/([^:]+):[^@]+@/, '//***:***@')}`);
     
-    for (let attempt = 1; attempt <= attempts; attempt++) {
-      if (attempt > 1) {
-        console.log(`Re-attempting connection (${attempt}/${attempts})...`);
-      }
-      
+    // Only retry the primary connection, try fallbacks just once
+    const maxAttempts = isFallback ? 1 : MAX_RETRIES;
+    
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
       try {
-        const conn = await mongoose.connect(method.uri, method.options);
-        console.log(`\n✅ MongoDB Connected: ${conn.connection.host}`);
+        const conn = await mongoose.connect(connectionString, {
+          useNewUrlParser: true,
+          useUnifiedTopology: true,
+          serverSelectionTimeoutMS: 10000, // 10 seconds
+          connectTimeoutMS: 10000, // 10 seconds
+        });
         
-        if (index > 0) {
-          console.log(`Note: Using fallback connection method (${method.name}) instead of primary.`);
-          if (index === connectionMethods.length - 1 && isDev) {
-            console.log('\n⚠️ Using local development database. Data will not persist to production.\n');
-          }
+        console.log(`MongoDB Connected: ${conn.connection.host}`);
+        
+        if (i === connectionStrings.length - 1) {
+          console.log('⚠️ Connected to local development database. Your data will not be saved to the cloud.');
+        } else if (i > 0) {
+          console.log(`⚠️ Connected using fallback connection string ${i}`);
+        } else {
+          console.log('✅ Connected to primary MongoDB database');
         }
         
-        connected = true;
         return true;
       } catch (err) {
-        console.error(`❌ Connection attempt failed: ${err.message}`);
+        console.error(`Connection attempt ${attempt} failed:`, err.message);
         
-        if (attempt < attempts) {
-          console.log(`Waiting ${RETRY_DELAY/1000} seconds before retry...`);
+        if (attempt < maxAttempts) {
+          console.log(`Retrying in ${RETRY_DELAY/1000} seconds...`);
           await new Promise(resolve => setTimeout(resolve, RETRY_DELAY));
         }
       }
     }
   }
   
-  // If we reach here, all connection methods failed
-  console.error('\n❌ All MongoDB connection methods failed.');
-  console.error('The application will run with limited functionality.\n');
-  
+  // If we get here, all connection attempts failed
+  console.error('All MongoDB connection attempts failed!');
   return false;
 };
 

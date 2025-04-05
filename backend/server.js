@@ -10,11 +10,14 @@ const auth = require('./middleware/auth');
 const User = require('./models/User');
 const Shipment = require('./models/Shipment');
 const Customer = require('./models/Customer');
+const { createServer } = require('http');
+const { Server } = require('socket.io');
+const bodyParser = require('body-parser');
 
 // Initialize Express
 const app = express();
-const server = http.createServer(app);
-const io = socketIo(server, {
+const httpServer = createServer(app);
+const io = socketIo(httpServer, {
   cors: {
     origin: ['http://localhost:3000', 'https://vocal-cheesecake-1379ed.netlify.app', 'https://daily-shipment-tracker.netlify.app', 'https://veleka-shipments-daily-report.netlify.app'],
     methods: ['GET', 'POST', 'PUT', 'DELETE'],
@@ -248,21 +251,15 @@ app.use((err, req, res, next) => {
   });
 });
 
+// Set the port for the server
 const PORT = process.env.PORT || 5001;
 
-// Add a function to handle graceful shutdown and remove port conflict
-const checkPortAvailability = (port) => {
-  return new Promise((resolve, reject) => {
+// Function to check if port is available
+const isPortAvailable = (port) => {
+  return new Promise((resolve) => {
     const net = require('net');
     const tester = net.createServer()
-      .once('error', err => {
-        if (err.code === 'EADDRINUSE') {
-          console.error(`Port ${port} is already in use.`);
-          resolve(false);
-        } else {
-          reject(err);
-        }
-      })
+      .once('error', () => resolve(false))
       .once('listening', () => {
         tester.close();
         resolve(true);
@@ -271,28 +268,58 @@ const checkPortAvailability = (port) => {
   });
 };
 
-// Main server function 
+// Find an available port starting from the specified PORT
+const findAvailablePort = async (startPort) => {
+  let port = startPort;
+  while (!(await isPortAvailable(port))) {
+    console.log(`Port ${port} is not available, trying next port...`);
+    port++;
+    if (port > startPort + 10) {
+      throw new Error('Unable to find an available port after 10 attempts');
+    }
+  }
+  return port;
+};
+
+// Start the server
 const startServer = async () => {
   try {
-    // Check if port is available
-    const portAvailable = await checkPortAvailability(PORT);
-    
-    if (!portAvailable) {
-      console.error(`Port ${PORT} is in use. Please close other instances or use a different port.`);
-      console.error('You can kill all processes on this port with: kill -9 $(lsof -t -i:' + PORT + ')');
-      process.exit(1);
-    }
+    // Try to find an available port
+    const availablePort = await findAvailablePort(PORT);
     
     // Connect to MongoDB
     const dbConnected = await connectDB();
     
-    // Start Express server
-    app.listen(PORT, () => {
-      console.log(`Server started on port ${PORT}`);
-      
-      if (!dbConnected) {
-        console.warn('\nWARNING: Server started with limited functionality due to database issues.\n');
+    // Start the HTTP server
+    await new Promise((resolve) => {
+      httpServer.listen(availablePort, () => {
+        console.log(`Server started on port ${availablePort}`);
+        resolve();
+      });
+    });
+    
+    // Log database connection status
+    if (!dbConnected) {
+      console.warn('\n⚠️ WARNING: Server started with limited functionality due to database connection issues.\n');
+    }
+    
+    // Set up the Socket.IO server
+    const io = new Server(httpServer, {
+      cors: {
+        origin: "*",
+        methods: ["GET", "POST"],
       }
+    });
+    
+    // Socket.IO connection handlers
+    io.on('connection', (socket) => {
+      console.log('New client connected');
+      
+      socket.on('disconnect', () => {
+        console.log('Client disconnected');
+      });
+      
+      // Add your socket event handlers here
     });
     
     // Setup graceful shutdown
@@ -305,29 +332,29 @@ const startServer = async () => {
   }
 };
 
-// Graceful shutdown handler
+// Graceful shutdown
 const gracefulShutdown = () => {
   console.log('\nReceived shutdown signal. Closing server gracefully...');
   
-  // Close MongoDB connection
-  if (mongoose.connection.readyState === 1) {
-    mongoose.connection.close();
-    console.log('MongoDB connection closed');
-  }
+  httpServer.close(() => {
+    console.log('HTTP server closed');
+    
+    // Close MongoDB connection
+    if (mongoose.connection.readyState === 1) {
+      mongoose.connection.close();
+      console.log('MongoDB connection closed');
+    }
+    
+    console.log('Server shutdown complete');
+    process.exit(0);
+  });
   
-  // Exit process
-  console.log('Server shutdown complete');
-  process.exit(0);
+  // Force exit after 10 seconds if not closed properly
+  setTimeout(() => {
+    console.log('Forcing shutdown after timeout');
+    process.exit(1);
+  }, 10000);
 };
 
 // Start the server
 startServer();
-
-// Set up websocket communication
-io.on('connection', (socket) => {
-  console.log('New client connected');
-  
-  socket.on('disconnect', () => {
-    console.log('Client disconnected');
-  });
-});
