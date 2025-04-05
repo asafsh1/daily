@@ -574,9 +574,17 @@ const Shipments = ({ getShipments, updateShipment, deleteShipment, shipment: { s
             </tr>
           </thead>
           <tbody>
-            {shipments.map((shipment, index) => (
-              <ShipmentItem key={shipment._id} shipment={shipment} index={index} />
-            ))}
+            {shipments && Array.isArray(shipments) ? (
+              shipments
+                .filter(shipment => shipment && typeof shipment === 'object' && shipment._id)
+                .map((shipment, index) => (
+                  <ShipmentItem key={shipment._id} shipment={shipment} index={index} />
+                ))
+            ) : (
+              <tr>
+                <td colSpan="8" className="text-center">No valid shipment data found</td>
+              </tr>
+            )}
           </tbody>
         </Table>
       </div>

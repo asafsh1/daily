@@ -25,17 +25,51 @@ export const getShipments = () => async (dispatch) => {
     
     const res = await axios.get('/api/shipments');
     
-    // Normalize data to ensure fields are properly set
-    const normalizedShipments = res.data.map(shipment => {
-      // Ensure legs is always an array
-      if (!shipment.legs || !Array.isArray(shipment.legs)) {
-        shipment.legs = [];
-      }
-      
-      return shipment;
-    });
+    // Handle different response formats from API
+    // The API might return { shipments: [...] } or directly an array
+    let shipmentData = res.data;
     
-    console.log(`Fetched ${normalizedShipments.length} shipments`);
+    // Check if response has a shipments property (newer API format)
+    if (res.data && typeof res.data === 'object' && res.data.shipments) {
+      console.log('Found shipments property in response');
+      shipmentData = res.data.shipments;
+    }
+    
+    // Ensure we have an array
+    if (!Array.isArray(shipmentData)) {
+      console.error('Shipment data is not an array:', shipmentData);
+      shipmentData = [];
+    }
+    
+    // Normalize and validate each shipment object
+    const normalizedShipments = shipmentData
+      .filter(shipment => shipment && typeof shipment === 'object')
+      .map(shipment => {
+        // Create a new object with default values
+        const normalized = {
+          _id: shipment._id || null,
+          customer: shipment.customer || null,
+          shipper: shipment.shipper || null,
+          origin: shipment.origin || '',
+          destination: shipment.destination || '',
+          status: shipment.status || shipment.shipmentStatus || 'Pending',
+          mode: shipment.mode || 'Air',
+          dateAdded: shipment.dateAdded || new Date(),
+          // Ensure legs is always an array
+          legs: Array.isArray(shipment.legs) ? shipment.legs : []
+        };
+        
+        // Only include shipments with valid IDs
+        if (!normalized._id) {
+          console.error('Shipment missing _id, will be filtered out:', shipment);
+          return null;
+        }
+        
+        return normalized;
+      })
+      .filter(Boolean); // Remove null entries
+    
+    console.log(`Normalized ${normalizedShipments.length} valid shipments`);
     
     dispatch({
       type: GET_SHIPMENTS,
