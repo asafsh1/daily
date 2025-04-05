@@ -71,27 +71,71 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
       // Only fetch legs from the server if this is a real shipment ID (not a temp one)
       if (shipmentId && !shipmentId.toString().startsWith('temp-')) {
         try {
-          // Try both endpoints to ensure compatibility
-          let response;
+          // Try ALL possible endpoints to ensure we get the legs data
+          let legsData = [];
+          let foundLegs = false;
+          
+          // Attempt with first endpoint pattern
           try {
-            response = await axios.get(`/api/shipment-legs/${shipmentId}`);
+            console.log("Trying endpoint: /api/shipment-legs/" + shipmentId);
+            const response1 = await axios.get(`/api/shipment-legs/${shipmentId}`);
+            console.log("Response from first endpoint:", response1.data);
+            
+            if (Array.isArray(response1.data) && response1.data.length > 0) {
+              legsData = response1.data;
+              foundLegs = true;
+            } else if (response1.data.legs && Array.isArray(response1.data.legs) && response1.data.legs.length > 0) {
+              legsData = response1.data.legs;
+              foundLegs = true;
+            }
           } catch (err) {
-            console.log("First endpoint failed, trying alternative endpoint");
-            response = await axios.get(`/api/shipments/${shipmentId}/legs`);
+            console.log("First endpoint failed:", err.message);
           }
           
-          console.log("Legs response:", response.data);
-          if (Array.isArray(response.data)) {
-            setLegs(response.data);
-            setError(null);
-          } else if (response.data.legs && Array.isArray(response.data.legs)) {
-            // Handle case where legs are in a nested property
-            setLegs(response.data.legs);
+          // If first endpoint didn't work, try second pattern
+          if (!foundLegs) {
+            try {
+              console.log("Trying endpoint: /api/shipments/" + shipmentId + "/legs");
+              const response2 = await axios.get(`/api/shipments/${shipmentId}/legs`);
+              console.log("Response from second endpoint:", response2.data);
+              
+              if (Array.isArray(response2.data) && response2.data.length > 0) {
+                legsData = response2.data;
+                foundLegs = true;
+              } else if (response2.data.legs && Array.isArray(response2.data.legs) && response2.data.legs.length > 0) {
+                legsData = response2.data.legs;
+                foundLegs = true;
+              }
+            } catch (err) {
+              console.log("Second endpoint failed:", err.message);
+            }
+          }
+          
+          // If second endpoint didn't work, try third pattern with full shipment
+          if (!foundLegs) {
+            try {
+              console.log("Trying to get full shipment data");
+              const response3 = await axios.get(`/api/shipments/${shipmentId}`);
+              console.log("Full shipment data:", response3.data);
+              
+              if (response3.data && response3.data.legs && Array.isArray(response3.data.legs)) {
+                legsData = response3.data.legs;
+                foundLegs = true;
+                console.log("Found legs in full shipment data:", legsData);
+              }
+            } catch (err) {
+              console.log("Full shipment endpoint failed:", err.message);
+            }
+          }
+          
+          if (legsData.length > 0) {
+            console.log("Successfully found legs data:", legsData);
+            setLegs(legsData);
             setError(null);
           } else {
-            console.error("Unexpected response format:", response.data);
-            setError('Received invalid leg data format from server');
+            console.warn("No legs found in any endpoint response");
             setLegs([]);
+            setError("No legs found for this shipment");
           }
         } catch (err) {
           console.error('API error fetching legs:', err);
@@ -131,6 +175,7 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
       setLoading(true);
       const formattedData = {
         ...formData,
+        shipment: shipmentId, // Ensure shipment ID is properly set
         departureTime: formData.departureTime ? moment(formData.departureTime).toISOString() : null,
         arrivalTime: formData.arrivalTime ? moment(formData.arrivalTime).toISOString() : null,
         legId: generateUniqueId(ID_PREFIXES.LEG)
@@ -154,8 +199,9 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
         ]);
       } else {
         // Add to existing shipment
-        const response = await axios.post(`/api/shipments/${shipmentId}/legs`, {
+        const response = await axios.post(`/api/shipment-legs`, {
           ...formattedData,
+          shipment: shipmentId,
           changeLog: [changeLogEntry]
         });
 
@@ -275,6 +321,7 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
       setLoading(true);
       const formattedData = {
         ...formData,
+        shipment: shipmentId, // Ensure shipment ID is set
         departureTime: formData.departureTime ? moment(formData.departureTime).toISOString() : null,
         arrivalTime: formData.arrivalTime ? moment(formData.arrivalTime).toISOString() : null
       };
@@ -295,8 +342,9 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
         setLegs(updatedLegs);
       } else {
         // Update real shipment
-        const response = await axios.put(`/api/shipments/${shipmentId}/legs/${editingLeg._id}`, {
+        const response = await axios.put(`/api/shipment-legs/${editingLeg._id}`, {
           ...formattedData,
+          shipment: shipmentId,
           changeLog: [...(editingLeg.changeLog || []), changeLogEntry]
         });
 

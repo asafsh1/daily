@@ -54,7 +54,7 @@ router.get('/', async (req, res) => {
       
       // Organize legs by shipment ID
       const legsByShipment = allLegs.reduce((acc, leg) => {
-        const shipmentId = leg.shipmentId.toString();
+        const shipmentId = leg.shipment.toString();
         if (!acc[shipmentId]) {
           acc[shipmentId] = [];
         }
@@ -286,6 +286,44 @@ router.get('/:id', async (req, res) => {
   }
 });
 
+// @route   GET api/shipments/:id/legs
+// @desc    Get all legs for a specific shipment
+// @access  Public
+router.get('/:id/legs', async (req, res) => {
+  try {
+    console.log(`Fetching legs for shipment ID: ${req.params.id}`);
+    
+    // Check database connection
+    if (mongoose.connection.readyState !== 1) {
+      console.error('Database connection is not ready. Current state:', mongoose.connection.readyState);
+      return res.status(503).json({
+        error: 'Database connection is not ready',
+        legs: []
+      });
+    }
+    
+    // Get the shipment to verify it exists
+    const shipment = await Shipment.findById(req.params.id);
+    if (!shipment) {
+      return res.status(404).json({ msg: 'Shipment not found' });
+    }
+    
+    // Find all legs for this shipment
+    const legs = await ShipmentLeg.find({ shipment: req.params.id })
+      .sort({ legOrder: 1 });
+    
+    console.log(`Found ${legs.length} legs for shipment ${req.params.id}`);
+    
+    res.json(legs);
+  } catch (err) {
+    console.error('Error fetching shipment legs:', err.message);
+    res.status(500).json({ 
+      error: 'Server error when fetching shipment legs',
+      message: err.message
+    });
+  }
+});
+
 // @route   POST api/shipments
 // @desc    Create a shipment
 // @access  Public
@@ -477,7 +515,7 @@ router.delete('/:id', async (req, res) => {
     }
     
     // Delete associated shipment legs first
-    const legDeleteResult = await ShipmentLeg.deleteMany({ shipmentId: req.params.id });
+    const legDeleteResult = await ShipmentLeg.deleteMany({ shipment: req.params.id });
     console.log(`Deleted ${legDeleteResult.deletedCount} legs associated with shipment ${req.params.id}`);
     
     // Delete the shipment using findByIdAndDelete (preferred over remove which is deprecated)

@@ -212,4 +212,14 @@ ShipmentSchema.virtual('routing').get(function() {
 ShipmentSchema.set('toJSON', { virtuals: true });
 ShipmentSchema.set('toObject', { virtuals: true });
 
+// Add middleware to auto-populate legs when getting a shipment
+// This ensures legs are always available without explicit population
+ShipmentSchema.pre('findOne', function() {
+  this.populate('legs');
+});
+
+ShipmentSchema.pre('find', function() {
+  this.populate('legs');
+});
+
 module.exports = mongoose.model('shipment', ShipmentSchema); 
