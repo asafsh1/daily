@@ -17,6 +17,11 @@ import store from '../store';
 // Initialize socket.io with the correct URL from environment variables
 const socket = io(process.env.REACT_APP_SOCKET_URL || 'http://localhost:5001');
 
+// Set shipments loading state
+export const setShipmentsLoading = () => dispatch => {
+  dispatch({ type: SHIPMENTS_LOADING });
+};
+
 // Get all shipments
 export const getShipments = () => async (dispatch) => {
   try {
