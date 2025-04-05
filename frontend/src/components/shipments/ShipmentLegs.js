@@ -7,17 +7,16 @@ import { getTrackingUrlSync, hasTracking } from '../../utils/trackingUtils';
 import moment from 'moment';
 import { generateUniqueId, ID_PREFIXES } from '../../utils/idGenerator';
 
-// Define initialState to fix the reference errors
+// Initial form state for add/edit
 const initialState = {
-  legOrder: '',
-  origin: '',
-  destination: '',
-  flightNumber: '',
-  mawbNumber: '',
-  awbNumber: '',
-  departureTime: '',
-  arrivalTime: '',
-  status: 'Pending',
+  from: '',
+  to: '',
+  carrier: '',
+  legOrder: 0,
+  departureDate: '',
+  arrivalDate: '',
+  trackingNumber: '',
+  status: 'pending',
   notes: ''
 };
 
@@ -30,23 +29,14 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
   const [error, setError] = useState(null);
   const [editMode, setEditMode] = useState(false);
   const [errors, setErrors] = useState({});
+  const [success, setSuccess] = useState('');
 
-  // Load legs on component mount and when shipmentId changes
+  // Once the component mounts, fetch legs
   useEffect(() => {
+    console.log("ShipmentLegs component mounted with shipmentId:", shipmentId);
     if (shipmentId) {
-      console.log(`ShipmentLegs component: Loading legs for shipment ID ${shipmentId}`);
       fetchLegs();
-    } else {
-      setLegs([]);
-      setLoading(false);
     }
-    
-    // Clean up form when component unmounts
-    return () => {
-      setFormData(initialState);
-      setEditingLeg(null);
-      setShowForm(false);
-    };
   }, [shipmentId]);
   
   // Periodically refresh legs data
@@ -71,71 +61,41 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
       // Only fetch legs from the server if this is a real shipment ID (not a temp one)
       if (shipmentId && !shipmentId.toString().startsWith('temp-')) {
         try {
-          // Try ALL possible endpoints to ensure we get the legs data
-          let legsData = [];
-          let foundLegs = false;
+          // First try the new endpoint we just added
+          console.log("Trying new legs endpoint:", `/api/shipments/${shipmentId}/legs`);
+          const response = await axios.get(`/api/shipments/${shipmentId}/legs`);
+          console.log("Response from legs endpoint:", response.data);
           
-          // Attempt with first endpoint pattern
-          try {
-            console.log("Trying endpoint: /api/shipment-legs/" + shipmentId);
-            const response1 = await axios.get(`/api/shipment-legs/${shipmentId}`);
-            console.log("Response from first endpoint:", response1.data);
+          if (Array.isArray(response.data) && response.data.length > 0) {
+            // Sort legs by legOrder
+            const sortedLegs = [...response.data].sort((a, b) => 
+              (a.legOrder || 0) - (b.legOrder || 0)
+            );
             
-            if (Array.isArray(response1.data) && response1.data.length > 0) {
-              legsData = response1.data;
-              foundLegs = true;
-            } else if (response1.data.legs && Array.isArray(response1.data.legs) && response1.data.legs.length > 0) {
-              legsData = response1.data.legs;
-              foundLegs = true;
-            }
-          } catch (err) {
-            console.log("First endpoint failed:", err.message);
-          }
-          
-          // If first endpoint didn't work, try second pattern
-          if (!foundLegs) {
-            try {
-              console.log("Trying endpoint: /api/shipments/" + shipmentId + "/legs");
-              const response2 = await axios.get(`/api/shipments/${shipmentId}/legs`);
-              console.log("Response from second endpoint:", response2.data);
-              
-              if (Array.isArray(response2.data) && response2.data.length > 0) {
-                legsData = response2.data;
-                foundLegs = true;
-              } else if (response2.data.legs && Array.isArray(response2.data.legs) && response2.data.legs.length > 0) {
-                legsData = response2.data.legs;
-                foundLegs = true;
-              }
-            } catch (err) {
-              console.log("Second endpoint failed:", err.message);
-            }
-          }
-          
-          // If second endpoint didn't work, try third pattern with full shipment
-          if (!foundLegs) {
-            try {
-              console.log("Trying to get full shipment data");
-              const response3 = await axios.get(`/api/shipments/${shipmentId}`);
-              console.log("Full shipment data:", response3.data);
-              
-              if (response3.data && response3.data.legs && Array.isArray(response3.data.legs)) {
-                legsData = response3.data.legs;
-                foundLegs = true;
-                console.log("Found legs in full shipment data:", legsData);
-              }
-            } catch (err) {
-              console.log("Full shipment endpoint failed:", err.message);
-            }
-          }
-          
-          if (legsData.length > 0) {
-            console.log("Successfully found legs data:", legsData);
-            setLegs(legsData);
+            console.log(`Found and sorted ${sortedLegs.length} legs for shipment ${shipmentId}`);
+            setLegs(sortedLegs);
             setError(null);
           } else {
-            console.warn("No legs found in any endpoint response");
-            setLegs([]);
-            setError("No legs found for this shipment");
+            console.log("No legs found in response, trying full shipment endpoint");
+            
+            // Try getting the full shipment with populated legs
+            const shipmentResponse = await axios.get(`/api/shipments/${shipmentId}`);
+            console.log("Full shipment response:", shipmentResponse.data);
+            
+            if (shipmentResponse.data && shipmentResponse.data.legs && Array.isArray(shipmentResponse.data.legs)) {
+              // Sort legs by legOrder
+              const sortedLegs = [...shipmentResponse.data.legs].sort((a, b) => 
+                (a.legOrder || 0) - (b.legOrder || 0)
+              );
+              
+              console.log(`Found ${sortedLegs.length} legs in full shipment data`);
+              setLegs(sortedLegs);
+              setError(null);
+            } else {
+              console.warn("No legs found in either API response");
+              setLegs([]);
+              setError("No legs found for this shipment");
+            }
           }
         } catch (err) {
           console.error('API error fetching legs:', err);
@@ -176,24 +136,27 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
       const formattedData = {
         ...formData,
         shipment: shipmentId, // Ensure shipment ID is properly set
-        departureTime: formData.departureTime ? moment(formData.departureTime).toISOString() : null,
-        arrivalTime: formData.arrivalTime ? moment(formData.arrivalTime).toISOString() : null,
+        legOrder: parseInt(formData.legOrder || 0, 10),
+        departureDate: formData.departureDate ? moment(formData.departureDate).toISOString() : null,
+        arrivalDate: formData.arrivalDate ? moment(formData.arrivalDate).toISOString() : null,
         legId: generateUniqueId(ID_PREFIXES.LEG)
       };
+      
+      console.log("Adding new leg with data:", formattedData);
 
       // Create change log entry
       const changeLogEntry = {
         timestamp: new Date(),
-        description: `Added leg: ${formData.airline} ${formData.flightNumber} - ${formData.origin} to ${formData.destination}`
+        description: `Added leg: ${formData.from} to ${formData.to}`
       };
 
       if (shipmentId.startsWith('temp-')) {
-        // Store locally for new shipments
+        // Add to local state for temporary shipments
         setLegs([
-          ...legs, 
-          { 
-            ...formattedData, 
-            _id: `temp-leg-${Date.now()}`,
+          ...legs,
+          {
+            ...formattedData,
+            _id: generateUniqueId(ID_PREFIXES.LEG),
             changeLog: [changeLogEntry]
           }
         ]);
@@ -204,93 +167,74 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
           shipment: shipmentId,
           changeLog: [changeLogEntry]
         });
-
-        if (response.data.success) {
-          setLegs([...legs, response.data.leg]);
-          toast.success('Leg added successfully');
-        } else {
-          throw new Error(response.data.message || 'Failed to add leg');
-        }
+        
+        console.log("Server response after adding leg:", response.data);
+        
+        // Refresh the legs list
+        fetchLegs();
       }
 
-      setFormData({
-        airline: '',
-        flightNumber: '',
-        origin: '',
-        destination: '',
-        departureTime: '',
-        arrivalTime: '',
-        awbNumber: '',
-        status: 'Pending'
-      });
+      // Reset form state
+      setFormData(initialState);
       setShowForm(false);
+      setSuccess('Leg added successfully');
+      
+      // Clear success message after a delay
+      setTimeout(() => setSuccess(''), 3000);
     } catch (err) {
+      console.error('Error adding leg:', err);
+      setError(`Failed to add leg: ${err.message}`);
+    } finally {
       setLoading(false);
-      console.error('Error adding shipment leg:', err);
-      setError('Failed to add shipment leg');
     }
   };
 
-  // Open form to edit an existing leg
-  const handleEditLeg = (leg) => {
-    // Format dates for form inputs
-    const formatDate = (dateString) => {
-      return new Date(dateString).toISOString().slice(0, 16);
-    };
-
+  // Function to handle edit button click
+  const editLeg = (leg) => {
+    console.log('Editing leg:', leg);
+    setEditingLeg(leg);
+    
+    // Convert dates to local format for the form
+    const departureDate = leg.departureDate ? moment(leg.departureDate).format('YYYY-MM-DD') : '';
+    const arrivalDate = leg.arrivalDate ? moment(leg.arrivalDate).format('YYYY-MM-DD') : '';
+    
     setFormData({
-      legOrder: leg.legOrder,
-      origin: leg.origin,
-      destination: leg.destination,
-      flightNumber: leg.flightNumber,
-      mawbNumber: leg.mawbNumber,
-      awbNumber: leg.awbNumber || leg.mawbNumber, // Use awbNumber if available, fallback to mawbNumber
-      departureTime: formatDate(leg.departureTime),
-      arrivalTime: formatDate(leg.arrivalTime),
-      status: leg.status,
+      from: leg.from || '',
+      to: leg.to || '',
+      carrier: leg.carrier || '',
+      legOrder: leg.legOrder || 0,
+      departureDate: departureDate,
+      arrivalDate: arrivalDate,
+      trackingNumber: leg.trackingNumber || '',
+      status: leg.status || 'pending',
       notes: leg.notes || ''
     });
     
-    setEditingLeg(leg);
     setShowForm(true);
-    setEditMode(true);  // Set editMode to true to indicate we're editing
   };
 
-  // Helper function to get AWB display for a leg
+  // Helper function to get the display AWB/tracking number
   const getDisplayAwb = (leg) => {
-    if (!leg) return 'N/A';
-    
-    // Check various possible AWB fields
-    const awb = leg.awbNumber || leg.mawbNumber || leg.awb || 'N/A';
-    
-    if (awb === 'N/A' || !hasTracking(awb)) {
-      return awb;
+    if (leg.trackingNumber) {
+      return leg.trackingNumber;
+    } else if (leg.awbNumber) {
+      return leg.awbNumber;
+    } else if (leg.mawbNumber) {
+      return leg.mawbNumber;
     }
-    
-    // If we have a tracking URL, return a clickable link
-    return (
-      <a 
-        href={getTrackingUrlSync(awb)} 
-        target="_blank" 
-        rel="noopener noreferrer"
-        className="awb-tracking-link"
-        title="Track shipment"
-      >
-        {awb} <i className="fas fa-external-link-alt fa-xs"></i>
-      </a>
-    );
+    return 'N/A';
   };
 
   // Validate form inputs
   const validateForm = () => {
     const newErrors = {};
     
-    if (!formData.origin) newErrors.origin = 'Origin is required';
-    if (!formData.destination) newErrors.destination = 'Destination is required';
-    if (!formData.flightNumber) newErrors.flightNumber = 'Flight number is required';
-    if (!formData.mawbNumber) newErrors.mawbNumber = 'MAWB number is required';
-    if (!formData.departureTime) newErrors.departureTime = 'Departure time is required';
-    if (!formData.arrivalTime) newErrors.arrivalTime = 'Arrival time is required';
+    if (!formData.from) newErrors.from = 'Origin is required';
+    if (!formData.to) newErrors.to = 'Destination is required';
+    if (!formData.carrier) newErrors.carrier = 'Carrier is required';
+    if (!formData.legOrder) newErrors.legOrder = 'Leg order is required';
+    if (!formData.departureDate) newErrors.departureDate = 'Departure date is required';
+    if (!formData.arrivalDate) newErrors.arrivalDate = 'Arrival date is required';
     
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -322,14 +266,17 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
       const formattedData = {
         ...formData,
         shipment: shipmentId, // Ensure shipment ID is set
-        departureTime: formData.departureTime ? moment(formData.departureTime).toISOString() : null,
-        arrivalTime: formData.arrivalTime ? moment(formData.arrivalTime).toISOString() : null
+        legOrder: parseInt(formData.legOrder || 0, 10),
+        departureDate: formData.departureDate ? moment(formData.departureDate).toISOString() : null,
+        arrivalDate: formData.arrivalDate ? moment(formData.arrivalDate).toISOString() : null
       };
+
+      console.log("Updating leg with data:", formattedData);
 
       // Create change log entry
       const changeLogEntry = {
         timestamp: new Date(),
-        description: `Updated leg: ${formData.airline} ${formData.flightNumber} - ${formData.origin} to ${formData.destination}`
+        description: `Updated leg: ${formData.from} to ${formData.to}`
       };
 
       if (shipmentId.startsWith('temp-')) {
@@ -347,35 +294,24 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
           shipment: shipmentId,
           changeLog: [...(editingLeg.changeLog || []), changeLogEntry]
         });
-
-        if (response.data.success) {
-          const updatedLegs = legs.map(leg => 
-            leg._id === editingLeg._id 
-              ? { ...response.data.leg, changeLog: [...(leg.changeLog || []), changeLogEntry] }
-              : leg
-          );
-          setLegs(updatedLegs);
-          toast.success('Leg updated successfully');
-        } else {
-          throw new Error(response.data.message || 'Failed to update leg');
-        }
+        
+        console.log("Server response after updating leg:", response.data);
+        
+        // Refresh the legs list
+        fetchLegs();
       }
 
+      // Reset form state
+      setFormData(initialState);
       setEditingLeg(null);
-      setFormData({
-        airline: '',
-        flightNumber: '',
-        origin: '',
-        destination: '',
-        departureTime: '',
-        arrivalTime: '',
-        awbNumber: '',
-        status: 'Pending'
-      });
       setShowForm(false);
-    } catch (error) {
-      console.error('Error updating leg:', error);
-      toast.error(error.response?.data?.message || 'Failed to update leg');
+      setSuccess('Leg updated successfully');
+      
+      // Clear success message after a delay
+      setTimeout(() => setSuccess(''), 3000);
+    } catch (err) {
+      console.error('Error updating leg:', err);
+      setError(`Failed to update leg: ${err.message}`);
     } finally {
       setLoading(false);
     }
@@ -429,6 +365,30 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
   const handleCancel = () => {
     setShowForm(false);
     resetForm();
+  };
+
+  // Helper function to format status for display
+  const getFormattedStatus = (status) => {
+    if (!status) return 'Pending';
+    
+    // Capitalize and format status for display
+    switch(status.toLowerCase()) {
+      case 'pending':
+        return 'Pending';
+      case 'in-transit':
+      case 'in transit':
+        return 'In Transit';
+      case 'delayed':
+        return 'Delayed';
+      case 'completed':
+      case 'arrived':
+        return 'Completed';
+      case 'cancelled':
+      case 'canceled':
+        return 'Cancelled';
+      default:
+        return status;
+    }
   };
 
   if (loading) {
@@ -510,20 +470,20 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
                 <tr key={leg._id || index}>
                   <td>{index + 1}</td>
                   <td>{leg.legId || `LEG-${leg._id ? leg._id.substring(0, 8) : 'N/A'}`}</td>
-                  <td>{leg.origin}</td>
-                  <td>{leg.destination}</td>
+                  <td>{leg.from}</td>
+                  <td>{leg.to}</td>
                   <td>{getDisplayAwb(leg)}</td>
-                  <td>{leg.flightNumber || 'N/A'}</td>
+                  <td>{leg.carrier || 'N/A'}</td>
                   <td>
-                    {leg.departureTime ? (
-                      <Moment format="DD/MM/YYYY HH:mm">{leg.departureTime}</Moment>
+                    {leg.departureDate ? (
+                      <Moment format="DD/MM/YYYY HH:mm">{leg.departureDate}</Moment>
                     ) : (
                       'N/A'
                     )}
                   </td>
                   <td>
-                    {leg.arrivalTime ? (
-                      <Moment format="DD/MM/YYYY HH:mm">{leg.arrivalTime}</Moment>
+                    {leg.arrivalDate ? (
+                      <Moment format="DD/MM/YYYY HH:mm">{leg.arrivalDate}</Moment>
                     ) : (
                       'N/A'
                     )}
@@ -531,7 +491,7 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
                   <td>
                     {readOnly ? (
                       <span className={`status-badge status-${leg.status?.toLowerCase()?.replace(/\s+/g, '-') || 'unknown'}`}>
-                        {leg.status || 'Unknown'}
+                        {getFormattedStatus(leg.status)}
                       </span>
                     ) : (
                       <select
@@ -554,7 +514,7 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
                       <div className="leg-actions">
                         <button
                           type="button"
-                          onClick={() => handleEditLeg(leg)}
+                          onClick={() => editLeg(leg)}
                           className="btn btn-sm btn-primary"
                         >
                           <i className="fas fa-edit"></i> Edit
@@ -611,111 +571,123 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
           <form onSubmit={(e) => handleSubmit(e)}>
             <div className="form-row">
               <div className="form-group">
-                <label htmlFor="origin">Origin*</label>
+                <label htmlFor="from">Origin*</label>
                 <input
                   type="text"
-                  id="origin"
-                  name="origin"
-                  value={formData.origin}
+                  id="from"
+                  name="from"
+                  value={formData.from}
                   onChange={onChange}
                   required
-                  className={errors.origin ? 'form-control is-invalid' : 'form-control'}
+                  className={errors.from ? 'form-control is-invalid' : 'form-control'}
                 />
-                {errors.origin && <div className="invalid-feedback">{errors.origin}</div>}
+                {errors.from && <div className="invalid-feedback">{errors.from}</div>}
               </div>
               
               <div className="form-group">
-                <label htmlFor="destination">Destination*</label>
+                <label htmlFor="to">Destination*</label>
                 <input
                   type="text"
-                  id="destination"
-                  name="destination"
-                  value={formData.destination}
+                  id="to"
+                  name="to"
+                  value={formData.to}
                   onChange={onChange}
                   required
-                  className={errors.destination ? 'form-control is-invalid' : 'form-control'}
+                  className={errors.to ? 'form-control is-invalid' : 'form-control'}
                 />
-                {errors.destination && <div className="invalid-feedback">{errors.destination}</div>}
+                {errors.to && <div className="invalid-feedback">{errors.to}</div>}
               </div>
             </div>
             
             <div className="form-row">
               <div className="form-group">
-                <label htmlFor="mawbNumber">MAWB/AWB Number*</label>
+                <label htmlFor="carrier">Carrier*</label>
                 <input
                   type="text"
-                  id="mawbNumber"
-                  name="mawbNumber"
-                  value={formData.mawbNumber}
+                  id="carrier"
+                  name="carrier"
+                  value={formData.carrier}
                   onChange={onChange}
                   required
-                  className={errors.mawbNumber ? 'form-control is-invalid' : 'form-control'}
+                  className={errors.carrier ? 'form-control is-invalid' : 'form-control'}
                 />
-                {errors.mawbNumber && <div className="invalid-feedback">{errors.mawbNumber}</div>}
-              </div>
-              
-              <div className="form-group">
-                <label htmlFor="flightNumber">Flight Number*</label>
-                <input
-                  type="text"
-                  id="flightNumber"
-                  name="flightNumber"
-                  value={formData.flightNumber}
-                  onChange={onChange}
-                  required
-                  className={errors.flightNumber ? 'form-control is-invalid' : 'form-control'}
-                />
-                {errors.flightNumber && <div className="invalid-feedback">{errors.flightNumber}</div>}
+                {errors.carrier && <div className="invalid-feedback">{errors.carrier}</div>}
               </div>
             </div>
             
             <div className="form-row">
               <div className="form-group">
-                <label htmlFor="status">Status</label>
-                <select
-                  id="status"
-                  name="status"
-                  value={formData.status}
+                <label htmlFor="legOrder">Leg Order*</label>
+                <input
+                  type="number"
+                  id="legOrder"
+                  name="legOrder"
+                  value={formData.legOrder}
                   onChange={onChange}
-                  className="form-control"
-                >
-                  <option value="Pending">Pending</option>
-                  <option value="In Transit">In Transit</option>
-                  <option value="Arrived">Arrived</option>
-                  <option value="Delayed">Delayed</option>
-                  <option value="Canceled">Canceled</option>
-                </select>
+                  required
+                  className={errors.legOrder ? 'form-control is-invalid' : 'form-control'}
+                />
+                {errors.legOrder && <div className="invalid-feedback">{errors.legOrder}</div>}
               </div>
             </div>
             
             <div className="form-row">
               <div className="form-group">
-                <label htmlFor="departureTime">Departure Time*</label>
+                <label htmlFor="departureDate">Departure Date*</label>
                 <input
                   type="datetime-local"
-                  id="departureTime"
-                  name="departureTime"
-                  value={formData.departureTime}
+                  id="departureDate"
+                  name="departureDate"
+                  value={formData.departureDate}
                   onChange={onChange}
                   required
-                  className={errors.departureTime ? 'form-control is-invalid' : 'form-control'}
+                  className={errors.departureDate ? 'form-control is-invalid' : 'form-control'}
                 />
-                {errors.departureTime && <div className="invalid-feedback">{errors.departureTime}</div>}
+                {errors.departureDate && <div className="invalid-feedback">{errors.departureDate}</div>}
               </div>
               
               <div className="form-group">
-                <label htmlFor="arrivalTime">Arrival Time*</label>
+                <label htmlFor="arrivalDate">Arrival Date*</label>
                 <input
                   type="datetime-local"
-                  id="arrivalTime"
-                  name="arrivalTime"
-                  value={formData.arrivalTime}
+                  id="arrivalDate"
+                  name="arrivalDate"
+                  value={formData.arrivalDate}
                   onChange={onChange}
                   required
-                  className={errors.arrivalTime ? 'form-control is-invalid' : 'form-control'}
+                  className={errors.arrivalDate ? 'form-control is-invalid' : 'form-control'}
                 />
-                {errors.arrivalTime && <div className="invalid-feedback">{errors.arrivalTime}</div>}
+                {errors.arrivalDate && <div className="invalid-feedback">{errors.arrivalDate}</div>}
               </div>
+            </div>
+            
+            <div className="form-group">
+              <label htmlFor="trackingNumber">Tracking Number</label>
+              <input
+                type="text"
+                id="trackingNumber"
+                name="trackingNumber"
+                value={formData.trackingNumber}
+                onChange={onChange}
+                className="form-control"
+              />
+            </div>
+            
+            <div className="form-group">
+              <label htmlFor="status">Status</label>
+              <select
+                id="status"
+                name="status"
+                value={formData.status}
+                onChange={onChange}
+                className="form-control"
+              >
+                <option value="pending">Pending</option>
+                <option value="in transit">In Transit</option>
+                <option value="arrived">Arrived</option>
+                <option value="delayed">Delayed</option>
+                <option value="canceled">Canceled</option>
+              </select>
             </div>
             
             <div className="form-group">
