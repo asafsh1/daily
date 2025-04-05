@@ -18,83 +18,95 @@ import store from '../store';
 const socket = io(process.env.REACT_APP_SOCKET_URL || 'http://localhost:5001');
 
 // Get all shipments
-export const getShipments = () => async dispatch => {
+export const getShipments = () => async (dispatch) => {
   try {
-    dispatch({ type: CLEAR_SHIPMENT });
+    console.log('Fetching all shipments...');
     dispatch({ type: SHIPMENTS_LOADING });
     
-    console.log('Fetching shipments from API...');
-    let res;
-    try {
-      res = await axios.get('/api/shipments');
-      console.log('API response status:', res.status);
-    } catch (apiErr) {
-      console.error('API call failed:', apiErr.message, apiErr.response || 'No response');
-      throw apiErr;
-    }
+    const res = await axios.get('/api/shipments');
     
-    if (!res || !res.data) {
-      console.error('API returned empty response');
-      throw new Error('Empty response from server');
-    }
+    // Normalize data to ensure fields are properly set
+    const normalizedShipments = res.data.map(shipment => {
+      // Ensure legs is always an array
+      if (!shipment.legs || !Array.isArray(shipment.legs)) {
+        shipment.legs = [];
+      }
+      
+      return shipment;
+    });
     
-    console.log('API response data type:', typeof res.data);
-    console.log('API response data shape:', 
-      Array.isArray(res.data) 
-        ? `Array with ${res.data.length} items` 
-        : (res.data.shipments 
-            ? `Object with shipments array (${res.data.shipments.length} items)` 
-            : 'Unknown shape')
-    );
-
-    // Handle both old and new response formats
-    const shipmentsData = res.data.shipments ? res.data.shipments : res.data;
-    
-    if (!Array.isArray(shipmentsData)) {
-      console.error('Data is not an array:', shipmentsData);
-      throw new Error('Invalid data format returned from server');
-    }
-    
-    console.log(`Successfully processed ${shipmentsData.length} shipments`);
+    console.log(`Fetched ${normalizedShipments.length} shipments`);
     
     dispatch({
       type: GET_SHIPMENTS,
-      payload: shipmentsData
+      payload: normalizedShipments
     });
     
-    return shipmentsData;
+    return normalizedShipments;
   } catch (err) {
-    console.error('Error in getShipments action:', err);
+    console.error('Error fetching shipments:', err);
+    
+    // Get detailed error information
+    const errorMessage = err.response?.data?.message || err.message;
     
     dispatch({
       type: SHIPMENT_ERROR,
       payload: { 
-        msg: err.response?.statusText || 'Server Error', 
-        status: err.response?.status || 500,
-        error: err.message
+        msg: errorMessage, 
+        status: err.response?.status || 'Network Error'
       }
     });
     
-    throw err;
+    // Return empty array to prevent UI errors
+    return [];
   }
 };
 
-// Get shipment by ID
-export const getShipment = id => async dispatch => {
-  dispatch({ type: SHIPMENT_LOADING });
-  
+// Get single shipment by ID
+export const getShipment = (id) => async (dispatch) => {
   try {
-    const res = await axios.get(`/api/shipments/${id}`);
+    dispatch({
+      type: SHIPMENT_LOADING
+    });
 
+    console.log(`Fetching shipment with ID: ${id}`);
+    const res = await axios.get(`/api/shipments/${id}`);
+    console.log(`Shipment API response:`, res.data);
+    
+    let shipmentData = res.data;
+    
+    // Check if there are legs in the response and log them
+    if (shipmentData.legs && Array.isArray(shipmentData.legs)) {
+      console.log(`Shipment has ${shipmentData.legs.length} legs in the response`);
+    } else {
+      console.log(`Shipment has no legs array in the response`);
+      shipmentData.legs = []; // Ensure legs is always an array
+    }
+    
     dispatch({
       type: GET_SHIPMENT,
-      payload: res.data
+      payload: shipmentData
     });
+    
+    return shipmentData;
   } catch (err) {
+    console.error('Error fetching shipment:', err);
+    
+    // Get detailed error information
+    const errorMessage = err.response && err.response.data 
+      ? err.response.data.message 
+      : err.message;
+      
     dispatch({
       type: SHIPMENT_ERROR,
-      payload: { msg: err.response.statusText, status: err.response.status }
+      payload: { 
+        msg: errorMessage, 
+        status: err.response ? err.response.status : 'Network Error'
+      }
     });
+    
+    // Re-throw so callers can handle it
+    throw err;
   }
 };
 
