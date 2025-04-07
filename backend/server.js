@@ -387,7 +387,7 @@ app.get('/api/debug/shipment-legs/:id', async (req, res) => {
 });
 
 // Connect to MongoDB Atlas and start server
-mongoose.connect(process.env.MONGODB_URI || "mongodb+srv://asafasaf5347:asafasaf5347@cluster0.lyz67.mongodb.net/shipment-tracker?retryWrites=true&w=majority&appName=Cluster0", {
+mongoose.connect(process.env.MONGODB_URI, {
   useNewUrlParser: true,
   useUnifiedTopology: true,
   serverSelectionTimeoutMS: 15000,
@@ -400,7 +400,7 @@ mongoose.connect(process.env.MONGODB_URI || "mongodb+srv://asafasaf5347:asafasaf
 }).then(() => {
   console.log('✅ Connected to MongoDB Atlas');
   
-  // Start server using Heroku's port or default to 80 for production
+  // Start server using environment port
   const port = process.env.PORT || 80;
   app.listen(port, () => {
     console.log(`✅ Server is running on port ${port}`);
