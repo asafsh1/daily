@@ -46,19 +46,19 @@ const Shipments = ({ getShipments, updateShipment, deleteShipment, shipment: { s
       setFilteredData([]);
       return;
     }
-
+    
     try {
       const filtered = shipments.filter(shipment => {
         if (!shipment) return false;
-
+        
         // Get customer name safely, handling both string and object references
         const customerName = shipment.customer && typeof shipment.customer === 'object'
           ? (shipment.customer.name || '')
-          : (shipment.customer || '');
-
+            : (shipment.customer || '');
+          
         // Check if search term matches customer or AWB
-        const searchLower = searchTerm.toLowerCase();
-        const customerMatches = customerName.toLowerCase().includes(searchLower);
+          const searchLower = searchTerm.toLowerCase();
+          const customerMatches = customerName.toLowerCase().includes(searchLower);
         
         // Get AWB numbers from either legs or direct properties
         let awbMatches = false;
@@ -78,7 +78,7 @@ const Shipments = ({ getShipments, updateShipment, deleteShipment, shipment: { s
 
         return (searchTerm === '' || customerMatches || awbMatches) && statusMatches;
       });
-
+      
       setFilteredData(filtered);
     } catch (err) {
       console.error('Error filtering shipments:', err);
@@ -193,7 +193,7 @@ const Shipments = ({ getShipments, updateShipment, deleteShipment, shipment: { s
       <Row className="my-4">
         <Col>
           <div className="d-flex justify-content-between align-items-center mb-4">
-            <h1 className="large text-primary">Shipments</h1>
+      <h1 className="large text-primary">Shipments</h1>
             <Button as={Link} to="/create-shipment" variant="primary">
               Create New Shipment
             </Button>
@@ -205,25 +205,25 @@ const Shipments = ({ getShipments, updateShipment, deleteShipment, shipment: { s
               <Col md={6}>
                 <InputGroup>
                   <Form.Control
-                    type="text"
-                    placeholder="Search by customer or AWB..."
-                    value={searchTerm}
-                    onChange={e => setSearchTerm(e.target.value)}
-                  />
+            type="text"
+            placeholder="Search by customer or AWB..."
+            value={searchTerm}
+            onChange={e => setSearchTerm(e.target.value)}
+          />
                 </InputGroup>
               </Col>
               <Col md={4}>
                 <Form.Select
-                  value={filterStatus}
-                  onChange={e => setFilterStatus(e.target.value)}
-                >
-                  <option value="">All Statuses</option>
-                  <option value="Pending">Pending</option>
-                  <option value="In Transit">In Transit</option>
-                  <option value="Arrived">Arrived</option>
-                  <option value="Delayed">Delayed</option>
+            value={filterStatus}
+            onChange={e => setFilterStatus(e.target.value)}
+          >
+            <option value="">All Statuses</option>
+            <option value="Pending">Pending</option>
+            <option value="In Transit">In Transit</option>
+            <option value="Arrived">Arrived</option>
+            <option value="Delayed">Delayed</option>
                   <option value="Completed">Completed</option>
-                  <option value="Canceled">Canceled</option>
+            <option value="Canceled">Canceled</option>
                 </Form.Select>
               </Col>
               <Col md={2} className="text-end">
@@ -236,8 +236,8 @@ const Shipments = ({ getShipments, updateShipment, deleteShipment, shipment: { s
                 </Button>
               </Col>
             </Row>
-          </div>
-          
+      </div>
+
           {/* Show refresh indicator */}
           {isRetrying && (
             <Alert variant="info" className="py-2 mb-3">
@@ -247,22 +247,22 @@ const Shipments = ({ getShipments, updateShipment, deleteShipment, shipment: { s
           
           {/* Table of shipments */}
           {filteredData.length > 0 ? (
-            <div className="table-responsive">
+      <div className="table-responsive">
               <Table hover bordered className="shipments-table">
-                <thead>
-                  <tr>
+          <thead>
+            <tr>
                     <th>ID</th>
                     <th>Date</th>
-                    <th>Customer</th>
+              <th>Customer</th>
                     <th>Origin</th>
                     <th>Destination</th>
                     <th>Status</th>
-                    <th>Departure</th>
-                    <th>Arrival</th>
-                    <th>Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
+              <th>Departure</th>
+              <th>Arrival</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
                   {filteredData.map((shipment, index) => {
                     // Safe property access with fallbacks
                     const customerId = shipment._id ? shipment._id.toString() : `temp-${index}`;
@@ -318,12 +318,12 @@ const Shipments = ({ getShipments, updateShipment, deleteShipment, shipment: { s
                           <Link to={`/shipments/${customerId}`}>
                             {shipment.serialNumber || shortId}
                           </Link>
-                        </td>
-                        <td>
+                  </td>
+                  <td>
                           {shipment.dateAdded ? (
                             <Moment format="MM/DD/YYYY">{shipment.dateAdded}</Moment>
                           ) : 'N/A'}
-                        </td>
+                  </td>
                         <td>{customerName}</td>
                         <td>{origin}</td>
                         <td>{destination}</td>
@@ -331,45 +331,45 @@ const Shipments = ({ getShipments, updateShipment, deleteShipment, shipment: { s
                           <span className={`badge ${getStatusClass(status)}`}>
                             {status}
                           </span>
-                        </td>
-                        <td>
+                  </td>
+                  <td>
                           {departureDate ? (
                             <Moment format="MM/DD/YYYY">{departureDate}</Moment>
                           ) : 'N/A'}
-                        </td>
-                        <td>
+                  </td>
+                  <td>
                           {arrivalDate ? (
                             <Moment format="MM/DD/YYYY">{arrivalDate}</Moment>
                           ) : 'N/A'}
-                        </td>
-                        <td>
+                  </td>
+                  <td>
                           <div className="d-flex gap-1">
                             <Button 
                               as={Link} 
                               to={`/shipments/${customerId}`} 
                               variant="outline-info" 
                               size="sm"
-                            >
-                              View
+                    >
+                      View
                             </Button>
                             <Button 
                               as={Link} 
                               to={`/edit-shipment/${customerId}`} 
                               variant="outline-primary" 
                               size="sm"
-                            >
-                              Edit
+                    >
+                      Edit
                             </Button>
                             <Button 
                               variant="outline-danger" 
                               size="sm"
-                              onClick={() => handleDeleteClick(shipment)}
-                            >
-                              Delete
+                      onClick={() => handleDeleteClick(shipment)}
+                    >
+                      Delete
                             </Button>
                           </div>
-                        </td>
-                      </tr>
+                  </td>
+                </tr>
                     );
                   })}
                 </tbody>
@@ -382,7 +382,7 @@ const Shipments = ({ getShipments, updateShipment, deleteShipment, shipment: { s
           )}
         </Col>
       </Row>
-      
+
       {/* Delete Confirmation Modal */}
       {showDeleteModal && (
         <div className="modal-backdrop">

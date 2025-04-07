@@ -167,7 +167,7 @@ router.get('/:id', auth, async (req, res) => {
     
     // Try to find the shipment directly
     const shipment = await Shipment.findById(req.params.id);
-
+    
     if (!shipment) {
       // If not found in database, check sample data
       const sampleData = getSampleShipments();
@@ -179,7 +179,7 @@ router.get('/:id', auth, async (req, res) => {
       
       return res.status(404).json({ msg: 'Shipment not found' });
     }
-
+    
     // Populate customer data if it's an ObjectId reference
     if (shipment.customer && mongoose.Types.ObjectId.isValid(shipment.customer)) {
       const populatedShipment = await Shipment.findById(req.params.id)
@@ -226,9 +226,9 @@ router.get('/:id', auth, async (req, res) => {
       }
     } catch (sampleErr) {
       console.error('Error with sample data fallback:', sampleErr.message);
-    }
-    
-    res.status(500).send('Server Error');
+      }
+      
+      res.status(500).send('Server Error');
   }
 });
 
@@ -277,4 +277,4 @@ router.get('/:id/legs', async (req, res) => {
   }
 });
 
-module.exports = router;
+module.exports = router; 
