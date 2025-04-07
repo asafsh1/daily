@@ -1,1 +1,9 @@
-{"mongoURI": "mongodb+srv://asafsh1:Aa123456@cluster0.lyz67.mongodb.net/?retryWrites=true&w=majority", "jwtSecret": "mysecrettoken"}
+{
+  "mongoURI": "mongodb+srv://asafsh1:Aa123456@cluster0.lyz67.mongodb.net/?retryWrites=true&w=majority",
+  "jwtSecret": "mysecrettoken",
+  "jwtExpiration": "1d",
+  "mailServerSettings": {
+    "apiKey": "your-api-key"
+  },
+  "enableSwagger": true
+}

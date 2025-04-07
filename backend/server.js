@@ -278,62 +278,38 @@ const findAvailablePort = async (startPort) => {
   return null;
 };
 
-// Start server with proper error handling
-const startServer = async () => {
+// Function to start server with dynamic port handling
+const startServer = async (port = 5001, maxRetries = 3) => {
   try {
-    console.log('Database connection established.');
+    console.log(`Checking if port ${port} is available...`);
     
-    // Check if port is available
-    console.log(`Checking if port ${PORT} is available...`);
-    
-    // Start the server
-    app.listen(PORT, () => {
-      console.log(`✅ Server running on port ${PORT}`);
+    // Start server on the specified port
+    app.listen(port, () => {
+      console.log(`✅ Server is running on port ${port}`);
+      console.log(`MongoDB is connected to ${mongoose.connection.host}`);
       
-      // Print out available API routes
-      const routes = [];
-      app._router.stack.forEach((middleware) => {
-        if (middleware.route) {
-          routes.push(middleware.route.path);
-        } else if (middleware.name === 'router') {
-          middleware.handle.stack.forEach((handler) => {
-            if (handler.route) {
-              let route = handler.route.path;
-              if (middleware.regexp) {
-                let middlewarePath = middleware.regexp.toString().match(/^\/\\\/([^\\\/]*)/);
-                if (middlewarePath && middlewarePath[1]) {
-                  route = '/' + middlewarePath[1] + route;
-                }
-              }
-              routes.push(route);
-            }
-          });
-        }
-      });
-      
-      console.log('Available API routes:');
-      routes.filter(route => route.startsWith('/api/')).forEach(route => {
-        console.log(`- ${route}`);
-      });
-      
-      console.log('Press Ctrl+C to stop the server');
-    });
-    
-    // Set up signal handlers for graceful shutdown
-    process.on('SIGTERM', () => {
-      console.log('SIGTERM received. Shutting down gracefully...');
-      process.exit(0);
-    });
-    
-    process.on('SIGINT', () => {
-      console.log('SIGINT received. Shutting down gracefully...');
-      process.exit(0);
+      // Log API documentation URL
+      if (process.env.NODE_ENV !== 'production') {
+        console.log(`🔍 API documentation available at: http://localhost:${port}/api-docs`);
+      }
     });
   } catch (err) {
-    console.error(`Server failed to start: ${err.message}`);
-    process.exit(1);
+    if (err.code === 'EADDRINUSE' && maxRetries > 0) {
+      console.log(`⚠️ Port ${port} is already in use, trying port ${port + 1}...`);
+      // Try the next port
+      await startServer(port + 1, maxRetries - 1);
+    } else {
+      console.error('❌ Failed to start server:', err.message);
+      process.exit(1);
+    }
   }
 };
+
+// Handle process termination
+process.on('SIGINT', () => {
+  console.log('🛑 Server shutting down...');
+  process.exit(0);
+});
 
 // Debug route for legs
 app.get('/api/debug/shipment-legs/:id', async (req, res) => {
@@ -418,13 +394,12 @@ app.get('/api/debug/shipment-legs/:id', async (req, res) => {
   }
 });
 
-// Connect to database
-connectDB().then(dbConnected => {
-  if (dbConnected) {
-    console.log('✅ Database connection successful - all functionality available');
-    startServer();
-  } else {
-    console.log('⚠️ Database connection not established - running with limited functionality');
-    startServer();
-  }
+// Initialize the server
+connectDB().then(() => {
+  console.log('✅ Database connection successful - all functionality available');
+  console.log('Database connection established.');
+  startServer(PORT);
+}).catch(err => {
+  console.error('❌ Failed to start application:', err.message);
+  process.exit(1);
 });

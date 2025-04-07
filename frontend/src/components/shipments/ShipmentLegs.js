@@ -60,44 +60,38 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
     };
   };
 
-  // Update the fetchLegs function to normalize all legs
+  // Update the fetchLegs function with better error handling and production compatibility
   const fetchLegs = async () => {
     try {
       setLoading(true);
+      setError(null);
       
-      if (!shipmentId) {
-        setLegs([]);
-        setLoading(false);
-        return;
-      }
+      console.log(`Fetching shipment data for id: ${shipmentId}`);
       
-      // Try the shipment endpoint first (this should have the most reliable data now)
-      console.log(`Fetching shipment data for ID: ${shipmentId}`);
+      // Try the shipment endpoint first
       const shipmentResponse = await axios.get(`/api/shipments/${shipmentId}`);
       
       if (shipmentResponse.data?.legs && Array.isArray(shipmentResponse.data.legs) && shipmentResponse.data.legs.length > 0) {
         console.log(`Found ${shipmentResponse.data.legs.length} legs in shipment response`);
         const normalizedLegs = shipmentResponse.data.legs.map(leg => normalizeLeg(leg)).filter(Boolean);
         setLegs(sortLegs(normalizedLegs));
-        setLoading(false);
-        return;
-      }
-      
-      // If no legs in shipment data, try direct legs endpoint
-      console.log(`Fetching legs directly for shipment ID: ${shipmentId}`);
-      const legsResponse = await axios.get(`/api/shipment-legs/${shipmentId}`);
-      
-      if (Array.isArray(legsResponse.data) && legsResponse.data.length > 0) {
-        console.log(`Found ${legsResponse.data.length} legs via direct endpoint`);
-        const normalizedLegs = legsResponse.data.map(leg => normalizeLeg(leg)).filter(Boolean);
-        setLegs(sortLegs(normalizedLegs));
       } else {
-        console.log('No legs found');
-        setLegs([]);
+        // Fallback to direct legs endpoint
+        console.log(`Fetching legs directly for shipment ID: ${shipmentId}`);
+        const legsResponse = await axios.get(`/api/shipment-legs/${shipmentId}`);
+        
+        if (Array.isArray(legsResponse.data) && legsResponse.data.length > 0) {
+          console.log(`Found ${legsResponse.data.length} legs via direct endpoint`);
+          const normalizedLegs = legsResponse.data.map(leg => normalizeLeg(leg)).filter(Boolean);
+          setLegs(sortLegs(normalizedLegs));
+        } else {
+          console.log('No legs found');
+          setLegs([]);
+        }
       }
     } catch (error) {
       console.error('Error fetching legs:', error);
-      setLegs([]);
+      setError(`Failed to load shipment legs: ${error.message}`);
     } finally {
       setLoading(false);
     }
@@ -160,7 +154,7 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
         description: `Added leg: ${formData.from} to ${formData.to}`
       };
 
-      if (shipmentId.startsWith('temp-')) {
+      if (shipmentId.toString().startsWith('temp-')) {
         // Add to local state for temporary shipments
         setLegs([
           ...legs,
@@ -227,7 +221,7 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
         description: `Updated leg: ${formData.from} to ${formData.to}`
       };
 
-      if (shipmentId.startsWith('temp-')) {
+      if (shipmentId.toString().startsWith('temp-')) {
         // Update local state for temporary shipments
         const updatedLegs = legs.map(leg => 
           leg._id === editingLeg._id 
@@ -311,6 +305,10 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
 
   // Delete a leg
   const handleDeleteLeg = async (legId) => {
+    if (!window.confirm('Are you sure you want to delete this leg?')) {
+      return;
+    }
+    
     try {
       // For temporary legs, just remove from local state
       if (shipmentId.toString().startsWith('temp-') || legId.toString().startsWith('temp-leg-')) {
@@ -319,6 +317,8 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
         // For real legs, delete from the server
         console.log("Deleting leg:", legId);
         await axios.delete(`/api/shipment-legs/${legId}`);
+        
+        // Update local state too (for immediate feedback)
         setLegs(legs.filter(leg => leg._id !== legId));
         
         // Show success message
@@ -343,8 +343,7 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
         ));
       } else {
         // For real legs, update on the server
-        // Fix the endpoint URL to match the backend route
-        const res = await axios.put(`/api/shipment-legs/${shipmentId}/${legId}`, { status: newStatus });
+        const res = await axios.put(`/api/shipment-legs/${legId}/status`, { status: newStatus });
         
         // Update local state
         setLegs(legs.map(leg => 
@@ -370,16 +369,39 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
     return status || 'Not Started';
   };
 
+  // Display error message
+  if (error) {
+    return (
+      <div className="alert alert-danger mt-3">
+        {error}
+        <button 
+          className="btn btn-sm btn-outline-danger ml-2" 
+          onClick={() => { setError(null); fetchLegs(); }}
+        >
+          Retry
+        </button>
+      </div>
+    );
+  }
+
   // Render loading state
   if (loading) {
     return <div className="text-center p-4">Loading shipment legs...</div>;
   }
   
+  // Render success message if present
+  const successMessage = success ? (
+    <div className="alert alert-success mt-2">{success}</div>
+  ) : null;
+  
   // Render no legs message
   if (!legs || legs.length === 0) {
     return (
-      <div className="alert alert-info mt-3">
-        No legs have been added to this shipment yet.
+      <div>
+        {successMessage}
+        <div className="alert alert-info mt-3">
+          No legs have been added to this shipment yet.
+        </div>
       </div>
     );
   }
@@ -387,6 +409,7 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
   // Render legs table
   return (
     <div className="shipment-legs mt-3">
+      {successMessage}
       <h3>Shipment Legs ({legs.length})</h3>
       
       <div className="table-responsive">
@@ -403,6 +426,7 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
               <th>Arrival Date</th>
               <th>Status</th>
               <th>Notes</th>
+              {!readOnly && <th>Actions</th>}
             </tr>
           </thead>
           <tbody>
@@ -430,11 +454,177 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
                   </span>
                 </td>
                 <td>{leg.notes || '-'}</td>
+                {!readOnly && (
+                  <td>
+                    <button 
+                      className="btn btn-sm btn-primary mr-1" 
+                      onClick={() => editLeg(leg)}
+                    >
+                      Edit
+                    </button>
+                    <button 
+                      className="btn btn-sm btn-danger" 
+                      onClick={() => handleDeleteLeg(leg._id)}
+                    >
+                      Delete
+                    </button>
+                  </td>
+                )}
               </tr>
             ))}
           </tbody>
         </table>
       </div>
+      
+      {!readOnly && !showForm && (
+        <button 
+          className="btn btn-primary mt-2" 
+          onClick={() => {
+            resetForm();
+            setShowForm(true);
+          }}
+        >
+          Add Leg
+        </button>
+      )}
+      
+      {showForm && !readOnly && (
+        <div className="card mt-3">
+          <div className="card-header">
+            {editingLeg ? 'Edit Leg' : 'Add New Leg'}
+          </div>
+          <div className="card-body">
+            <form onSubmit={handleSubmit}>
+              <div className="form-row">
+                <div className="form-group col-md-6">
+                  <label>From</label>
+                  <input
+                    type="text"
+                    className={`form-control ${errors.from ? 'is-invalid' : ''}`}
+                    name="from"
+                    value={formData.from}
+                    onChange={onChange}
+                    placeholder="Origin"
+                  />
+                  {errors.from && <div className="invalid-feedback">{errors.from}</div>}
+                </div>
+                <div className="form-group col-md-6">
+                  <label>To</label>
+                  <input
+                    type="text"
+                    className={`form-control ${errors.to ? 'is-invalid' : ''}`}
+                    name="to"
+                    value={formData.to}
+                    onChange={onChange}
+                    placeholder="Destination"
+                  />
+                  {errors.to && <div className="invalid-feedback">{errors.to}</div>}
+                </div>
+              </div>
+              
+              <div className="form-row">
+                <div className="form-group col-md-6">
+                  <label>Carrier</label>
+                  <input
+                    type="text"
+                    className={`form-control ${errors.carrier ? 'is-invalid' : ''}`}
+                    name="carrier"
+                    value={formData.carrier}
+                    onChange={onChange}
+                    placeholder="Airline/Carrier"
+                  />
+                  {errors.carrier && <div className="invalid-feedback">{errors.carrier}</div>}
+                </div>
+                <div className="form-group col-md-6">
+                  <label>Leg Order</label>
+                  <input
+                    type="number"
+                    className="form-control"
+                    name="legOrder"
+                    value={formData.legOrder}
+                    onChange={onChange}
+                    placeholder="Leg Order"
+                    min="0"
+                  />
+                </div>
+              </div>
+              
+              <div className="form-row">
+                <div className="form-group col-md-6">
+                  <label>Departure Date</label>
+                  <input
+                    type="date"
+                    className="form-control"
+                    name="departureDate"
+                    value={formData.departureDate}
+                    onChange={onChange}
+                  />
+                </div>
+                <div className="form-group col-md-6">
+                  <label>Arrival Date</label>
+                  <input
+                    type="date"
+                    className="form-control"
+                    name="arrivalDate"
+                    value={formData.arrivalDate}
+                    onChange={onChange}
+                  />
+                </div>
+              </div>
+              
+              <div className="form-row">
+                <div className="form-group col-md-6">
+                  <label>AWB / Tracking Number</label>
+                  <input
+                    type="text"
+                    className="form-control"
+                    name="trackingNumber"
+                    value={formData.trackingNumber}
+                    onChange={onChange}
+                    placeholder="AWB/Tracking Number"
+                  />
+                </div>
+                <div className="form-group col-md-6">
+                  <label>Status</label>
+                  <select
+                    className="form-control"
+                    name="status"
+                    value={formData.status}
+                    onChange={onChange}
+                  >
+                    <option value="Not Started">Not Started</option>
+                    <option value="In Progress">In Progress</option>
+                    <option value="Delayed">Delayed</option>
+                    <option value="Completed">Completed</option>
+                    <option value="Cancelled">Cancelled</option>
+                  </select>
+                </div>
+              </div>
+              
+              <div className="form-group">
+                <label>Notes</label>
+                <textarea
+                  className="form-control"
+                  name="notes"
+                  value={formData.notes}
+                  onChange={onChange}
+                  placeholder="Additional notes"
+                  rows="3"
+                ></textarea>
+              </div>
+              
+              <div className="form-group">
+                <button type="submit" className="btn btn-primary mr-2">
+                  {editingLeg ? 'Update Leg' : 'Add Leg'}
+                </button>
+                <button type="button" className="btn btn-secondary" onClick={handleCancel}>
+                  Cancel
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
