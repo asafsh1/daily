@@ -1,4 +1,8 @@
 require('dotenv').config();
+
+// Force using MongoDB Atlas connection string
+process.env.MONGODB_URI = "mongodb+srv://asafasaf5347:asafasaf5347@cluster0.lyz67.mongodb.net/shipment-tracker?retryWrites=true&w=majority&appName=Cluster0";
+
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
