@@ -14,6 +14,9 @@ const { createServer } = require('http');
 const { Server } = require('socket.io');
 const bodyParser = require('body-parser');
 
+// Set the port for the server
+const PORT = process.env.PORT || 80;
+
 // Initialize Express
 const app = express();
 const httpServer = createServer(app);
@@ -240,153 +243,10 @@ app.use((err, req, res, next) => {
   });
 });
 
-// Set the port for the server
-const PORT = process.env.PORT || 5001;
-
-// Check if a port is available
-const isPortAvailable = (port) => {
-  return new Promise((resolve) => {
-    const server = net.createServer();
-    
-    server.once('error', () => {
-      resolve(false);
-    });
-    
-    server.once('listening', () => {
-      server.close();
-      resolve(true);
-    });
-    
-    server.listen(port);
-  });
-};
-
-// Find available port starting from the given port
-const findAvailablePort = async (startPort) => {
-  let port = startPort;
-  const MAX_PORT = startPort + 20; // Don't search indefinitely
-  
-  while (port < MAX_PORT) {
-    if (await isPortAvailable(port)) {
-      return port;
-    }
-    port++;
-  }
-  
-  // If all ports in range are taken, return null
-  return null;
-};
-
-// Function to start server with dynamic port handling
-const startServer = async () => {
-  try {
-    console.log(`Starting server on port ${PORT}...`);
-    
-    app.listen(PORT, () => {
-      console.log(`✅ Server is running on port ${PORT}`);
-      console.log(`MongoDB is connected to ${mongoose.connection.host}`);
-      
-      // Log API documentation URL
-      if (process.env.NODE_ENV !== 'production') {
-        console.log(`🔍 API documentation available at: http://localhost:${PORT}/api-docs`);
-      }
-    });
-  } catch (err) {
-    console.error('❌ Failed to start server:', err.message);
-    process.exit(1);
-  }
-};
-
-// Handle process termination
-process.on('SIGINT', () => {
-  console.log('🛑 Server shutting down...');
-  process.exit(0);
-});
-
-// Debug route for legs
-app.get('/api/debug/shipment-legs/:id', async (req, res) => {
-  try {
-    const shipmentId = req.params.id;
-    console.log(`[DEBUG] Checking legs for shipment: ${shipmentId}`);
-
-    // Check if ID is valid
-    if (!mongoose.Types.ObjectId.isValid(shipmentId)) {
-      return res.json({
-        error: 'Invalid shipment ID format',
-        shipmentId: shipmentId
-      });
-    }
-
-    // 1. First check if shipment exists
-    const shipment = await mongoose.model('shipment').findById(shipmentId).lean();
-    
-    if (!shipment) {
-      return res.json({
-        error: 'Shipment not found',
-        shipmentId: shipmentId
-      });
-    }
-
-    // 2. Get legs from shipment.legs array
-    const referencedLegs = [];
-    if (shipment.legs && Array.isArray(shipment.legs)) {
-      for (const legId of shipment.legs) {
-        try {
-          const leg = await mongoose.model('shipmentLeg').findById(legId).lean();
-          if (leg) {
-            referencedLegs.push({
-              _id: leg._id,
-              from: leg.from || leg.origin,
-              to: leg.to || leg.destination,
-              legOrder: leg.legOrder
-            });
-          } else {
-            referencedLegs.push({ _id: legId, error: 'Not found' });
-          }
-        } catch (err) {
-          referencedLegs.push({ _id: legId, error: err.message });
-        }
-      }
-    }
-
-    // 3. Also search for legs with shipment reference
-    const independentLegs = await mongoose.model('shipmentLeg')
-      .find({ shipment: shipmentId })
-      .lean();
-
-    // Return complete debug information
-    res.json({
-      shipmentId: shipmentId,
-      shipment: {
-        _id: shipment._id,
-        hasLegsArray: !!shipment.legs,
-        legsArrayLength: shipment.legs ? shipment.legs.length : 0,
-        legsType: shipment.legs ? typeof shipment.legs : 'undefined',
-        isLegsArray: Array.isArray(shipment.legs)
-      },
-      referencedLegs: {
-        count: referencedLegs.length,
-        legs: referencedLegs
-      },
-      independentLegs: {
-        count: independentLegs.length,
-        legs: independentLegs.map(leg => ({
-          _id: leg._id,
-          from: leg.from || leg.origin,
-          to: leg.to || leg.destination,
-          legOrder: leg.legOrder
-        }))
-      }
-    });
-  } catch (err) {
-    res.status(500).json({
-      error: err.message,
-      stack: err.stack
-    });
-  }
-});
-
 // Connect to MongoDB Atlas and start server
+console.log('Attempting to connect to MongoDB Atlas...');
+console.log('Connection URI:', process.env.MONGODB_URI ? process.env.MONGODB_URI.replace(/\/\/([^:]+):([^@]+)@/, '//***:***@') : 'No URI provided');
+
 mongoose.connect(process.env.MONGODB_URI, {
   useNewUrlParser: true,
   useUnifiedTopology: true,
@@ -398,13 +258,12 @@ mongoose.connect(process.env.MONGODB_URI, {
   retryWrites: true,
   w: 'majority'
 }).then(() => {
-  console.log('✅ Connected to MongoDB Atlas');
+  console.log('✅ Connected to MongoDB Atlas:', mongoose.connection.host);
   
-  // Start server using environment port
-  const port = process.env.PORT || 80;
-  app.listen(port, () => {
-    console.log(`✅ Server is running on port ${port}`);
-    console.log(`MongoDB is connected to ${mongoose.connection.host}`);
+  // Start the server
+  httpServer.listen(PORT, () => {
+    console.log(`✅ Server is running on port ${PORT}`);
+    console.log(`✅ Environment: ${process.env.NODE_ENV}`);
   });
 }).catch(err => {
   console.error('MongoDB connection error:', err);
