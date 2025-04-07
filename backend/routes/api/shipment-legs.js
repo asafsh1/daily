@@ -521,4 +521,204 @@ router.get('/export/:shipmentId', async (req, res) => {
   }
 });
 
+// Add debugging endpoint to search for legs in all possible ways
+
+// @route   GET api/shipment-legs/debug/:shipmentId
+// @desc    Debug endpoint to find all possible legs for a shipment and explain where they are
+// @access  Public
+router.get('/debug/:shipmentId', async (req, res) => {
+  try {
+    const shipmentId = req.params.shipmentId;
+    console.log(`[DEBUG SEARCH] Searching for legs for shipment: ${shipmentId}`);
+    
+    const results = {
+      shipmentId,
+      timestamp: new Date().toISOString(),
+      methods: [],
+      allLegsFound: [],
+      mongoDbConnectionState: mongoose.connection.readyState === 1 ? 'Connected' : 'Disconnected'
+    };
+    
+    // Method 1: Check if shipment exists and get basic info
+    try {
+      const shipment = await Shipment.findById(shipmentId).lean();
+      
+      results.methods.push({
+        method: "Shipment Lookup",
+        success: !!shipment,
+        details: shipment ? {
+          shipmentId: shipment._id,
+          reference: shipment.reference || 'Not set',
+          hasLegsArray: !!shipment.legs,
+          legsArrayType: shipment.legs ? typeof shipment.legs : 'N/A',
+          legsCount: shipment.legs && Array.isArray(shipment.legs) ? shipment.legs.length : 0
+        } : { error: 'Shipment not found' }
+      });
+      
+      // If shipment has legs directly in the document, add them to results
+      if (shipment && shipment.legs && Array.isArray(shipment.legs) && shipment.legs.length > 0) {
+        const embeddedLegs = shipment.legs.map(leg => ({
+          ...leg,
+          source: 'embedded_in_shipment',
+          _debugId: leg._id ? leg._id.toString() : 'no_id'
+        }));
+        
+        results.methods.push({
+          method: "Embedded Legs",
+          success: true,
+          count: embeddedLegs.length,
+          legs: embeddedLegs
+        });
+        
+        results.allLegsFound = [...results.allLegsFound, ...embeddedLegs];
+      }
+    } catch (err) {
+      results.methods.push({
+        method: "Shipment Lookup",
+        success: false,
+        error: err.message
+      });
+    }
+    
+    // Method 2: Look for legs directly associated with shipment ID
+    try {
+      const directLegs = await ShipmentLeg.find({ shipment: shipmentId }).lean();
+      
+      const formattedLegs = directLegs.map(leg => ({
+        ...leg,
+        source: 'direct_association',
+        _debugId: leg._id.toString()
+      }));
+      
+      results.methods.push({
+        method: "Direct Leg Association",
+        success: true,
+        count: directLegs.length,
+        legs: formattedLegs
+      });
+      
+      results.allLegsFound = [...results.allLegsFound, ...formattedLegs];
+    } catch (err) {
+      results.methods.push({
+        method: "Direct Leg Association",
+        success: false,
+        error: err.message
+      });
+    }
+    
+    // Method 3: Check if shipment has reference field and look up legs by that
+    try {
+      const shipment = await Shipment.findById(shipmentId).lean();
+      if (shipment && shipment.reference) {
+        const referenceLegs = await ShipmentLeg.find({ 
+          $or: [
+            { reference: shipment.reference },
+            { shipmentReference: shipment.reference }
+          ]
+        }).lean();
+        
+        const formattedLegs = referenceLegs.map(leg => ({
+          ...leg,
+          source: 'reference_lookup',
+          _debugId: leg._id.toString()
+        }));
+        
+        results.methods.push({
+          method: "Reference Lookup",
+          success: true,
+          referenceValue: shipment.reference,
+          count: referenceLegs.length,
+          legs: formattedLegs
+        });
+        
+        results.allLegsFound = [...results.allLegsFound, ...formattedLegs];
+      } else {
+        results.methods.push({
+          method: "Reference Lookup",
+          success: false,
+          error: "Shipment not found or has no reference field"
+        });
+      }
+    } catch (err) {
+      results.methods.push({
+        method: "Reference Lookup",
+        success: false,
+        error: err.message
+      });
+    }
+    
+    // Method 4: If shipment has legsIds array (references to legs) instead of embedded legs
+    try {
+      const shipment = await Shipment.findById(shipmentId).lean();
+      if (shipment && shipment.legs && Array.isArray(shipment.legs)) {
+        // Check if the first leg is an object (embedded) or string/ObjectId (reference)
+        const firstLeg = shipment.legs[0];
+        const areLegsReferences = firstLeg && (typeof firstLeg === 'string' || (firstLeg._id && !firstLeg.from));
+        
+        if (areLegsReferences) {
+          const legIds = shipment.legs.map(leg => 
+            typeof leg === 'string' ? leg : leg._id.toString()
+          );
+          
+          // Find all the referenced legs
+          const referencedLegs = await ShipmentLeg.find({
+            _id: { $in: legIds }
+          }).lean();
+          
+          const formattedLegs = referencedLegs.map(leg => ({
+            ...leg,
+            source: 'leg_reference',
+            _debugId: leg._id.toString()
+          }));
+          
+          results.methods.push({
+            method: "Referenced Legs",
+            success: true,
+            expectedCount: legIds.length,
+            foundCount: referencedLegs.length,
+            missingIds: legIds.filter(id => 
+              !referencedLegs.some(leg => leg._id.toString() === id)
+            ),
+            legs: formattedLegs
+          });
+          
+          results.allLegsFound = [...results.allLegsFound, ...formattedLegs];
+        }
+      }
+    } catch (err) {
+      results.methods.push({
+        method: "Referenced Legs",
+        success: false,
+        error: err.message
+      });
+    }
+    
+    // Deduplicate legs (might have found same leg through multiple methods)
+    const uniqueLegs = [];
+    const legIds = new Set();
+    
+    results.allLegsFound.forEach(leg => {
+      const legId = leg._debugId || leg._id?.toString();
+      if (legId && !legIds.has(legId)) {
+        legIds.add(legId);
+        uniqueLegs.push(leg);
+      }
+    });
+    
+    results.uniqueLegsCount = uniqueLegs.length;
+    results.uniqueLegs = uniqueLegs;
+    
+    // Return the full diagnostic information
+    res.json(results);
+    
+  } catch (err) {
+    console.error('Error in leg debugging endpoint:', err);
+    res.status(500).json({
+      error: 'Server Error',
+      message: err.message,
+      stack: err.stack
+    });
+  }
+});
+
 module.exports = router; 

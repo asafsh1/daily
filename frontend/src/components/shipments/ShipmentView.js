@@ -3,6 +3,7 @@ import { useParams, Link } from 'react-router-dom';
 import axios from '../../utils/axiosConfig';
 import ShipmentStatus from './ShipmentStatus';
 import ShipmentLegs from './ShipmentLegs';
+import LegDebugger from './LegDebugger';
 import ShipmentAttachments from './ShipmentAttachments';
 import ShipmentNotes from './ShipmentNotes';
 import Spinner from '../layout/Spinner';
@@ -13,6 +14,7 @@ const ShipmentView = () => {
   const [shipment, setShipment] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [showDebugger, setShowDebugger] = useState(false);
   const { shipmentId } = useParams();
   
   useEffect(() => {
@@ -108,8 +110,16 @@ const ShipmentView = () => {
           <Link to="/shipments" className="btn btn-secondary">
             Back
           </Link>
+          <button 
+            className="btn btn-sm btn-outline-info ml-2"
+            onClick={() => setShowDebugger(!showDebugger)}
+          >
+            {showDebugger ? 'Hide Debugger' : 'Debug'}
+          </button>
         </div>
       </div>
+
+      {showDebugger && <LegDebugger />}
 
       <div className="row">
         <div className="col-md-6">
@@ -219,6 +229,13 @@ const ShipmentView = () => {
         </div>
       </div>
 
+      {/* Preview of legs if available in shipment object */}
+      {shipment.legs && Array.isArray(shipment.legs) && shipment.legs.length > 0 && (
+        <div className="alert alert-info mb-4">
+          <strong>Note:</strong> This shipment has {shipment.legs.length} legs defined directly in the shipment object.
+        </div>
+      )}
+
       {/* Shipment Legs */}
       <div className="card mb-4">
         <div className="card-header bg-success text-white">
@@ -248,6 +265,20 @@ const ShipmentView = () => {
           <ShipmentNotes shipmentId={shipmentId} readOnly={true} />
         </div>
       </div>
+
+      {/* Debug Info - Only in development */}
+      {process.env.NODE_ENV === 'development' && (
+        <div className="card mb-4">
+          <div className="card-header bg-dark text-white">
+            <h5 className="mb-0">Debug Information</h5>
+          </div>
+          <div className="card-body">
+            <pre className="bg-light p-3" style={{ maxHeight: '200px', overflow: 'auto' }}>
+              {JSON.stringify(shipment, null, 2)}
+            </pre>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

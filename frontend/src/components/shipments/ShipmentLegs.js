@@ -83,6 +83,28 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
       
       console.log(`Fetching legs for shipment ID: ${shipmentId}`);
       
+      // First attempt - use the debugging endpoint to find legs in any possible location
+      try {
+        const debugResponse = await axios.get(`/api/shipment-legs/debug/${shipmentId}`);
+        console.log('Debug response:', debugResponse.data);
+        
+        if (debugResponse.data && debugResponse.data.uniqueLegs && 
+            Array.isArray(debugResponse.data.uniqueLegs) && 
+            debugResponse.data.uniqueLegs.length > 0) {
+              
+          // We found legs through the debugger - use them
+          console.log(`Debug API found ${debugResponse.data.uniqueLegs.length} legs`);
+          const normalizedLegs = debugResponse.data.uniqueLegs.map(leg => normalizeLeg(leg)).filter(Boolean);
+          setLegs(sortLegs(normalizedLegs));
+          setLoading(false);
+          return;
+        } else {
+          console.log('Debug API found no legs');
+        }
+      } catch (debugErr) {
+        console.error('Error using debug endpoint:', debugErr);
+      }
+      
       // Method 1: Try direct shipment-legs endpoint 
       try {
         const response = await axios.get(`/api/shipment-legs/shipment/${shipmentId}`);
@@ -106,11 +128,42 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
         
         if (response.data && response.data.legs && 
             Array.isArray(response.data.legs) && response.data.legs.length > 0) {
-          console.log(`Found ${response.data.legs.length} legs in shipment`);
-          const normalizedLegs = response.data.legs.map(leg => normalizeLeg(leg)).filter(Boolean);
-          setLegs(sortLegs(normalizedLegs));
-          setLoading(false);
-          return;
+              
+          // Check if the legs are objects with data or just references
+          const firstLeg = response.data.legs[0];
+          const areEmbeddedLegs = firstLeg && (firstLeg.from || firstLeg.origin);
+          
+          if (areEmbeddedLegs) {
+            console.log(`Found ${response.data.legs.length} embedded legs in shipment`);
+            const normalizedLegs = response.data.legs.map(leg => normalizeLeg(leg)).filter(Boolean);
+            setLegs(sortLegs(normalizedLegs));
+            setLoading(false);
+            return;
+          } else {
+            // These are leg references - we need to fetch each one
+            console.log(`Found ${response.data.legs.length} leg references in shipment`);
+            
+            const legFetches = response.data.legs.map(legId => {
+              const id = typeof legId === 'string' ? legId : legId._id;
+              return axios.get(`/api/shipment-legs/${id}`)
+                .then(res => res.data)
+                .catch(err => {
+                  console.error(`Failed to fetch leg ${id}:`, err);
+                  return null;
+                });
+            });
+            
+            const legResults = await Promise.all(legFetches);
+            const validLegs = legResults.filter(Boolean);
+            
+            if (validLegs.length > 0) {
+              console.log(`Fetched ${validLegs.length} legs from references`);
+              const normalizedLegs = validLegs.map(leg => normalizeLeg(leg)).filter(Boolean);
+              setLegs(sortLegs(normalizedLegs));
+              setLoading(false);
+              return;
+            }
+          }
         }
       } catch (err) {
         console.log("Method 2 failed:", err.message);
@@ -148,27 +201,37 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
         console.log("Method 4 failed:", err.message);
       }
       
-      // Final attempt: Search for legs by shipment reference
+      // Manual method as last resort
       try {
-        // First get the shipment to get its reference/shipmentId field
+        // Try to create legs based on shipment data if no legs are found
         const shipmentResponse = await axios.get(`/api/shipments/${shipmentId}`);
-        const shipmentRef = shipmentResponse.data?.reference || shipmentResponse.data?.shipmentId;
         
-        if (shipmentRef) {
-          // Try to search legs by the shipment reference
-          const response = await axios.get(`/api/shipment-legs/reference/${shipmentRef}`);
-          logResponse("Reference API", response.data);
+        if (shipmentResponse.data && 
+            shipmentResponse.data.origin && 
+            shipmentResponse.data.destination) {
           
-          if (response.data && Array.isArray(response.data) && response.data.length > 0) {
-            console.log(`Found ${response.data.length} legs by reference`);
-            const normalizedLegs = response.data.map(leg => normalizeLeg(leg)).filter(Boolean);
-            setLegs(sortLegs(normalizedLegs));
-            setLoading(false);
-            return;
-          }
+          // We can create a basic leg from the shipment data
+          console.log('Creating default leg from shipment data');
+          
+          const syntheticLeg = {
+            _id: `synthetic-${Date.now()}`,
+            from: shipmentResponse.data.origin,
+            to: shipmentResponse.data.destination,
+            carrier: shipmentResponse.data.carrier || '',
+            legOrder: 1,
+            departureDate: shipmentResponse.data.etd || null,
+            arrivalDate: shipmentResponse.data.eta || null,
+            status: 'Not Started',
+            synthetic: true // Mark as synthetic so we know it's not from the database
+          };
+          
+          // We don't save this to the database - it's just for display
+          setLegs([syntheticLeg]);
+          setLoading(false);
+          return;
         }
       } catch (err) {
-        console.log("Final attempt failed:", err.message);
+        console.log("Manual creation method failed:", err.message);
       }
       
       console.log("All methods failed to find legs");
