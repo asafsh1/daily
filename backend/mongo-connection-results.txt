@@ -1,0 +1,21 @@
+MongoDB Atlas Connection Test Results
+========================================
+
+FAILED: 3.213.158.155 - Server selection timed out after 5000 ms
+
+FAILED: 18.211.135.226 - Server selection timed out after 5000 ms
+
+FAILED: 18.232.152.199 - Server selection timed out after 5000 ms
+
+FAILED: 3.10.54.177 - Server selection timed out after 5000 ms
+
+FAILED: 18.200.164.193 - Server selection timed out after 5000 ms
+
+FAILED: 3.121.192.223 - Server selection timed out after 5000 ms
+
+FAILED: 54.199.204.132 - Server selection timed out after 5000 ms
+
+FAILED: 54.95.218.105 - Server selection timed out after 5000 ms
+
+FAILED: 54.178.26.71 - Server selection timed out after 5000 ms
+

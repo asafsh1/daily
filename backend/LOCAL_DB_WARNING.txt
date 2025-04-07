@@ -1,0 +1,4 @@
+WARNING: Application is running with local database.
+Data will not be synchronized with production and will be lost when the server restarts.
+To fix this issue, update the MongoDB connection string in config/default.json
+You can create a free MongoDB Atlas cluster at https://www.mongodb.com/atlas/database

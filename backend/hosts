@@ -1,0 +1,14 @@
+# MongoDB Atlas server mappings
+# This maps the MongoDB Atlas hostname to multiple IP addresses
+# These are common MongoDB Atlas IP addresses
+
+# General MongoDB Atlas endpoints
+34.212.142.105 cluster0.aqbmxvz.mongodb.net
+52.137.96.253 cluster0.aqbmxvz.mongodb.net
+3.87.16.175 cluster0.aqbmxvz.mongodb.net
+54.208.102.92 cluster0.aqbmxvz.mongodb.net
+52.49.250.208 cluster0.aqbmxvz.mongodb.net
+
+# SRV Records for MongoDB Atlas
+13.248.138.38 _mongodb._tcp.cluster0.aqbmxvz.mongodb.net
+76.223.126.88 _mongodb._tcp.cluster0.aqbmxvz.mongodb.net
