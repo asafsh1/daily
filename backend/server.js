@@ -48,17 +48,6 @@ app.use((req, res, next) => {
   next();
 });
 
-// Connect to Database (but don't exit if it fails)
-(async () => {
-  const connected = await connectDB();
-  if (!connected) {
-    console.warn('⚠️ WARNING: Running with limited functionality due to database connection failure');
-    console.warn('⚠️ APIs will return empty data instead of failing');
-  } else {
-    console.log('✅ Database connection successful - all functionality available');
-  }
-})();
-
 // Define Routes
 app.use('/api/users', require('./routes/api/users'));
 app.use('/api/auth', require('./routes/api/auth'));
@@ -292,84 +281,58 @@ const findAvailablePort = async (startPort) => {
 // Start server with proper error handling
 const startServer = async () => {
   try {
-    // Connect to database
-    console.log('Connecting to MongoDB...');
-    const dbConnected = await connectDB();
+    console.log('Database connection established.');
     
-    if (!dbConnected) {
-      console.warn('\n⚠️ WARNING: Running with database connection issues. Some features may not work.');
-    } else {
-      console.log('Database connection established.');
-    }
-    
-    // Check preferred port availability
+    // Check if port is available
     console.log(`Checking if port ${PORT} is available...`);
-    const isAvailable = await isPortAvailable(PORT);
     
-    if (!isAvailable) {
-      console.warn(`⚠️ Port ${PORT} is already in use. Searching for an available port...`);
+    // Start the server
+    app.listen(PORT, () => {
+      console.log(`✅ Server running on port ${PORT}`);
       
-      const alternatePort = await findAvailablePort(PORT + 1);
+      // Print out available API routes
+      const routes = [];
+      app._router.stack.forEach((middleware) => {
+        if (middleware.route) {
+          routes.push(middleware.route.path);
+        } else if (middleware.name === 'router') {
+          middleware.handle.stack.forEach((handler) => {
+            if (handler.route) {
+              let route = handler.route.path;
+              if (middleware.regexp) {
+                let middlewarePath = middleware.regexp.toString().match(/^\/\\\/([^\\\/]*)/);
+                if (middlewarePath && middlewarePath[1]) {
+                  route = '/' + middlewarePath[1] + route;
+                }
+              }
+              routes.push(route);
+            }
+          });
+        }
+      });
       
-      if (alternatePort) {
-        console.log(`Found available port: ${alternatePort}`);
-        startListening(alternatePort);
-      } else {
-        console.error('❌ Could not find an available port! Server cannot start.');
-        process.exit(1);
-      }
-    } else {
-      startListening(PORT);
-    }
+      console.log('Available API routes:');
+      routes.filter(route => route.startsWith('/api/')).forEach(route => {
+        console.log(`- ${route}`);
+      });
+      
+      console.log('Press Ctrl+C to stop the server');
+    });
+    
+    // Set up signal handlers for graceful shutdown
+    process.on('SIGTERM', () => {
+      console.log('SIGTERM received. Shutting down gracefully...');
+      process.exit(0);
+    });
+    
+    process.on('SIGINT', () => {
+      console.log('SIGINT received. Shutting down gracefully...');
+      process.exit(0);
+    });
   } catch (err) {
-    console.error(`Server initialization error: ${err.message}`);
+    console.error(`Server failed to start: ${err.message}`);
     process.exit(1);
   }
-};
-
-// Helper function to start listening on a port
-const startListening = (port) => {
-  const server = app.listen(port, () => {
-    console.log(`✅ Server running on port ${port}`);
-    
-    // Log all available routes
-    console.log('\nAvailable API routes:');
-    console.log('- /api/users');
-    console.log('- /api/auth');
-    console.log('- /api/profile');
-    console.log('- /api/shipments');
-    console.log('- /api/customers');
-    console.log('- /api/airlines');
-    console.log('- /api/shipment-legs');
-    console.log('- /api/dashboard');
-    console.log('- /api/shippers');
-    console.log('- /api/consignees');
-    console.log('- /api/notify-parties');
-    
-    if (process.env.NODE_ENV === 'production') {
-      console.log('\nServing static frontend files from ../frontend/build');
-    }
-    
-    console.log('\nPress Ctrl+C to stop the server');
-  });
-  
-  // Handle server errors
-  server.on('error', (err) => {
-    if (err.code === 'EADDRINUSE') {
-      console.error(`Port ${port} is already in use. Please try a different port.`);
-    } else {
-      console.error(`Server error: ${err.message}`);
-    }
-    process.exit(1);
-  });
-  
-  // Graceful shutdown
-  process.on('SIGTERM', () => {
-    console.log('SIGTERM received. Shutting down gracefully...');
-    server.close(() => {
-      console.log('Process terminated');
-    });
-  });
 };
 
 // Debug route for legs
@@ -455,5 +418,13 @@ app.get('/api/debug/shipment-legs/:id', async (req, res) => {
   }
 });
 
-// Start the server
-startServer();
+// Connect to database
+connectDB().then(dbConnected => {
+  if (dbConnected) {
+    console.log('✅ Database connection successful - all functionality available');
+    startServer();
+  } else {
+    console.log('⚠️ Database connection not established - running with limited functionality');
+    startServer();
+  }
+});

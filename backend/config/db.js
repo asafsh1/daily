@@ -1,134 +1,117 @@
 const mongoose = require('mongoose');
 const config = require('config');
 
-// Function to get MongoDB connection string
-const getMongoURI = () => {
-  // Try environment variable first
-  if (process.env.MONGO_URI) {
-    console.log('Using MongoDB URI from environment variable');
-    return process.env.MONGO_URI;
-  }
-  
-  // Then try config file
-  try {
-    const uri = config.get('mongoURI');
-    console.log('Using MongoDB URI from config file');
-    return uri;
-  } catch (err) {
-    console.error('Error loading MongoDB URI from config:', err.message);
-  }
-  
-  // Fallback to localhost
-  console.log('Using fallback localhost MongoDB URI');
-  return 'mongodb://localhost:27017/shipment-tracker';
-};
-
-// Connect to MongoDB with multiple fallback options
+// Connect to MongoDB
 const connectDB = async () => {
-  // Maximum retry attempts for the primary connection
-  const MAX_RETRIES = 2;
-  const RETRY_DELAY = 3000; // 3 seconds between retries
-  
-  // Get connection details from the config
-  const primaryURI = getMongoURI();
-  
-  // Hide password in logs
-  const redactedURI = primaryURI.replace(/\/\/([^:]+):([^@]+)@/, '//***:***@');
-  console.log(`Attempting to connect to MongoDB: ${redactedURI}`);
-  
-  // Attempt the primary connection with retries
-  for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
-    try {
-      if (attempt > 1) {
-        console.log(`Retry attempt ${attempt}/${MAX_RETRIES}...`);
-      }
-      
-      // Attempt connection
-      const conn = await mongoose.connect(primaryURI, {
-        useNewUrlParser: true,
-        useUnifiedTopology: true,
-        serverSelectionTimeoutMS: 10000,
-        connectTimeoutMS: 15000
-      });
-      
-      // Successfully connected
-      console.log(`\n✅ Connected to MongoDB (${conn.connection.host})`);
-      return true;
-    } catch (err) {
-      // Log connection failure
-      console.error(`Connection failed: ${err.message}`);
-      
-      // Wait before retry if this isn't the last attempt
-      if (attempt < MAX_RETRIES) {
-        console.log(`Waiting ${RETRY_DELAY/1000} seconds before next attempt...`);
-        await new Promise(resolve => setTimeout(resolve, RETRY_DELAY));
-      }
-    }
-  }
-  
-  // If we get here, primary connection failed - try localhost
-  console.log('\n⚠️ Primary connection failed. Attempting local database connection...');
-  
   try {
-    await mongoose.connect('mongodb://localhost:27017/shipment-tracker', {
+    console.log('Attempting to connect to MongoDB Atlas...');
+    
+    // Get the original URI from config
+    const mongoURI = config.get('mongoURI');
+    
+    // Log connection URI without exposing credentials
+    const redactedURI = mongoURI.replace(/\/\/([^:]+):([^@]+)@/, '//***:***@');
+    console.log(`Connection URI: ${redactedURI}`);
+    
+    // Try direct connection with MongoDB Atlas cluster
+    console.log('Using standard connection approach');
+    const conn = await mongoose.connect(mongoURI, {
       useNewUrlParser: true,
       useUnifiedTopology: true,
-      serverSelectionTimeoutMS: 5000
+      serverSelectionTimeoutMS: 15000,
+      connectTimeoutMS: 20000
     });
     
-    console.log('\n⚠️ WARNING: Connected to local database. Data will not be synchronized with production.');
-    
-    // Create warning marker file
-    const fs = require('fs');
-    fs.writeFileSync('LOCAL_DB_WARNING.txt', 
-      'WARNING: Application is running with local database.\n' +
-      'Data will not be synchronized with production and will be lost when the server restarts.\n' +
-      'To fix this issue, update the MongoDB connection string in config/default.json\n' +
-      'You can create a free MongoDB Atlas cluster at https://www.mongodb.com/atlas/database'
-    );
-    
+    console.log(`✅ MongoDB Atlas connected: ${conn.connection.host}`);
     return true;
-  } catch (localErr) {
-    console.error(`Local MongoDB connection error: ${localErr.message}`);
+  } catch (err) {
+    console.error(`MongoDB Atlas connection error: ${err.message}`);
     
-    // All connection attempts have failed
-    console.error('\n❌ ERROR: All MongoDB connection methods failed');
-    
-    if (process.env.NODE_ENV === 'production') {
-      // In production, fail hard
-      process.exit(1);
-    } else {
-      // In development, create an error marker file
-      const fs = require('fs');
-      fs.writeFileSync('DB_CONNECTION_ERROR.txt', 
-        'ERROR: Application failed to connect to any MongoDB instance.\n' +
-        'The server is running in LIMITED MODE with NO DATABASE access.\n' +
-        'To fix this issue:\n' +
-        '1. Check that MongoDB is installed and running locally, or\n' +
-        '2. Update the MongoDB connection string in config/default.json, or\n' +
-        '3. Create a free MongoDB Atlas cluster at https://www.mongodb.com/atlas/database'
-      );
+    try {
+      console.log('⚠️ Attempting to connect using modified URI format...');
       
-      console.log('\n⚠️ WARNING: Running with NO DATABASE access. Extremely limited functionality!');
-      return false;
+      // Get the URI components
+      const mongoURI = config.get('mongoURI');
+      const [prefix, rest] = mongoURI.split('@');
+      const auth = prefix.replace('mongodb+srv://', '');
+      const [host, options] = rest.split('?');
+      const clusterHost = host.split('/')[0];
+      
+      // Create a MongoDB standard URI with hardcoded known Atlas hosts
+      // Use known regions with fixed IP format (different regions for failover)
+      const knownHosts = [
+        `cluster0-shard-00-00.${clusterHost.split('.')[1]}.mongodb.net:27017`,
+        `cluster0-shard-00-01.${clusterHost.split('.')[1]}.mongodb.net:27017`,
+        `cluster0-shard-00-02.${clusterHost.split('.')[1]}.mongodb.net:27017`
+      ];
+      
+      // Create a direct connection string using replica set format
+      const directConnURI = `mongodb://${auth}@${knownHosts.join(',')}/${clusterHost.split('.')[0]}?ssl=true&replicaSet=atlas-${clusterHost.split('.')[1].charAt(0)}${clusterHost.split('.')[1].charAt(1)}&authSource=admin`;
+      
+      // Try connecting with direct connection URI
+      console.log(`Using direct connection URI (redacted): mongodb://***:***@${knownHosts.join(',')}/...`);
+      const conn = await mongoose.connect(directConnURI, {
+        useNewUrlParser: true,
+        useUnifiedTopology: true,
+        serverSelectionTimeoutMS: 15000,
+        connectTimeoutMS: 20000
+      });
+      
+      console.log(`✅ Connected to MongoDB Atlas via direct URI: ${conn.connection.host}`);
+      return true;
+    } catch (directError) {
+      console.error(`Direct connection error: ${directError.message}`);
+      
+      try {
+        // Last attempt - try to connect using a standard URI without SRV
+        console.log('Making final connection attempt with standard URI...');
+        
+        const mongoURI = config.get('mongoURI');
+        const standardURI = mongoURI
+          .replace('mongodb+srv://', 'mongodb://')
+          .replace('?', '/?retryWrites=true&ssl=true&');
+          
+        const conn = await mongoose.connect(standardURI, {
+          useNewUrlParser: true,
+          useUnifiedTopology: true,
+          serverSelectionTimeoutMS: 10000,
+          ssl: true
+        });
+        
+        console.log(`✅ Connected to MongoDB using standard URI: ${conn.connection.host}`);
+        return true;
+      } catch (finalError) {
+        console.error(`Final connection attempt failed: ${finalError.message}`);
+      }
+    }
+    
+    // If all MongoDB Atlas connection attempts failed, try connecting to local MongoDB
+    try {
+      console.log('⚠️ All MongoDB Atlas connection attempts failed. Trying local database...');
+      
+      await mongoose.connect('mongodb://localhost:27017/shipment-tracker', {
+        useNewUrlParser: true,
+        useUnifiedTopology: true
+      });
+      
+      console.log('⚠️ WARNING: Connected to local database. Data will not be synchronized with production.');
+      return true;
+    } catch (localErr) {
+      console.error(`Local database connection failed: ${localErr.message}`);
+      console.error('❌ All database connection attempts failed.');
+      process.exit(1);
     }
   }
 };
 
 // Handle connection events
-mongoose.connection.on('error', err => {
-  console.error(`MongoDB connection error: ${err.message}`);
-});
-
 mongoose.connection.on('disconnected', () => {
   console.log('MongoDB disconnected');
 });
 
 process.on('SIGINT', async () => {
-  if (mongoose.connection.readyState === 1) {
-    await mongoose.connection.close();
-    console.log('MongoDB connection closed due to application termination');
-  }
+  await mongoose.connection.close();
+  console.log('MongoDB connection closed due to app termination');
   process.exit(0);
 });
 
