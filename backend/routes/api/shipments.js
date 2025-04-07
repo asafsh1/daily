@@ -277,4 +277,114 @@ router.get('/:id/legs', async (req, res) => {
   }
 });
 
+// @route   POST api/shipments/:id/legs
+// @desc    Create a new leg for a shipment
+// @access  Private
+router.post('/:id/legs', auth, [
+  check('from', 'Origin is required').not().isEmpty(),
+  check('to', 'Destination is required').not().isEmpty(),
+  check('carrier', 'Carrier is required').not().isEmpty(),
+  check('departureDate', 'Departure date is required').not().isEmpty(),
+  check('arrivalDate', 'Arrival date is required').not().isEmpty(),
+  check('legOrder', 'Leg order is required').isNumeric()
+], async (req, res) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return res.status(400).json({ errors: errors.array() });
+  }
+
+  try {
+    // First check if the shipment exists
+    const shipment = await Shipment.findById(req.params.id);
+    if (!shipment) {
+      return res.status(404).json({ msg: 'Shipment not found' });
+    }
+
+    // Create the new leg object
+    const legFields = {
+      shipment: req.params.id,
+      shipmentId: req.params.id,
+      from: req.body.from,
+      to: req.body.to,
+      origin: req.body.origin || { name: req.body.from },
+      destination: req.body.destination || { name: req.body.to },
+      carrier: req.body.carrier,
+      legOrder: req.body.legOrder,
+      departureDate: req.body.departureDate,
+      arrivalDate: req.body.arrivalDate,
+      status: req.body.status || 'Planned'
+    };
+
+    // Create and save the new leg
+    const ShipmentLeg = mongoose.model('shipmentLeg');
+    const newLeg = new ShipmentLeg(legFields);
+    const leg = await newLeg.save();
+
+    // Add the leg to the shipment's legs array
+    if (!shipment.legs) {
+      shipment.legs = [];
+    }
+    shipment.legs.push(leg._id);
+    await shipment.save();
+
+    res.json(leg);
+  } catch (err) {
+    console.error('Error creating leg:', err.message);
+    res.status(500).send('Server Error');
+  }
+});
+
+// @route   POST api/shipments
+// @desc    Create a new shipment
+// @access  Private
+router.post('/', auth, [
+  check('reference', 'Reference is required').not().isEmpty(),
+  check('origin', 'Origin is required').not().isEmpty(),
+  check('destination', 'Destination is required').not().isEmpty(),
+  check('carrier', 'Carrier is required').not().isEmpty(),
+  check('departureDate', 'Departure date is required').not().isEmpty(),
+  check('arrivalDate', 'Arrival date is required').not().isEmpty()
+], async (req, res) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return res.status(400).json({ errors: errors.array() });
+  }
+
+  try {
+    // Create a new shipment object with required fields
+    const shipmentFields = {
+      reference: req.body.reference,
+      origin: req.body.origin,
+      destination: req.body.destination,
+      carrier: req.body.carrier,
+      departureDate: req.body.departureDate,
+      arrivalDate: req.body.arrivalDate,
+      status: req.body.status || 'Planned',
+      // Include any other fields from the request
+      serialNumber: req.body.serialNumber || `SN-${Date.now()}`,
+      orderStatus: req.body.orderStatus || 'planned',
+      shipmentStatus: req.body.shipmentStatus || 'Pending',
+      invoiced: req.body.invoiced || false,
+      invoiceSent: req.body.invoiceSent || false,
+      cost: req.body.cost || 0,
+      receivables: req.body.receivables || 0,
+      invoiceStatus: req.body.invoiceStatus || 'Pending'
+    };
+
+    // Add customer if provided
+    if (req.body.customer) {
+      shipmentFields.customer = req.body.customer;
+    }
+
+    // Create and save the new shipment
+    const newShipment = new Shipment(shipmentFields);
+    const shipment = await newShipment.save();
+
+    res.json(shipment);
+  } catch (err) {
+    console.error('Error creating shipment:', err.message);
+    res.status(500).send('Server Error');
+  }
+});
+
 module.exports = router; 
