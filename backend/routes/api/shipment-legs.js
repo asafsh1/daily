@@ -58,21 +58,12 @@ router.get('/:shipmentId', auth, async (req, res) => {
       });
     }
     
-    // Find legs directly associated with the shipment
-    const legs = await ShipmentLeg.find({ shipment: req.params.shipmentId })
-      .sort({ legOrder: 1 })
-      .limit(20); // Limit to 20 legs per shipment
-    
-    // If we found legs, return them
-    if (legs.length > 0) {
-      return res.json(legs);
-    }
-    
-    // If no direct legs were found, check if the shipment has referenced legs
+    // Try to get the shipment first since it may have embedded legs
     try {
       const shipment = await Shipment.findById(req.params.shipmentId);
+      
       if (!shipment) {
-        // If not found in database, check sample data
+        // If not found, check sample data
         const sampleLegs = getSampleLegsForShipment(req.params.shipmentId);
         if (sampleLegs.length > 0) {
           return res.json(sampleLegs);
@@ -84,24 +75,41 @@ router.get('/:shipmentId', auth, async (req, res) => {
         });
       }
       
-      // Check if the shipment has legs array
+      // Check if the shipment has embedded legs array with data
       if (shipment.legs && Array.isArray(shipment.legs) && shipment.legs.length > 0) {
-        // Try to fetch the referenced legs
-        const referencedLegs = await ShipmentLeg.find({
-          _id: { $in: shipment.legs }
-        }).sort({ legOrder: 1 });
-        
-        if (referencedLegs.length > 0) {
-          return res.json(referencedLegs);
+        // Check if the first leg has proper fields (this means it's an embedded leg object, not just references)
+        if (shipment.legs[0].from || shipment.legs[0].origin) {
+          console.log(`Using ${shipment.legs.length} embedded legs from shipment document`);
+          return res.json(shipment.legs);
         }
         
-        // If no referenced legs were found but we have legacy format legs
-        if (shipment.legs[0] && (shipment.legs[0].from || shipment.legs[0].origin)) {
-          return res.json(shipment.legs);
+        // If we have leg references, try to look up the actual legs
+        try {
+          const referencedLegs = await ShipmentLeg.find({
+            _id: { $in: shipment.legs }
+          }).sort({ legOrder: 1 });
+          
+          if (referencedLegs.length > 0) {
+            console.log(`Found ${referencedLegs.length} referenced legs`);
+            return res.json(referencedLegs);
+          }
+        } catch (refErr) {
+          console.error(`Error fetching referenced legs: ${refErr.message}`);
+          // Fall through to continue with other methods
         }
       }
       
-      // No legs found in database, check sample data
+      // If no legs in shipment, try to find legs directly associated with the shipment
+      const legs = await ShipmentLeg.find({ shipment: req.params.shipmentId })
+        .sort({ legOrder: 1 })
+        .limit(20);
+      
+      if (legs.length > 0) {
+        console.log(`Found ${legs.length} legs in shipmentLeg collection`);
+        return res.json(legs);
+      }
+      
+      // No legs found, check sample data
       const sampleLegs = getSampleLegsForShipment(req.params.shipmentId);
       if (sampleLegs.length > 0) {
         return res.json(sampleLegs);
@@ -109,12 +117,25 @@ router.get('/:shipmentId', auth, async (req, res) => {
       
       // No legs found in any location
       return res.json([]);
+      
     } catch (err) {
+      console.error(`Error getting shipment: ${err.message}`);
+      
+      // Try direct leg lookup if shipment lookup fails
+      const legs = await ShipmentLeg.find({ shipment: req.params.shipmentId })
+        .sort({ legOrder: 1 })
+        .limit(20);
+      
+      if (legs.length > 0) {
+        return res.json(legs);
+      }
+      
       // Try sample data as last resort
       const sampleLegs = getSampleLegsForShipment(req.params.shipmentId);
       if (sampleLegs.length > 0) {
         return res.json(sampleLegs);
       }
+      
       return res.json([]);
     }
   } catch (err) {

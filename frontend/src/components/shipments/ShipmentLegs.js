@@ -6,6 +6,7 @@ import Moment from 'react-moment';
 import { getTrackingUrlSync, hasTracking } from '../../utils/trackingUtils';
 import moment from 'moment';
 import { generateUniqueId, ID_PREFIXES } from '../../utils/idGenerator';
+import './ShipmentLegs.css';
 
 // Initial form state for add/edit
 const initialState = {
@@ -31,99 +32,55 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
   const [errors, setErrors] = useState({});
   const [success, setSuccess] = useState('');
 
-  // UseEffect to fetch legs on component mount or when shipmentId changes
+  // Fetch legs on component mount
   useEffect(() => {
     if (shipmentId) {
       fetchLegs();
     }
-    
-    // Set up an interval to refresh legs data every 60 seconds
-    const refreshInterval = setInterval(() => {
-      if (shipmentId && !shipmentId.toString().startsWith('temp-')) {
-        fetchLegs();
-      }
-    }, 60000);
-    
-    // Clean up interval on component unmount
-    return () => clearInterval(refreshInterval);
-  }, [shipmentId]); // Only re-run when shipmentId changes
-
-  // Fetch legs for this shipment using multiple approaches to ensure we get the data
+  }, [shipmentId]);
+  
+  // Simple function to fetch legs directly from API
   const fetchLegs = async () => {
     try {
       setLoading(true);
       
-      // Skip API calls for temporary shipments
-      if (!shipmentId || shipmentId.toString().startsWith('temp-')) {
+      if (!shipmentId) {
+        setLegs([]);
         setLoading(false);
         return;
       }
       
-      // Try first approach: get legs directly from legs endpoint
-      try {
-        const directResponse = await axios.get(`/api/shipment-legs/${shipmentId}`);
-        
-        if (Array.isArray(directResponse.data) && directResponse.data.length > 0) {
-          const normalizedLegs = normalizeLegs(directResponse.data);
-          setLegs(sortLegs(normalizedLegs));
-          setError(null);
-          setLoading(false);
-          return;
-        }
-      } catch (error) {
-        console.log("First approach failed, trying second approach");
+      // Try the shipment endpoint first (this should have the most reliable data now)
+      console.log(`Fetching shipment data for ID: ${shipmentId}`);
+      const shipmentResponse = await axios.get(`/api/shipments/${shipmentId}`);
+      
+      if (shipmentResponse.data?.legs && Array.isArray(shipmentResponse.data.legs) && shipmentResponse.data.legs.length > 0) {
+        console.log(`Found ${shipmentResponse.data.legs.length} legs in shipment response`);
+        setLegs(sortLegs(shipmentResponse.data.legs));
+        setLoading(false);
+        return;
       }
       
-      // Try second approach: get legs through shipment endpoint
-      try {
-        const shipmentResponse = await axios.get(`/api/shipments/${shipmentId}`);
-        
-        if (shipmentResponse.data?.legs && Array.isArray(shipmentResponse.data.legs) && shipmentResponse.data.legs.length > 0) {
-          const normalizedLegs = normalizeLegs(shipmentResponse.data.legs);
-          setLegs(sortLegs(normalizedLegs));
-          setError(null);
-          setLoading(false);
-          return;
-        }
-      } catch (error) {
-        console.log("Second approach failed, trying third approach");
-      }
+      // If no legs in shipment data, try direct legs endpoint
+      console.log(`Fetching legs directly for shipment ID: ${shipmentId}`);
+      const legsResponse = await axios.get(`/api/shipment-legs/${shipmentId}`);
       
-      // Try third approach: use the export endpoint which gets data directly from DB
-      try {
-        const exportResponse = await axios.get(`/api/shipment-legs/export/${shipmentId}`);
-        
-        // Use any legs found through direct or referenced methods
-        if (exportResponse.data.directLegsCount > 0) {
-          const normalizedLegs = normalizeLegs(exportResponse.data.directLegs);
-          setLegs(sortLegs(normalizedLegs));
-          setError(null);
-          setLoading(false);
-          return;
-        } else if (exportResponse.data.referencedLegsCount > 0) {
-          const normalizedLegs = normalizeLegs(exportResponse.data.referencedLegsData);
-          setLegs(sortLegs(normalizedLegs));
-          setError(null);
-          setLoading(false);
-          return;
-        }
-      } catch (error) {
-        console.log("All approaches failed to find legs");
+      if (Array.isArray(legsResponse.data) && legsResponse.data.length > 0) {
+        console.log(`Found ${legsResponse.data.length} legs via direct endpoint`);
+        setLegs(sortLegs(legsResponse.data));
+      } else {
+        console.log('No legs found');
+        setLegs([]);
       }
-      
-      // If all approaches failed, set empty legs array and show error
-      setLegs([]);
-      setError("No legs found for this shipment");
-    } catch (err) {
-      console.error(`Error fetching legs:`, err);
-      setError(`Failed to load shipment legs: ${err.message}`);
+    } catch (error) {
+      console.error('Error fetching legs:', error);
       setLegs([]);
     } finally {
       setLoading(false);
     }
   };
   
-  // Sort legs by order
+  // Helper to sort legs by order
   const sortLegs = (legs) => {
     return [...legs].sort((a, b) => (Number(a.legOrder) || 0) - (Number(b.legOrder) || 0));
   };
@@ -309,16 +266,9 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
     setShowForm(true);
   };
 
-  // Helper function to get the display AWB/tracking number
+  // Format AWB for display
   const getDisplayAwb = (leg) => {
-    if (leg.trackingNumber) {
-      return leg.trackingNumber;
-    } else if (leg.awbNumber) {
-      return leg.awbNumber;
-    } else if (leg.mawbNumber) {
-      return leg.mawbNumber;
-    }
-    return 'N/A';
+    return leg.awbNumber || leg.awb || 'N/A';
   };
 
   // Validate form inputs
@@ -392,366 +342,72 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
     resetForm();
   };
 
-  // Helper function to format status for display
+  // Format status for display
   const getFormattedStatus = (status) => {
-    if (!status) return 'Pending';
-    
-    // Capitalize and format status for display
-    switch(status.toLowerCase()) {
-      case 'pending':
-        return 'Pending';
-      case 'in-transit':
-      case 'in transit':
-        return 'In Transit';
-      case 'delayed':
-        return 'Delayed';
-      case 'completed':
-      case 'arrived':
-        return 'Completed';
-      case 'cancelled':
-      case 'canceled':
-        return 'Cancelled';
-      default:
-        return status;
-    }
+    return status || 'Not Started';
   };
 
-  // Helper function to map old leg fields to new field names and handle both formats
-  const normalizeLegs = (legs) => {
-    if (!Array.isArray(legs)) {
-      console.error('normalizeLegs received non-array:', legs);
-      return [];
-    }
-    
-    return legs.map(leg => {
-      // Handle potential null legs
-      if (!leg) return null;
-      
-      const normalizedLeg = {
-        _id: leg._id || leg.id || `temp-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
-        legOrder: leg.legOrder || leg.order || 0,
-        from: leg.from || leg.origin || '',
-        to: leg.to || leg.destination || '',
-        origin: leg.origin || leg.from || '',
-        destination: leg.destination || leg.to || '',
-        carrier: leg.carrier || leg.airline || leg.shippingLine || '',
-        departureDate: leg.departureDate || leg.departureTime || null,
-        arrivalDate: leg.arrivalDate || leg.arrivalTime || null,
-        trackingNumber: leg.trackingNumber || leg.awbNumber || leg.trackingId || '',
-        status: leg.status || 'pending',
-        notes: leg.notes || '',
-        
-        // Preserve any other properties
-        ...leg
-      };
-      
-      console.log(`Normalized leg ${normalizedLeg.legOrder}: ${normalizedLeg.from} to ${normalizedLeg.to}`);
-      return normalizedLeg;
-    }).filter(Boolean); // Remove any null legs
-  };
-
+  // Render loading state
   if (loading) {
-    return <div>Loading legs...</div>;
+    return <div className="text-center p-4">Loading shipment legs...</div>;
   }
-
-  return (
-    <div className="shipment-legs">
-      <style>
-        {`
-          .change-log {
-            max-height: 150px;
-            overflow-y: auto;
-            font-size: 0.85rem;
-          }
-          .change-entry {
-            padding: 4px 0;
-            border-bottom: 1px solid #eee;
-          }
-          .change-entry:last-child {
-            border-bottom: none;
-          }
-          .change-entry small {
-            display: block;
-            color: #666;
-            margin-bottom: 2px;
-          }
-          .change-entry div {
-            color: #333;
-          }
-        `}
-      </style>
-      <div className="legs-header">
-        <h3>Shipment Legs</h3>
-        {!readOnly && (
-          <button 
-            onClick={() => setShowForm(true)} 
-            className="btn btn-primary"
-            disabled={showForm}
-          >
-            <i className="fas fa-plus"></i> Add Leg
-          </button>
-        )}
+  
+  // Render no legs message
+  if (!legs || legs.length === 0) {
+    return (
+      <div className="alert alert-info mt-3">
+        No legs have been added to this shipment yet.
       </div>
-
-      {error && (
-        <div className="alert alert-danger">{error}</div>
-      )}
-
-      {success && (
-        <div className="alert alert-success">{success}</div>
-      )}
-
-      {loading ? (
-        <div className="spinner-container">
-          <div className="spinner"></div>
-        </div>
-      ) : legs.length === 0 ? (
-        <div className="no-legs-message">
-          <p>No legs have been added to this shipment yet.</p>
-        </div>
-      ) : (
-        <div className="legs-list">
-          <table className="table legs-table">
-            <thead>
-              <tr>
-                <th>Leg</th>
-                <th>Origin</th>
-                <th>Destination</th>
-                <th>AWB</th>
-                <th>Carrier</th>
-                <th>Departure</th>
-                <th>Arrival</th>
-                <th>Status</th>
-                {!readOnly && <th>Actions</th>}
+    );
+  }
+  
+  // Render legs table
+  return (
+    <div className="shipment-legs mt-3">
+      <h3>Shipment Legs ({legs.length})</h3>
+      
+      <div className="table-responsive">
+        <table className="table table-striped">
+          <thead>
+            <tr>
+              <th>Leg #</th>
+              <th>Origin</th>
+              <th>Destination</th>
+              <th>Carrier</th>
+              <th>AWB</th>
+              <th>Departure Date</th>
+              <th>Arrival Date</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {legs.map((leg, index) => (
+              <tr key={leg._id || index}>
+                <td>{(leg.legOrder || index + 1)}</td>
+                <td>{leg.from || leg.origin || 'N/A'}</td>
+                <td>{leg.to || leg.destination || 'N/A'}</td>
+                <td>{leg.carrier || 'N/A'}</td>
+                <td>{getDisplayAwb(leg)}</td>
+                <td>
+                  {leg.departureDate ? (
+                    <Moment format="DD/MM/YYYY">{leg.departureDate}</Moment>
+                  ) : 'N/A'}
+                </td>
+                <td>
+                  {leg.arrivalDate ? (
+                    <Moment format="DD/MM/YYYY">{leg.arrivalDate}</Moment>
+                  ) : 'N/A'}
+                </td>
+                <td>
+                  <span className={`status-badge status-${leg.status?.toLowerCase()?.replace(/\s+/g, '-') || 'unknown'}`}>
+                    {getFormattedStatus(leg.status)}
+                  </span>
+                </td>
               </tr>
-            </thead>
-            <tbody>
-              {legs.map((leg, index) => (
-                <tr key={leg._id || index}>
-                  <td>{index + 1}</td>
-                  <td>{leg.from || leg.origin}</td>
-                  <td>{leg.to || leg.destination}</td>
-                  <td>{getDisplayAwb(leg)}</td>
-                  <td>{leg.carrier || 'N/A'}</td>
-                  <td>
-                    {leg.departureDate ? (
-                      <Moment format="DD/MM/YYYY">{leg.departureDate}</Moment>
-                    ) : (
-                      'N/A'
-                    )}
-                  </td>
-                  <td>
-                    {leg.arrivalDate ? (
-                      <Moment format="DD/MM/YYYY">{leg.arrivalDate}</Moment>
-                    ) : (
-                      'N/A'
-                    )}
-                  </td>
-                  <td>
-                    {readOnly ? (
-                      <span className={`status-badge status-${leg.status?.toLowerCase()?.replace(/\s+/g, '-') || 'unknown'}`}>
-                        {getFormattedStatus(leg.status)}
-                      </span>
-                    ) : (
-                      <select
-                        className={`status-select status-${leg.status?.toLowerCase()?.replace(/\s+/g, '-') || 'unknown'}`}
-                        value={leg.status || 'Not Started'}
-                        onChange={(e) => handleLegStatusChange(leg._id, e.target.value)}
-                      >
-                        {['Not Started', 'In Progress', 'Departed', 'In Transit', 'Arrived', 'Delivered', 'Delayed', 'Cancelled'].map(
-                          (status) => (
-                            <option key={status} value={status}>
-                              {status}
-                            </option>
-                          )
-                        )}
-                      </select>
-                    )}
-                  </td>
-                  {!readOnly && (
-                    <td>
-                      <div className="leg-actions">
-                        <button
-                          type="button"
-                          onClick={() => editLeg(leg)}
-                          className="btn btn-sm btn-primary"
-                        >
-                          <i className="fas fa-edit"></i> Edit
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleDeleteLeg(leg._id)}
-                          className="btn btn-sm btn-danger"
-                        >
-                          <i className="fas fa-trash"></i> Delete
-                        </button>
-                      </div>
-                    </td>
-                  )}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-
-      {/* Leg form for adding new legs */}
-      {showForm && !readOnly && (
-        <div className="leg-form">
-          <h4>{editingLeg ? 'Edit Leg' : 'Add New Leg'}</h4>
-          <form onSubmit={(e) => handleSubmit(e)}>
-            <div className="form-row">
-              <div className="form-group">
-                <label htmlFor="from">Origin*</label>
-                <input
-                  type="text"
-                  id="from"
-                  name="from"
-                  value={formData.from}
-                  onChange={onChange}
-                  required
-                  className={errors.from ? 'form-control is-invalid' : 'form-control'}
-                />
-                {errors.from && <div className="invalid-feedback">{errors.from}</div>}
-              </div>
-              
-              <div className="form-group">
-                <label htmlFor="to">Destination*</label>
-                <input
-                  type="text"
-                  id="to"
-                  name="to"
-                  value={formData.to}
-                  onChange={onChange}
-                  required
-                  className={errors.to ? 'form-control is-invalid' : 'form-control'}
-                />
-                {errors.to && <div className="invalid-feedback">{errors.to}</div>}
-              </div>
-            </div>
-            
-            <div className="form-row">
-              <div className="form-group">
-                <label htmlFor="carrier">Carrier*</label>
-                <input
-                  type="text"
-                  id="carrier"
-                  name="carrier"
-                  value={formData.carrier}
-                  onChange={onChange}
-                  required
-                  className={errors.carrier ? 'form-control is-invalid' : 'form-control'}
-                />
-                {errors.carrier && <div className="invalid-feedback">{errors.carrier}</div>}
-              </div>
-            </div>
-            
-            <div className="form-row">
-              <div className="form-group">
-                <label htmlFor="legOrder">Leg Order*</label>
-                <input
-                  type="number"
-                  id="legOrder"
-                  name="legOrder"
-                  value={formData.legOrder}
-                  onChange={onChange}
-                  required
-                  className={errors.legOrder ? 'form-control is-invalid' : 'form-control'}
-                />
-                {errors.legOrder && <div className="invalid-feedback">{errors.legOrder}</div>}
-              </div>
-            </div>
-            
-            <div className="form-row">
-              <div className="form-group">
-                <label htmlFor="departureDate">Departure Date*</label>
-                <input
-                  type="datetime-local"
-                  id="departureDate"
-                  name="departureDate"
-                  value={formData.departureDate}
-                  onChange={onChange}
-                  required
-                  className={errors.departureDate ? 'form-control is-invalid' : 'form-control'}
-                />
-                {errors.departureDate && <div className="invalid-feedback">{errors.departureDate}</div>}
-              </div>
-              
-              <div className="form-group">
-                <label htmlFor="arrivalDate">Arrival Date*</label>
-                <input
-                  type="datetime-local"
-                  id="arrivalDate"
-                  name="arrivalDate"
-                  value={formData.arrivalDate}
-                  onChange={onChange}
-                  required
-                  className={errors.arrivalDate ? 'form-control is-invalid' : 'form-control'}
-                />
-                {errors.arrivalDate && <div className="invalid-feedback">{errors.arrivalDate}</div>}
-              </div>
-            </div>
-            
-            <div className="form-group">
-              <label htmlFor="trackingNumber">Tracking Number</label>
-              <input
-                type="text"
-                id="trackingNumber"
-                name="trackingNumber"
-                value={formData.trackingNumber}
-                onChange={onChange}
-                className="form-control"
-              />
-            </div>
-            
-            <div className="form-group">
-              <label htmlFor="status">Status</label>
-              <select
-                id="status"
-                name="status"
-                value={formData.status}
-                onChange={onChange}
-                className="form-control"
-              >
-                <option value="pending">Pending</option>
-                <option value="in transit">In Transit</option>
-                <option value="arrived">Arrived</option>
-                <option value="delayed">Delayed</option>
-                <option value="canceled">Canceled</option>
-              </select>
-            </div>
-            
-            <div className="form-group">
-              <label htmlFor="notes">Notes</label>
-              <textarea
-                id="notes"
-                name="notes"
-                value={formData.notes}
-                onChange={onChange}
-                className="form-control"
-                rows="3"
-              ></textarea>
-            </div>
-            
-            <div className="form-buttons">
-              <button 
-                type="button" 
-                onClick={handleCancel}
-                className="btn btn-secondary"
-              >
-                Cancel
-              </button>
-              <button 
-                type="button"
-                onClick={handleSubmit}
-                className="btn btn-primary"
-              >
-                {editingLeg ? 'Update Leg' : 'Add Leg'}
-              </button>
-            </div>
-          </form>
-        </div>
-      )}
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 };

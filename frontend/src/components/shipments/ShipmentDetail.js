@@ -8,6 +8,7 @@ import Spinner from '../layout/Spinner';
 import ShipmentLegs from './ShipmentLegs';
 import ShipmentSidebar from './ShipmentSidebar';
 import { getTrackingUrlSync, hasTracking } from '../../utils/trackingUtils';
+import axios from 'axios';
 
 const ShipmentDetail = ({
   getShipment,
@@ -17,31 +18,35 @@ const ShipmentDetail = ({
 }) => {
   const { id } = useParams();
   const [activeSection, setActiveSection] = useState('basic');
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   useEffect(() => {
     console.log(`ShipmentDetail - Loading shipment with ID: ${id}`);
     
-    // First get the shipment
-    getShipment(id);
-    
-    // Provide detailed logging for shipment and legs data
-    if (shipment) {
-      console.log("Current shipment data:", shipment);
-      if (shipment.legs) {
-        console.log(`Shipment has ${shipment.legs.length} legs:`, shipment.legs);
-      } else {
-        console.log("Shipment has no legs array");
+    const fetchShipmentData = async () => {
+      try {
+        // Call the Redux action to get the shipment
+        getShipment(id);
+        
+        // Also make a direct API call to log the raw data for debugging
+        console.log('Making direct API call to check raw shipment data');
+        const rawResponse = await axios.get(`/api/shipments/${id}`);
+        
+        // Log the raw data to help with debugging
+        console.log('Raw shipment data:', rawResponse.data);
+        console.log('Legs in raw data:', 
+          rawResponse.data.legs ? 
+          `Found ${rawResponse.data.legs.length} legs` : 
+          'No legs found in raw data');
+      } catch (err) {
+        console.error('Error in direct API call:', err);
       }
-    }
-
-    // Refresh the shipment data every minute to catch updates
-    const refreshInterval = setInterval(() => {
-      console.log('Auto-refreshing shipment details');
-      getShipment(id);
-    }, 60000); // Refresh every 60 seconds
-
+    };
+    
+    fetchShipmentData();
+    
     return () => {
-      clearInterval(refreshInterval);
       clearShipment();
     };
   }, [getShipment, clearShipment, id]);
