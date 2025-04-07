@@ -1,5 +1,5 @@
+require('dotenv').config();
 const express = require('express');
-const connectDB = require('./config/db');
 const cors = require('cors');
 const path = require('path');
 const http = require('http');
@@ -13,23 +13,22 @@ const Customer = require('./models/Customer');
 const { createServer } = require('http');
 const { Server } = require('socket.io');
 const bodyParser = require('body-parser');
-const net = require('net');
 
 // Initialize Express
 const app = express();
 const httpServer = createServer(app);
 const io = socketIo(httpServer, {
   cors: {
-    origin: ['http://localhost:3000', 'https://vocal-cheesecake-1379ed.netlify.app', 'https://daily-shipment-tracker.netlify.app', 'https://veleka-shipments-daily-report.netlify.app'],
+    origin: ['https://vocal-cheesecake-1379ed.netlify.app', 'https://daily-shipment-tracker.netlify.app', 'https://veleka-shipments-daily-report.netlify.app'],
     methods: ['GET', 'POST', 'PUT', 'DELETE'],
     credentials: true
   }
 });
 
-// Initialize Middleware before DB connection
+// Initialize Middleware
 app.use(express.json({ extended: false }));
 app.use(cors({
-  origin: ['http://localhost:3000', 'https://vocal-cheesecake-1379ed.netlify.app', 'https://daily-shipment-tracker.netlify.app', 'https://veleka-shipments-daily-report.netlify.app'],
+  origin: ['https://vocal-cheesecake-1379ed.netlify.app', 'https://daily-shipment-tracker.netlify.app', 'https://veleka-shipments-daily-report.netlify.app'],
   methods: ['GET', 'POST', 'PUT', 'DELETE'],
   credentials: true
 }));
@@ -55,7 +54,7 @@ app.use('/api/profile', require('./routes/api/profile'));
 app.use('/api/shipments', require('./routes/api/shipments'));
 app.use('/api/customers', require('./routes/api/customers'));
 app.use('/api/airlines', require('./routes/api/airlines'));
-app.use('/api/shipment-legs', require('./routes/api/shipmentLegs'));
+app.use('/api/shipment-legs', require('./routes/api/shipment-legs'));
 app.use('/api/dashboard', require('./routes/api/dashboard'));
 app.use('/api/shippers', require('./routes/api/shippers'));
 app.use('/api/consignees', require('./routes/api/consignees'));
@@ -279,29 +278,22 @@ const findAvailablePort = async (startPort) => {
 };
 
 // Function to start server with dynamic port handling
-const startServer = async (port = 5001, maxRetries = 3) => {
+const startServer = async () => {
   try {
-    console.log(`Checking if port ${port} is available...`);
+    console.log(`Starting server on port ${PORT}...`);
     
-    // Start server on the specified port
-    app.listen(port, () => {
-      console.log(`✅ Server is running on port ${port}`);
+    app.listen(PORT, () => {
+      console.log(`✅ Server is running on port ${PORT}`);
       console.log(`MongoDB is connected to ${mongoose.connection.host}`);
       
       // Log API documentation URL
       if (process.env.NODE_ENV !== 'production') {
-        console.log(`🔍 API documentation available at: http://localhost:${port}/api-docs`);
+        console.log(`🔍 API documentation available at: http://localhost:${PORT}/api-docs`);
       }
     });
   } catch (err) {
-    if (err.code === 'EADDRINUSE' && maxRetries > 0) {
-      console.log(`⚠️ Port ${port} is already in use, trying port ${port + 1}...`);
-      // Try the next port
-      await startServer(port + 1, maxRetries - 1);
-    } else {
-      console.error('❌ Failed to start server:', err.message);
-      process.exit(1);
-    }
+    console.error('❌ Failed to start server:', err.message);
+    process.exit(1);
   }
 };
 
@@ -394,12 +386,27 @@ app.get('/api/debug/shipment-legs/:id', async (req, res) => {
   }
 });
 
-// Initialize the server
-connectDB().then(() => {
-  console.log('✅ Database connection successful - all functionality available');
-  console.log('Database connection established.');
-  startServer(PORT);
+// Connect to MongoDB Atlas and start server
+mongoose.connect(process.env.MONGODB_URI || "mongodb+srv://asafasaf5347:asafasaf5347@cluster0.lyz67.mongodb.net/shipment-tracker?retryWrites=true&w=majority&appName=Cluster0", {
+  useNewUrlParser: true,
+  useUnifiedTopology: true,
+  serverSelectionTimeoutMS: 15000,
+  connectTimeoutMS: 15000,
+  socketTimeoutMS: 45000,
+  maxPoolSize: 50,
+  minPoolSize: 10,
+  retryWrites: true,
+  w: 'majority'
+}).then(() => {
+  console.log('✅ Connected to MongoDB Atlas');
+  
+  // Start server using Heroku's port or default to 80 for production
+  const port = process.env.PORT || 80;
+  app.listen(port, () => {
+    console.log(`✅ Server is running on port ${port}`);
+    console.log(`MongoDB is connected to ${mongoose.connection.host}`);
+  });
 }).catch(err => {
-  console.error('❌ Failed to start application:', err.message);
+  console.error('MongoDB connection error:', err);
   process.exit(1);
 });
