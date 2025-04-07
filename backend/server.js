@@ -2,20 +2,17 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
-const http = require('http');
-const socketIo = require('socket.io');
-const fs = require('fs');
 const mongoose = require('mongoose');
+const fs = require('fs');
 const auth = require('./middleware/auth');
 const User = require('./models/User');
 const Shipment = require('./models/Shipment');
 const Customer = require('./models/Customer');
 const { createServer } = require('http');
-const { Server } = require('socket.io');
-const bodyParser = require('body-parser');
+const socketIo = require('socket.io');
 
-// Set the port for the server
-const PORT = process.env.PORT || 80;
+// Read port from environment variable first, then config, then default
+const PORT = process.env.PORT || 10000;
 
 // Initialize Express
 const app = express();
@@ -65,7 +62,7 @@ app.use('/api/notify-parties', require('./routes/api/notify-parties'));
 
 // Health check endpoint
 app.get('/health', (req, res) => {
-  const dbStatus = require('mongoose').connection.readyState;
+  const dbStatus = mongoose.connection.readyState;
   let dbStatusText;
   
   switch(dbStatus) {
@@ -90,9 +87,11 @@ app.get('/health', (req, res) => {
     timestamp: new Date(),
     database: {
       status: dbStatusText,
-      readyState: dbStatus
+      readyState: dbStatus,
+      host: mongoose.connection.host || 'N/A'
     },
     environment: process.env.NODE_ENV || 'development',
+    port: PORT,
     serverInfo: {
       uptime: process.uptime(),
       memory: process.memoryUsage(),
@@ -247,11 +246,23 @@ app.use((err, req, res, next) => {
 async function startServer() {
   try {
     console.log('Attempting to connect to MongoDB Atlas...');
-    if (!process.env.MONGODB_URI) {
-      throw new Error('MONGODB_URI environment variable is not set');
+    
+    // Get MongoDB URI from environment variables first
+    let mongoURI = process.env.MONGODB_URI;
+    
+    if (!mongoURI) {
+      console.error('MONGODB_URI environment variable is not set.');
+      process.exit(1);
     }
+    
+    // Log redacted connection string for debugging
+    const redactedURI = mongoURI.replace(/\/\/([^:]+):([^@]+)@/, '//***:***@');
+    console.log(`Using MongoDB URI: ${redactedURI}`);
+    console.log(`Using port: ${PORT}`);
+    console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
 
-    await mongoose.connect(process.env.MONGODB_URI, {
+    // Connect to MongoDB
+    await mongoose.connect(mongoURI, {
       useNewUrlParser: true,
       useUnifiedTopology: true,
       serverSelectionTimeoutMS: 15000,
@@ -263,12 +274,12 @@ async function startServer() {
       w: 'majority'
     });
 
-    console.log('✅ Connected to MongoDB Atlas:', mongoose.connection.host);
+    console.log(`✅ Connected to MongoDB Atlas: ${mongoose.connection.host}`);
 
-    const PORT = process.env.PORT || 10000;
+    // Start the HTTP server
     httpServer.listen(PORT, () => {
       console.log(`✅ Server is running on port ${PORT}`);
-      console.log(`✅ Environment: ${process.env.NODE_ENV}`);
+      console.log(`✅ Environment: ${process.env.NODE_ENV || 'development'}`);
     });
 
     // Handle server shutdown
