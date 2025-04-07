@@ -12,11 +12,8 @@ const Shipment = require('../../models/Shipment');
 // @access  Private
 router.get('/:shipmentId', auth, async (req, res) => {
   try {
-    console.log(`Fetching legs for shipment ID: ${req.params.shipmentId}`);
-    
     // Check for valid database connection
     if (mongoose.connection.readyState !== 1) {
-      console.error('Database connection is not ready. Current state:', mongoose.connection.readyState);
       return res.status(503).json({
         error: 'Database connection is not ready',
         legs: []
@@ -26,45 +23,55 @@ router.get('/:shipmentId', auth, async (req, res) => {
     // Check if the shipment ID is valid
     if (!mongoose.Types.ObjectId.isValid(req.params.shipmentId) && 
         !req.params.shipmentId.startsWith('temp-')) {
-      console.error(`Invalid shipment ID format: ${req.params.shipmentId}`);
       return res.status(400).json({
         error: 'Invalid shipment ID format',
         legs: []
       });
     }
     
-    console.log(`Looking for legs with shipment ID: ${req.params.shipmentId}`);
-    
-    // Limit the number of returned legs to prevent resource exhaustion
+    // Find legs directly associated with the shipment
     const legs = await ShipmentLeg.find({ shipment: req.params.shipmentId })
       .sort({ legOrder: 1 })
       .limit(20); // Limit to 20 legs per shipment
     
-    console.log(`Found ${legs.length} legs for shipment ${req.params.shipmentId}`);
-    
-    // If no legs found, also try to find the shipment to see if it exists
-    if (legs.length === 0) {
-      try {
-        const shipment = await Shipment.findById(req.params.shipmentId);
-        if (!shipment) {
-          console.log(`No shipment found with ID: ${req.params.shipmentId}`);
-        } else {
-          console.log(`Shipment exists with ID: ${req.params.shipmentId}, but no legs found`);
-          
-          // Check if it has legacy leg data structure
-          if (shipment.legs && Array.isArray(shipment.legs) && shipment.legs.length > 0) {
-            console.log(`Shipment has ${shipment.legs.length} legs in legacy format`);
-            return res.json(shipment.legs);
-          }
-        }
-      } catch (err) {
-        console.log(`Error checking shipment existence: ${err.message}`);
-      }
+    // If we found legs, return them
+    if (legs.length > 0) {
+      return res.json(legs);
     }
     
-    res.json(legs);
+    // If no direct legs were found, check if the shipment has referenced legs
+    try {
+      const shipment = await Shipment.findById(req.params.shipmentId);
+      if (!shipment) {
+        return res.status(404).json({ 
+          error: 'Shipment not found',
+          legs: [] 
+        });
+      }
+      
+      // Check if the shipment has legs array
+      if (shipment.legs && Array.isArray(shipment.legs) && shipment.legs.length > 0) {
+        // Try to fetch the referenced legs
+        const referencedLegs = await ShipmentLeg.find({
+          _id: { $in: shipment.legs }
+        }).sort({ legOrder: 1 });
+        
+        if (referencedLegs.length > 0) {
+          return res.json(referencedLegs);
+        }
+        
+        // If no referenced legs were found but we have legacy format legs
+        if (shipment.legs[0] && (shipment.legs[0].from || shipment.legs[0].origin)) {
+          return res.json(shipment.legs);
+        }
+      }
+      
+      // No legs found in any location
+      return res.json([]);
+    } catch (err) {
+      return res.json([]);
+    }
   } catch (err) {
-    console.error(`Error fetching legs: ${err.message}`);
     res.status(500).json({
       error: 'Server Error',
       message: err.message,

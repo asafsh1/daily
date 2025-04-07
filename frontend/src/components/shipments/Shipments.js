@@ -273,31 +273,32 @@ const Shipments = ({ getShipments, updateShipment, deleteShipment, shipment: { s
                         (shipment.customer.name || 'Unknown') : shipment.customer)
                       : 'Unknown';
                       
+                    // Get origin with better fallback logic
                     const origin = shipment.origin || 
-                      (shipment.legs && shipment.legs.length > 0 && shipment.legs[0] ? 
-                        (shipment.legs[0].origin || shipment.legs[0].from || 'N/A') : 'N/A');
+                      (shipment.legs && Array.isArray(shipment.legs) && shipment.legs.length > 0 && 
+                       (shipment.legs[0].from || shipment.legs[0].origin || 'N/A')) || 'N/A';
                     debugShipmentField(shipment, 'origin', origin);
                       
+                    // Get destination with better fallback logic
                     const destination = shipment.destination || 
-                      (shipment.legs && shipment.legs.length > 0 ? 
-                        (shipment.legs[shipment.legs.length-1].destination || 
-                          shipment.legs[shipment.legs.length-1].to || 'N/A') : 'N/A');
+                      (shipment.legs && Array.isArray(shipment.legs) && shipment.legs.length > 0 && 
+                       (shipment.legs[shipment.legs.length-1].to || 
+                        shipment.legs[shipment.legs.length-1].destination || 'N/A')) || 'N/A';
                     debugShipmentField(shipment, 'destination', destination);
                     
                     const status = shipment.shipmentStatus || 'Pending';
                     
-                    // Get dates with better fallback logic
-                    const departureDate = 
-                      (shipment.departureDate) || 
-                      (shipment.legs && shipment.legs.length > 0 && shipment.legs[0] ? 
-                        (shipment.legs[0].departureDate || shipment.legs[0].departureTime) : null);
+                    // Get departure date with better fallback logic
+                    const departureDate = shipment.departureDate || 
+                      (shipment.legs && Array.isArray(shipment.legs) && shipment.legs.length > 0 && 
+                       (shipment.legs[0].departureDate || shipment.legs[0].departureTime)) || null;
                     debugShipmentField(shipment, 'departureDate', departureDate);
                         
-                    const arrivalDate = 
-                      (shipment.arrivalDate) || 
-                      (shipment.legs && shipment.legs.length > 0 ? 
-                        (shipment.legs[shipment.legs.length-1].arrivalDate || 
-                          shipment.legs[shipment.legs.length-1].arrivalTime) : null);
+                    // Get arrival date with better fallback logic
+                    const arrivalDate = shipment.arrivalDate || 
+                      (shipment.legs && Array.isArray(shipment.legs) && shipment.legs.length > 0 && 
+                       (shipment.legs[shipment.legs.length-1].arrivalDate || 
+                        shipment.legs[shipment.legs.length-1].arrivalTime)) || null;
                     debugShipmentField(shipment, 'arrivalDate', arrivalDate);
                     
                     // Status badge class

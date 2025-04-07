@@ -30,11 +30,9 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
   const [editMode, setEditMode] = useState(false);
   const [errors, setErrors] = useState({});
   const [success, setSuccess] = useState('');
-  const [debugInfo, setDebugInfo] = useState(null);
 
   // UseEffect to fetch legs on component mount or when shipmentId changes
   useEffect(() => {
-    console.log('ShipmentLegs component mounted or shipmentId changed:', shipmentId);
     if (shipmentId) {
       fetchLegs();
     }
@@ -42,7 +40,6 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
     // Set up an interval to refresh legs data every 60 seconds
     const refreshInterval = setInterval(() => {
       if (shipmentId && !shipmentId.toString().startsWith('temp-')) {
-        console.log('Auto-refreshing legs data...');
         fetchLegs();
       }
     }, 60000);
@@ -51,109 +48,84 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
     return () => clearInterval(refreshInterval);
   }, [shipmentId]); // Only re-run when shipmentId changes
 
-  // Debug function to view shipment details
-  const inspectShipment = async () => {
-    try {
-      console.log('Inspecting full shipment data for legs debugging...');
-      const res = await axios.get(`/api/shipments/${shipmentId}`);
-      console.log('Full shipment data:', res.data);
-      setDebugInfo({
-        shipmentId: shipmentId,
-        hasLegsArray: !!(res.data && res.data.legs),
-        legsArrayLength: res.data && res.data.legs ? res.data.legs.length : 0,
-        legsArrayType: res.data && res.data.legs ? typeof res.data.legs : 'undefined',
-        firstLeg: res.data && res.data.legs && res.data.legs.length > 0 ? res.data.legs[0] : null
-      });
-    } catch (err) {
-      console.error('Error inspecting shipment:', err);
-      setDebugInfo({
-        error: err.message
-      });
-    }
-  };
-
-  // Fetch legs for this shipment
+  // Fetch legs for this shipment using multiple approaches to ensure we get the data
   const fetchLegs = async () => {
     try {
       setLoading(true);
-      console.log(`Getting legs for shipment: ${shipmentId}`);
       
       // Skip API calls for temporary shipments
       if (!shipmentId || shipmentId.toString().startsWith('temp-')) {
-        console.log('Using local state for temporary shipment ID');
         setLoading(false);
         return;
       }
       
-      // DIRECT METHOD: Get the legs directly from the legs endpoint
+      // Try first approach: get legs directly from legs endpoint
       try {
-        console.log(`Fetching legs directly from legs endpoint for shipment ${shipmentId}`);
         const directResponse = await axios.get(`/api/shipment-legs/${shipmentId}`);
         
         if (Array.isArray(directResponse.data) && directResponse.data.length > 0) {
-          console.log(`Successfully fetched ${directResponse.data.length} legs from direct endpoint`);
-          processFetchedLegs(directResponse.data);
+          const normalizedLegs = normalizeLegs(directResponse.data);
+          setLegs(sortLegs(normalizedLegs));
+          setError(null);
+          setLoading(false);
           return;
-        } else {
-          console.log(`Direct legs endpoint returned no legs, trying shipment endpoint...`);
         }
-      } catch (directError) {
-        console.error(`Error fetching from direct legs endpoint:`, directError);
+      } catch (error) {
+        console.log("First approach failed, trying second approach");
       }
       
-      // FALLBACK METHOD: Get legs through shipment endpoint
+      // Try second approach: get legs through shipment endpoint
       try {
-        console.log(`Fetching full shipment data for ID: ${shipmentId}`);
         const shipmentResponse = await axios.get(`/api/shipments/${shipmentId}`);
-        console.log(`Full shipment data received:`, shipmentResponse.data);
         
         if (shipmentResponse.data?.legs && Array.isArray(shipmentResponse.data.legs) && shipmentResponse.data.legs.length > 0) {
-          console.log(`Found ${shipmentResponse.data.legs.length} legs in shipment response`);
-          processFetchedLegs(shipmentResponse.data.legs);
+          const normalizedLegs = normalizeLegs(shipmentResponse.data.legs);
+          setLegs(sortLegs(normalizedLegs));
+          setError(null);
+          setLoading(false);
           return;
-        } else {
-          console.log(`No legs found in shipment response either`);
-          setLegs([]);
-          setError("No legs found for this shipment");
-          inspectShipment();
         }
-      } catch (shipmentError) {
-        console.error(`Error fetching from shipment endpoint:`, shipmentError);
-        setError(`Failed to load shipment legs: ${shipmentError.message}`);
-        setLegs([]);
+      } catch (error) {
+        console.log("Second approach failed, trying third approach");
       }
+      
+      // Try third approach: use the export endpoint which gets data directly from DB
+      try {
+        const exportResponse = await axios.get(`/api/shipment-legs/export/${shipmentId}`);
+        
+        // Use any legs found through direct or referenced methods
+        if (exportResponse.data.directLegsCount > 0) {
+          const normalizedLegs = normalizeLegs(exportResponse.data.directLegs);
+          setLegs(sortLegs(normalizedLegs));
+          setError(null);
+          setLoading(false);
+          return;
+        } else if (exportResponse.data.referencedLegsCount > 0) {
+          const normalizedLegs = normalizeLegs(exportResponse.data.referencedLegsData);
+          setLegs(sortLegs(normalizedLegs));
+          setError(null);
+          setLoading(false);
+          return;
+        }
+      } catch (error) {
+        console.log("All approaches failed to find legs");
+      }
+      
+      // If all approaches failed, set empty legs array and show error
+      setLegs([]);
+      setError("No legs found for this shipment");
     } catch (err) {
-      console.error(`General error fetching legs:`, err);
+      console.error(`Error fetching legs:`, err);
       setError(`Failed to load shipment legs: ${err.message}`);
       setLegs([]);
     } finally {
       setLoading(false);
     }
   };
-
-  // Extract the processing of fetched legs to a separate function
-  const processFetchedLegs = (legsData) => {
-    if (!Array.isArray(legsData)) {
-      console.error(`processFetchedLegs received non-array:`, legsData);
-      setLegs([]);
-      setError("Invalid leg data format");
-      return;
-    }
-    
-    // Log raw legs before processing
-    console.log(`Processing ${legsData.length} raw legs:`, legsData);
-    
-    // Normalize legs for consistency
-    const normalizedLegs = normalizeLegs(legsData);
-    
-    // Sort legs by order
-    const sortedLegs = [...normalizedLegs].sort((a, b) => 
-      (Number(a.legOrder) || 0) - (Number(b.legOrder) || 0)
-    );
-    
-    console.log(`Finished processing ${sortedLegs.length} legs:`, sortedLegs);
-    setLegs(sortedLegs);
-    setError(null);
+  
+  // Sort legs by order
+  const sortLegs = (legs) => {
+    return [...legs].sort((a, b) => (Number(a.legOrder) || 0) - (Number(b.legOrder) || 0));
   };
 
   // Handle form input changes
@@ -478,253 +450,6 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
     }).filter(Boolean); // Remove any null legs
   };
 
-  // Add a function to directly check leg status in the database
-  const checkLegsInDatabase = async () => {
-    try {
-      console.log('Running direct database check for legs...');
-      const response = await axios.get(`/api/debug/shipment-legs/${shipmentId}`);
-      console.log('Direct database check result:', response.data);
-      
-      setDebugInfo({
-        shipmentId: shipmentId,
-        databaseCheck: response.data,
-        timestamp: new Date().toISOString()
-      });
-      
-      // Now directly try to use the legs found in the database
-      if (response.data.independentLegs.count > 0) {
-        console.log(`Found ${response.data.independentLegs.count} independent legs - using them`);
-        processFetchedLegs(response.data.independentLegs.legs);
-        setError(null);
-        return true;
-      } else if (response.data.referencedLegs.count > 0) {
-        console.log(`Found ${response.data.referencedLegs.count} referenced legs - using them`);
-        processFetchedLegs(response.data.referencedLegs.legs);
-        setError(null);
-        return true;
-      } else {
-        console.log('No legs found in either location');
-        return false;
-      }
-    } catch (err) {
-      console.error('Error in direct database check:', err);
-      setDebugInfo({
-        error: `Database check failed: ${err.message}`,
-        timestamp: new Date().toISOString()
-      });
-      return false;
-    }
-  };
-
-  // Add a repairLegs function to fix shipment legs
-  const repairLegs = async () => {
-    try {
-      console.log(`Running repair function for shipment legs: ${shipmentId}`);
-      setLoading(true);
-      
-      // Call the special repair endpoint
-      const response = await axios.get(`/api/shipments/repair-legs/${shipmentId}`);
-      console.log('Repair response:', response.data);
-      
-      if (response.data.success) {
-        // Set success message
-        setSuccess(`Repair successful: ${response.data.message}`);
-        
-        // Update debug info
-        setDebugInfo({
-          repairResult: response.data,
-          timestamp: new Date().toISOString()
-        });
-        
-        // If legs were found, refresh and display them
-        if (response.data.legs.after > 0) {
-          // Wait a moment for database to update
-          setTimeout(() => {
-            fetchLegs();
-          }, 1000);
-        }
-      } else {
-        setError(`Repair failed: ${response.data.message || 'Unknown error'}`);
-      }
-    } catch (err) {
-      console.error('Error repairing legs:', err);
-      setError(`Repair failed: ${err.message}`);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Add an export legs function to get data directly from the export endpoint
-  const exportLegs = async () => {
-    try {
-      console.log(`Exporting legs data for shipment: ${shipmentId}`);
-      setLoading(true);
-      
-      // Call the export endpoint
-      const response = await axios.get(`/api/shipment-legs/export/${shipmentId}`);
-      console.log('Export response:', response.data);
-      
-      // Update debug info
-      setDebugInfo({
-        exportData: response.data,
-        timestamp: new Date().toISOString()
-      });
-      
-      // If direct legs were found, use them immediately
-      if (response.data.directLegsCount > 0) {
-        processFetchedLegs(response.data.directLegs);
-        setError(null);
-        setSuccess(`Found ${response.data.directLegsCount} legs directly in database`);
-      } else if (response.data.referencedLegsCount > 0) {
-        processFetchedLegs(response.data.referencedLegsData);
-        setError(null);
-        setSuccess(`Found ${response.data.referencedLegsCount} referenced legs`);
-      } else {
-        setError("No legs found in either direct or referenced collections");
-      }
-    } catch (err) {
-      console.error('Error exporting legs:', err);
-      setError(`Export failed: ${err.message}`);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Render function for debug info
-  const renderDebugInfo = () => {
-    if (!debugInfo && !error) return null;
-    
-    return (
-      <div className="debug-info" style={{ margin: '20px 0', padding: '10px', border: '1px solid #ddd', background: '#f8f8f8' }}>
-        <h4>Debug Information</h4>
-        
-        <div style={{ display: 'flex', gap: '10px', marginBottom: '15px', flexWrap: 'wrap' }}>
-          <button 
-            onClick={() => exportLegs()} 
-            className="btn btn-success"
-          >
-            Export Leg Data
-          </button>
-          
-          <button 
-            onClick={() => repairLegs()} 
-            className="btn btn-danger"
-          >
-            Repair Shipment Legs
-          </button>
-          
-          <button 
-            onClick={() => checkLegsInDatabase()} 
-            className="btn btn-warning"
-          >
-            Check Legs in Database
-          </button>
-          
-          <button 
-            onClick={() => fetchLegs()} 
-            className="btn btn-primary"
-          >
-            Retry Fetch
-          </button>
-        </div>
-        
-        {/* Export data results */}
-        {debugInfo?.exportData && (
-          <div>
-            <h5>Export Results:</h5>
-            <p><strong>Shipment ID:</strong> {debugInfo.exportData.shipmentId}</p>
-            <p><strong>Shipment Exists:</strong> {debugInfo.exportData.shipmentExists ? 'Yes' : 'No'}</p>
-            <p><strong>Direct Legs:</strong> {debugInfo.exportData.directLegsCount}</p>
-            <p><strong>Referenced Legs:</strong> {debugInfo.exportData.referencedLegsCount}</p>
-            
-            {debugInfo.exportData.directLegsCount > 0 && (
-              <div>
-                <p><strong>Direct Legs Data:</strong></p>
-                <pre style={{ maxHeight: '200px', overflow: 'auto' }}>
-                  {JSON.stringify(debugInfo.exportData.directLegs, null, 2)}
-                </pre>
-              </div>
-            )}
-            
-            {debugInfo.exportData.referencedLegsCount > 0 && (
-              <div>
-                <p><strong>Referenced Legs Data:</strong></p>
-                <pre style={{ maxHeight: '200px', overflow: 'auto' }}>
-                  {JSON.stringify(debugInfo.exportData.referencedLegsData, null, 2)}
-                </pre>
-              </div>
-            )}
-          </div>
-        )}
-        
-        {/* Repair results */}
-        {debugInfo?.repairResult && (
-          <div>
-            <h5>Repair Results:</h5>
-            <p><strong>Status:</strong> {debugInfo.repairResult.success ? 'Success' : 'Failed'}</p>
-            <p><strong>Message:</strong> {debugInfo.repairResult.message}</p>
-            <p><strong>Legs Before:</strong> {debugInfo.repairResult.legs.before}</p>
-            <p><strong>Legs After:</strong> {debugInfo.repairResult.legs.after}</p>
-            
-            {debugInfo.repairResult.legs.list && debugInfo.repairResult.legs.list.length > 0 && (
-              <div>
-                <p><strong>Repaired Legs:</strong></p>
-                <pre>{JSON.stringify(debugInfo.repairResult.legs.list, null, 2)}</pre>
-              </div>
-            )}
-          </div>
-        )}
-        
-        {/* Database check results */}
-        {debugInfo?.databaseCheck && (
-          <div>
-            <h5>Database Check Results:</h5>
-            <p>Referenced legs: {debugInfo.databaseCheck.referencedLegs.count}</p>
-            <p>Independent legs: {debugInfo.databaseCheck.independentLegs.count}</p>
-            
-            {debugInfo.databaseCheck.referencedLegs.count > 0 && (
-              <div>
-                <p><strong>Referenced Legs:</strong></p>
-                <pre>{JSON.stringify(debugInfo.databaseCheck.referencedLegs.legs, null, 2)}</pre>
-              </div>
-            )}
-            
-            {debugInfo.databaseCheck.independentLegs.count > 0 && (
-              <div>
-                <p><strong>Independent Legs:</strong></p>
-                <pre>{JSON.stringify(debugInfo.databaseCheck.independentLegs.legs, null, 2)}</pre>
-              </div>
-            )}
-          </div>
-        )}
-        
-        {/* Original debug info */}
-        {debugInfo && !debugInfo.databaseCheck && !debugInfo.repairResult && !debugInfo.exportData && (
-          <>
-            <p>Shipment ID: {debugInfo.shipmentId}</p>
-            <p>Has legs array: {debugInfo.hasLegsArray ? 'Yes' : 'No'}</p>
-            <p>Legs array length: {debugInfo.legsArrayLength}</p>
-            <p>Legs array type: {debugInfo.legsArrayType}</p>
-            {debugInfo.firstLeg && (
-              <div>
-                <p>First leg sample:</p>
-                <pre>{JSON.stringify(debugInfo.firstLeg, null, 2)}</pre>
-              </div>
-            )}
-          </>
-        )}
-        
-        {debugInfo?.error && (
-          <p>Error: {debugInfo.error}</p>
-        )}
-        
-        {debugInfo?.timestamp && (
-          <p>Last checked: {new Date(debugInfo.timestamp).toLocaleTimeString()}</p>
-        )}
-      </div>
-    );
-  };
-
   if (loading) {
     return <div>Loading legs...</div>;
   }
@@ -753,15 +478,6 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
           .change-entry div {
             color: #333;
           }
-          .debug-info {
-            background-color: #f8f9fa;
-            border: 1px solid #ddd;
-            padding: 10px;
-            margin-bottom: 15px;
-            border-radius: 4px;
-            font-family: monospace;
-            font-size: 12px;
-          }
         `}
       </style>
       <div className="legs-header">
@@ -777,18 +493,12 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
         )}
       </div>
 
-      {/* Debug information - remove in production */}
-      <div className="debug-info">
-        <p>Shipment ID: {shipmentId || 'none'}</p>
-        <p>Legs found: {legs.length}</p>
-        <p>Loading state: {loading ? 'true' : 'false'}</p>
-        <p>Error state: {error ? error : 'none'}</p>
-        <p>Show form: {showForm ? 'true' : 'false'}</p>
-        <p>Edit mode: {editingLeg ? `true (leg ${editingLeg._id})` : 'false'}</p>
-      </div>
-
       {error && (
         <div className="alert alert-danger">{error}</div>
+      )}
+
+      {success && (
+        <div className="alert alert-success">{success}</div>
       )}
 
       {loading ? (
@@ -805,38 +515,34 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
             <thead>
               <tr>
                 <th>Leg</th>
-                <th>Leg ID</th>
                 <th>Origin</th>
                 <th>Destination</th>
                 <th>AWB</th>
-                <th>Flight #</th>
+                <th>Carrier</th>
                 <th>Departure</th>
                 <th>Arrival</th>
                 <th>Status</th>
-                <th>Actions</th>
-                <th>Change Log</th>
-                <th>Status History</th>
+                {!readOnly && <th>Actions</th>}
               </tr>
             </thead>
             <tbody>
               {legs.map((leg, index) => (
                 <tr key={leg._id || index}>
                   <td>{index + 1}</td>
-                  <td>{leg.legId || `LEG-${leg._id ? leg._id.substring(0, 8) : 'N/A'}`}</td>
-                  <td>{leg.from}</td>
-                  <td>{leg.to}</td>
+                  <td>{leg.from || leg.origin}</td>
+                  <td>{leg.to || leg.destination}</td>
                   <td>{getDisplayAwb(leg)}</td>
                   <td>{leg.carrier || 'N/A'}</td>
                   <td>
                     {leg.departureDate ? (
-                      <Moment format="DD/MM/YYYY HH:mm">{leg.departureDate}</Moment>
+                      <Moment format="DD/MM/YYYY">{leg.departureDate}</Moment>
                     ) : (
                       'N/A'
                     )}
                   </td>
                   <td>
                     {leg.arrivalDate ? (
-                      <Moment format="DD/MM/YYYY HH:mm">{leg.arrivalDate}</Moment>
+                      <Moment format="DD/MM/YYYY">{leg.arrivalDate}</Moment>
                     ) : (
                       'N/A'
                     )}
@@ -862,8 +568,8 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
                       </select>
                     )}
                   </td>
-                  <td>
-                    {!readOnly && (
+                  {!readOnly && (
+                    <td>
                       <div className="leg-actions">
                         <button
                           type="button"
@@ -880,36 +586,8 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
                           <i className="fas fa-trash"></i> Delete
                         </button>
                       </div>
-                    )}
-                  </td>
-                  <td>
-                    {leg.changeLog && leg.changeLog.length > 0
-                      ? leg.changeLog[leg.changeLog.length - 1].description || 'No changes'
-                      : 'No changes'}
-                  </td>
-                  <td>
-                    {leg.statusHistory && leg.statusHistory.length > 0 ? (
-                      <div className="status-history">
-                        <h5 className="status-history-title">Status History</h5>
-                        <ul className="status-history-list">
-                          {[...leg.statusHistory].reverse().map((history, idx) => (
-                            <li key={idx} className="status-history-item">
-                              <span className={`status-badge small status-${history.status?.toLowerCase()?.replace(/\s+/g, '-') || 'unknown'}`}>
-                                {history.status}
-                              </span>
-                              <span className="status-timestamp">
-                                <Moment format="DD/MM/YYYY HH:mm">
-                                  {history.timestamp}
-                                </Moment>
-                              </span>
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    ) : (
-                      <span className="text-muted">No history</span>
-                    )}
-                  </td>
+                    </td>
+                  )}
                 </tr>
               ))}
             </tbody>
@@ -1074,8 +752,6 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
           </form>
         </div>
       )}
-
-      {renderDebugInfo()}
     </div>
   );
 };

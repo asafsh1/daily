@@ -255,67 +255,52 @@ router.get('/repair-legs/:id', async (req, res) => {
 // @access  Private
 router.get('/:id', auth, async (req, res) => {
   try {
-    console.log(`Getting shipment with ID: ${req.params.id}`);
-    
-    // Check for valid ObjectId format
+    // First check for valid ID format
     if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
       return res.status(400).json({ msg: 'Invalid shipment ID format' });
     }
     
-    // First try to get the shipment with populated legs
-    let shipment = await Shipment.findById(req.params.id)
-      .populate({
-        path: 'legs',
-        model: 'shipmentLeg',
-        options: { sort: { legOrder: 1 } }
-      })
-      .populate('customer');
-    
+    // Try to find the shipment directly
+    const shipment = await Shipment.findById(req.params.id);
+
     if (!shipment) {
       return res.status(404).json({ msg: 'Shipment not found' });
     }
-    
-    console.log(`Found shipment with ID ${req.params.id}`);
-    
-    // If legs array is empty or missing, try to find legs separately
-    if (!shipment.legs || shipment.legs.length === 0) {
-      console.log(`No legs found in shipment object, searching separately...`);
-      
-      // Directly find legs in shipmentLeg collection
-      const separateLegs = await mongoose.model('shipmentLeg').find({ 
-        shipment: req.params.id 
-      }).sort({ legOrder: 1 });
-      
-      console.log(`Found ${separateLegs.length} legs in separate query`);
-      
-      // If legs found separately, add them to shipment and update the shipment
-      if (separateLegs.length > 0) {
-        // Add legs to shipment response
-        shipment = shipment.toObject();  // Convert to plain object for modification
-        shipment.legs = separateLegs;
+
+    // Populate customer data if it's an ObjectId reference
+    if (shipment.customer && mongoose.Types.ObjectId.isValid(shipment.customer)) {
+      const populatedShipment = await Shipment.findById(req.params.id)
+        .populate('customer', 'name email')
+        .lean();
         
-        // Also update the database to link these legs
-        try {
-          console.log(`Updating shipment in database to link ${separateLegs.length} legs`);
-          await Shipment.findByIdAndUpdate(
-            req.params.id,
-            { $set: { legs: separateLegs.map(leg => leg._id) } }
-          );
-        } catch (updateErr) {
-          console.error(`Error updating shipment with legs: ${updateErr.message}`);
-        }
-      } else {
-        console.log(`No legs found for shipment ${req.params.id} in separate query`);
-        shipment = shipment.toObject();  // Convert to plain object for modification
-        shipment.legs = [];  // Ensure legs is at least an empty array
-      }
-    } else {
-      console.log(`Shipment already has ${shipment.legs.length} legs`);
+      return res.json(populatedShipment);
     }
-    
+
+    // Add legs to the response if the shipment has them
+    if (shipment.legs && Array.isArray(shipment.legs) && shipment.legs.length > 0) {
+      try {
+        // Find all legs for this shipment
+        const shipmentLegs = await ShipmentLeg.find({ 
+          shipment: shipment._id 
+        }).sort({ legOrder: 1 });
+        
+        // If we have legs in both places, use the newer leg collection data
+        if (shipmentLegs && shipmentLegs.length > 0) {
+          // Return the shipment with leg data directly
+          const shipmentWithLegs = shipment.toObject();
+          shipmentWithLegs.legs = shipmentLegs;
+          return res.json(shipmentWithLegs);
+        }
+      } catch (err) {
+        console.error('Error fetching legs for shipment:', err);
+        // Continue with normal shipment return if leg fetch fails
+      }
+    }
+
+    // Return the standard shipment data
     res.json(shipment);
   } catch (err) {
-    console.error(`Error fetching shipment: ${err.message}`);
+    console.error(err.message);
     res.status(500).send('Server Error');
   }
 });
