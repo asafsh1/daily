@@ -409,4 +409,67 @@ router.post(
   }
 );
 
+// @route   GET api/shipment-legs/export/:shipmentId
+// @desc    Direct export of legs for a shipment with full debugging
+// @access  Public
+router.get('/export/:shipmentId', async (req, res) => {
+  try {
+    const shipmentId = req.params.shipmentId;
+    console.log(`EXPORT: Getting raw leg data for shipment: ${shipmentId}`);
+    
+    // 1. Find legs directly by shipment ID relationship
+    const directLegs = await ShipmentLeg.find({ shipment: shipmentId })
+      .sort({ legOrder: 1 })
+      .lean();
+    
+    console.log(`EXPORT: Found ${directLegs.length} direct legs`);
+    
+    // 2. Get the shipment to check its legs array
+    const shipment = await Shipment.findById(shipmentId).lean();
+    let referencedLegs = [];
+    let referencedLegsData = [];
+    
+    if (shipment && shipment.legs && Array.isArray(shipment.legs)) {
+      referencedLegs = shipment.legs;
+      console.log(`EXPORT: Shipment has ${referencedLegs.length} leg references`);
+      
+      // Try to fetch each referenced leg
+      for (const legId of referencedLegs) {
+        try {
+          const leg = await ShipmentLeg.findById(legId).lean();
+          if (leg) {
+            referencedLegsData.push(leg);
+          } else {
+            referencedLegsData.push({ _id: legId, error: 'Not found' });
+          }
+        } catch (err) {
+          referencedLegsData.push({ _id: legId, error: err.message });
+        }
+      }
+    } else {
+      console.log(`EXPORT: Shipment has no legs array or it's not valid`);
+    }
+    
+    // Return detailed information
+    res.json({
+      shipmentId,
+      shipmentExists: !!shipment,
+      directLegsCount: directLegs.length,
+      directLegs,
+      referencedLegsCount: referencedLegs.length,
+      referencedLegsIds: referencedLegs,
+      referencedLegsData,
+      // Provide a merged, deduplicated list (prefer direct legs)
+      mergedLegs: directLegs
+    });
+    
+  } catch (err) {
+    console.error(`EXPORT ERROR: ${err.message}`);
+    res.status(500).json({
+      error: err.message,
+      stack: err.stack
+    });
+  }
+});
+
 module.exports = router; 

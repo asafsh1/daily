@@ -554,6 +554,42 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
     }
   };
 
+  // Add an export legs function to get data directly from the export endpoint
+  const exportLegs = async () => {
+    try {
+      console.log(`Exporting legs data for shipment: ${shipmentId}`);
+      setLoading(true);
+      
+      // Call the export endpoint
+      const response = await axios.get(`/api/shipment-legs/export/${shipmentId}`);
+      console.log('Export response:', response.data);
+      
+      // Update debug info
+      setDebugInfo({
+        exportData: response.data,
+        timestamp: new Date().toISOString()
+      });
+      
+      // If direct legs were found, use them immediately
+      if (response.data.directLegsCount > 0) {
+        processFetchedLegs(response.data.directLegs);
+        setError(null);
+        setSuccess(`Found ${response.data.directLegsCount} legs directly in database`);
+      } else if (response.data.referencedLegsCount > 0) {
+        processFetchedLegs(response.data.referencedLegsData);
+        setError(null);
+        setSuccess(`Found ${response.data.referencedLegsCount} referenced legs`);
+      } else {
+        setError("No legs found in either direct or referenced collections");
+      }
+    } catch (err) {
+      console.error('Error exporting legs:', err);
+      setError(`Export failed: ${err.message}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // Render function for debug info
   const renderDebugInfo = () => {
     if (!debugInfo && !error) return null;
@@ -562,7 +598,14 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
       <div className="debug-info" style={{ margin: '20px 0', padding: '10px', border: '1px solid #ddd', background: '#f8f8f8' }}>
         <h4>Debug Information</h4>
         
-        <div style={{ display: 'flex', gap: '10px', marginBottom: '15px' }}>
+        <div style={{ display: 'flex', gap: '10px', marginBottom: '15px', flexWrap: 'wrap' }}>
+          <button 
+            onClick={() => exportLegs()} 
+            className="btn btn-success"
+          >
+            Export Leg Data
+          </button>
+          
           <button 
             onClick={() => repairLegs()} 
             className="btn btn-danger"
@@ -584,6 +627,35 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
             Retry Fetch
           </button>
         </div>
+        
+        {/* Export data results */}
+        {debugInfo?.exportData && (
+          <div>
+            <h5>Export Results:</h5>
+            <p><strong>Shipment ID:</strong> {debugInfo.exportData.shipmentId}</p>
+            <p><strong>Shipment Exists:</strong> {debugInfo.exportData.shipmentExists ? 'Yes' : 'No'}</p>
+            <p><strong>Direct Legs:</strong> {debugInfo.exportData.directLegsCount}</p>
+            <p><strong>Referenced Legs:</strong> {debugInfo.exportData.referencedLegsCount}</p>
+            
+            {debugInfo.exportData.directLegsCount > 0 && (
+              <div>
+                <p><strong>Direct Legs Data:</strong></p>
+                <pre style={{ maxHeight: '200px', overflow: 'auto' }}>
+                  {JSON.stringify(debugInfo.exportData.directLegs, null, 2)}
+                </pre>
+              </div>
+            )}
+            
+            {debugInfo.exportData.referencedLegsCount > 0 && (
+              <div>
+                <p><strong>Referenced Legs Data:</strong></p>
+                <pre style={{ maxHeight: '200px', overflow: 'auto' }}>
+                  {JSON.stringify(debugInfo.exportData.referencedLegsData, null, 2)}
+                </pre>
+              </div>
+            )}
+          </div>
+        )}
         
         {/* Repair results */}
         {debugInfo?.repairResult && (
@@ -627,7 +699,7 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
         )}
         
         {/* Original debug info */}
-        {debugInfo && !debugInfo.databaseCheck && !debugInfo.repairResult && (
+        {debugInfo && !debugInfo.databaseCheck && !debugInfo.repairResult && !debugInfo.exportData && (
           <>
             <p>Shipment ID: {debugInfo.shipmentId}</p>
             <p>Has legs array: {debugInfo.hasLegsArray ? 'Yes' : 'No'}</p>

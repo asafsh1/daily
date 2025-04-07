@@ -20,8 +20,10 @@ const ShipmentDetail = ({
 
   useEffect(() => {
     console.log(`ShipmentDetail - Loading shipment with ID: ${id}`);
+    
+    // First get the shipment
     getShipment(id);
-
+    
     // Provide detailed logging for shipment and legs data
     if (shipment) {
       console.log("Current shipment data:", shipment);
@@ -46,6 +48,34 @@ const ShipmentDetail = ({
 
   const handleSectionChange = (section) => {
     setActiveSection(section);
+  };
+
+  // Add a helper function to extract leg information
+  const getOriginDestination = () => {
+    if (!shipment) return { origin: 'N/A', destination: 'N/A' };
+    
+    let origin = shipment.origin || 'N/A';
+    let destination = shipment.destination || 'N/A';
+    
+    // Try to extract from legs if available
+    if (shipment.legs && Array.isArray(shipment.legs) && shipment.legs.length > 0) {
+      // First leg origin
+      if (shipment.legs[0].from) {
+        origin = shipment.legs[0].from;
+      } else if (shipment.legs[0].origin) {
+        origin = shipment.legs[0].origin;
+      }
+      
+      // Last leg destination
+      const lastLeg = shipment.legs[shipment.legs.length - 1];
+      if (lastLeg.to) {
+        destination = lastLeg.to;
+      } else if (lastLeg.destination) {
+        destination = lastLeg.destination;
+      }
+    }
+    
+    return { origin, destination };
   };
 
   return loading || shipment === null ? (

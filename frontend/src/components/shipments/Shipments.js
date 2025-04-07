@@ -274,28 +274,30 @@ const Shipments = ({ getShipments, updateShipment, deleteShipment, shipment: { s
                       : 'Unknown';
                       
                     const origin = shipment.origin || 
-                      (shipment.legs && shipment.legs[0] ? 
-                        (shipment.legs[0].origin || shipment.legs[0].from) : 'N/A');
+                      (shipment.legs && shipment.legs.length > 0 && shipment.legs[0] ? 
+                        (shipment.legs[0].origin || shipment.legs[0].from || 'N/A') : 'N/A');
                     debugShipmentField(shipment, 'origin', origin);
                       
                     const destination = shipment.destination || 
                       (shipment.legs && shipment.legs.length > 0 ? 
                         (shipment.legs[shipment.legs.length-1].destination || 
-                         shipment.legs[shipment.legs.length-1].to) : 'N/A');
+                          shipment.legs[shipment.legs.length-1].to || 'N/A') : 'N/A');
                     debugShipmentField(shipment, 'destination', destination);
                     
                     const status = shipment.shipmentStatus || 'Pending';
                     
-                    // Get dates from either direct properties or legs - with better fallback logic
-                    const departureDate = shipment.departureDate || 
-                      (shipment.legs && shipment.legs[0] && 
-                       (shipment.legs[0].departureDate || shipment.legs[0].departureTime)) || null;
+                    // Get dates with better fallback logic
+                    const departureDate = 
+                      (shipment.departureDate) || 
+                      (shipment.legs && shipment.legs.length > 0 && shipment.legs[0] ? 
+                        (shipment.legs[0].departureDate || shipment.legs[0].departureTime) : null);
                     debugShipmentField(shipment, 'departureDate', departureDate);
                         
-                    const arrivalDate = shipment.arrivalDate || 
-                      (shipment.legs && shipment.legs.length > 0 && 
-                       (shipment.legs[shipment.legs.length-1].arrivalDate || 
-                        shipment.legs[shipment.legs.length-1].arrivalTime)) || null;
+                    const arrivalDate = 
+                      (shipment.arrivalDate) || 
+                      (shipment.legs && shipment.legs.length > 0 ? 
+                        (shipment.legs[shipment.legs.length-1].arrivalDate || 
+                          shipment.legs[shipment.legs.length-1].arrivalTime) : null);
                     debugShipmentField(shipment, 'arrivalDate', arrivalDate);
                     
                     // Status badge class
