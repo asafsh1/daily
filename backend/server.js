@@ -244,28 +244,63 @@ app.use((err, req, res, next) => {
 });
 
 // Connect to MongoDB Atlas and start server
-console.log('Attempting to connect to MongoDB Atlas...');
-console.log('Connection URI:', process.env.MONGODB_URI ? process.env.MONGODB_URI.replace(/\/\/([^:]+):([^@]+)@/, '//***:***@') : 'No URI provided');
+async function startServer() {
+  try {
+    console.log('Attempting to connect to MongoDB Atlas...');
+    if (!process.env.MONGODB_URI) {
+      throw new Error('MONGODB_URI environment variable is not set');
+    }
 
-mongoose.connect(process.env.MONGODB_URI, {
-  useNewUrlParser: true,
-  useUnifiedTopology: true,
-  serverSelectionTimeoutMS: 15000,
-  connectTimeoutMS: 15000,
-  socketTimeoutMS: 45000,
-  maxPoolSize: 50,
-  minPoolSize: 10,
-  retryWrites: true,
-  w: 'majority'
-}).then(() => {
-  console.log('✅ Connected to MongoDB Atlas:', mongoose.connection.host);
-  
-  // Start the server
-  httpServer.listen(PORT, () => {
-    console.log(`✅ Server is running on port ${PORT}`);
-    console.log(`✅ Environment: ${process.env.NODE_ENV}`);
-  });
-}).catch(err => {
-  console.error('MongoDB connection error:', err);
-  process.exit(1);
-});
+    await mongoose.connect(process.env.MONGODB_URI, {
+      useNewUrlParser: true,
+      useUnifiedTopology: true,
+      serverSelectionTimeoutMS: 15000,
+      connectTimeoutMS: 15000,
+      socketTimeoutMS: 45000,
+      maxPoolSize: 50,
+      minPoolSize: 10,
+      retryWrites: true,
+      w: 'majority'
+    });
+
+    console.log('✅ Connected to MongoDB Atlas:', mongoose.connection.host);
+
+    const PORT = process.env.PORT || 10000;
+    httpServer.listen(PORT, () => {
+      console.log(`✅ Server is running on port ${PORT}`);
+      console.log(`✅ Environment: ${process.env.NODE_ENV}`);
+    });
+
+    // Handle server shutdown
+    process.on('SIGTERM', gracefulShutdown);
+    process.on('SIGINT', gracefulShutdown);
+  } catch (err) {
+    console.error('Failed to start server:', err);
+    process.exit(1);
+  }
+}
+
+// Graceful shutdown function
+async function gracefulShutdown() {
+  try {
+    console.log('Starting graceful shutdown...');
+    
+    // Close the HTTP server
+    await new Promise((resolve) => {
+      httpServer.close(resolve);
+    });
+    console.log('HTTP server closed');
+    
+    // Close MongoDB connection
+    await mongoose.connection.close();
+    console.log('MongoDB connection closed');
+    
+    process.exit(0);
+  } catch (err) {
+    console.error('Error during shutdown:', err);
+    process.exit(1);
+  }
+}
+
+// Start the server
+startServer();
