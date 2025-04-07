@@ -13,7 +13,7 @@ import axios from 'axios';
 const ShipmentDetail = ({
   getShipment,
   clearShipment,
-  shipment: { shipment, loading },
+  shipment: { shipment, loading: shipmentLoading },
   auth: { user }
 }) => {
   const { id } = useParams();
