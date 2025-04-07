@@ -32,14 +32,14 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
   const [errors, setErrors] = useState({});
   const [success, setSuccess] = useState('');
 
-  // Fetch legs on component mount
+  // Fetch legs on component mount and when shipmentId changes
   useEffect(() => {
     if (shipmentId) {
       fetchLegs();
     }
   }, [shipmentId]);
   
-  // Add this helper function to ensure all leg fields are properly extracted
+  // Function to normalize inconsistent leg data structure from API
   const normalizeLeg = (leg) => {
     if (!leg) return null;
     
@@ -48,19 +48,22 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
       legOrder: leg.legOrder || leg.order || 0,
       from: leg.from || leg.origin || '',
       to: leg.to || leg.destination || '',
-      origin: leg.origin || leg.from || '',
-      destination: leg.destination || leg.to || '',
       carrier: leg.carrier || leg.airline || leg.shippingLine || '',
       departureDate: leg.departureDate || leg.departureTime || null,
       arrivalDate: leg.arrivalDate || leg.arrivalTime || null,
-      awbNumber: leg.awbNumber || leg.trackingNumber || leg.awb || '',
+      trackingNumber: leg.trackingNumber || leg.awbNumber || leg.awb || '',
       status: leg.status || 'Not Started',
       notes: leg.notes || '',
       flight: leg.flight || leg.flightNumber || ''
     };
   };
 
-  // Update the fetchLegs function with better error handling and production compatibility
+  // Helper to sort legs by order
+  const sortLegs = (legs) => {
+    return [...legs].sort((a, b) => (Number(a.legOrder) || 0) - (Number(b.legOrder) || 0));
+  };
+
+  // Fetch legs data from API
   const fetchLegs = async () => {
     try {
       setLoading(true);
@@ -68,38 +71,69 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
       
       console.log(`Fetching shipment data for id: ${shipmentId}`);
       
-      // Try the shipment endpoint first
+      // First, try to get the shipment data which should include legs
       const shipmentResponse = await axios.get(`/api/shipments/${shipmentId}`);
       
-      if (shipmentResponse.data?.legs && Array.isArray(shipmentResponse.data.legs) && shipmentResponse.data.legs.length > 0) {
+      // If the shipment has legs attached, use those
+      if (shipmentResponse.data && shipmentResponse.data.legs && 
+          Array.isArray(shipmentResponse.data.legs) && 
+          shipmentResponse.data.legs.length > 0) {
+        
         console.log(`Found ${shipmentResponse.data.legs.length} legs in shipment response`);
         const normalizedLegs = shipmentResponse.data.legs.map(leg => normalizeLeg(leg)).filter(Boolean);
         setLegs(sortLegs(normalizedLegs));
       } else {
-        // Fallback to direct legs endpoint
-        console.log(`Fetching legs directly for shipment ID: ${shipmentId}`);
-        const legsResponse = await axios.get(`/api/shipment-legs/${shipmentId}`);
+        // If no legs in shipment data, try dedicated leg endpoint
+        console.log(`No legs in shipment data. Trying dedicated endpoint...`);
         
-        if (Array.isArray(legsResponse.data) && legsResponse.data.length > 0) {
-          console.log(`Found ${legsResponse.data.length} legs via direct endpoint`);
-          const normalizedLegs = legsResponse.data.map(leg => normalizeLeg(leg)).filter(Boolean);
-          setLegs(sortLegs(normalizedLegs));
-        } else {
-          console.log('No legs found');
-          setLegs([]);
+        try {
+          const legsResponse = await axios.get(`/api/shipment-legs/shipment/${shipmentId}`);
+          
+          if (legsResponse.data && Array.isArray(legsResponse.data) && legsResponse.data.length > 0) {
+            console.log(`Found ${legsResponse.data.length} legs from dedicated endpoint`);
+            const normalizedLegs = legsResponse.data.map(leg => normalizeLeg(leg)).filter(Boolean);
+            setLegs(sortLegs(normalizedLegs));
+          } else {
+            // Try alternative endpoint format as fallback
+            const altLegsResponse = await axios.get(`/api/shipment-legs/${shipmentId}`);
+            
+            if (altLegsResponse.data && Array.isArray(altLegsResponse.data) && altLegsResponse.data.length > 0) {
+              console.log(`Found ${altLegsResponse.data.length} legs from alternate endpoint`);
+              const normalizedLegs = altLegsResponse.data.map(leg => normalizeLeg(leg)).filter(Boolean);
+              setLegs(sortLegs(normalizedLegs));
+            } else {
+              console.log('No legs found in any endpoint');
+              setLegs([]);
+            }
+          }
+        } catch (legsError) {
+          console.error('Error fetching from legs endpoint:', legsError);
+          // Don't set error yet, just log it and continue
+          
+          // Try the last resort endpoint
+          try {
+            const lastResortResponse = await axios.get(`/api/shipments/${shipmentId}/legs`);
+            
+            if (lastResortResponse.data && Array.isArray(lastResortResponse.data) && lastResortResponse.data.length > 0) {
+              console.log(`Found ${lastResortResponse.data.length} legs from last resort endpoint`);
+              const normalizedLegs = lastResortResponse.data.map(leg => normalizeLeg(leg)).filter(Boolean);
+              setLegs(sortLegs(normalizedLegs));
+            } else {
+              setLegs([]);
+            }
+          } catch (finalError) {
+            console.error('All leg fetching attempts failed:', finalError);
+            setLegs([]);
+          }
         }
       }
     } catch (error) {
-      console.error('Error fetching legs:', error);
-      setError(`Failed to load shipment legs: ${error.message}`);
+      console.error('Error in main fetchLegs function:', error);
+      setError(`Failed to load shipment legs. Please try again.`);
+      setLegs([]);
     } finally {
       setLoading(false);
     }
-  };
-  
-  // Helper to sort legs by order
-  const sortLegs = (legs) => {
-    return [...legs].sort((a, b) => (Number(a.legOrder) || 0) - (Number(b.legOrder) || 0));
   };
 
   // Handle form input changes
@@ -369,6 +403,12 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
     return status || 'Not Started';
   };
 
+  // Format date for display
+  const formatDate = (date) => {
+    if (!date) return 'N/A';
+    return moment(date).format('DD/MM/YYYY');
+  };
+
   // Display error message
   if (error) {
     return (
@@ -420,53 +460,37 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
               <th>Origin</th>
               <th>Destination</th>
               <th>Carrier</th>
-              <th>Flight</th>
-              <th>AWB</th>
-              <th>Departure Date</th>
-              <th>Arrival Date</th>
+              <th>Flight/Vessel</th>
+              <th>AWB/Tracking</th>
+              <th>Departure</th>
+              <th>Arrival</th>
               <th>Status</th>
-              <th>Notes</th>
               {!readOnly && <th>Actions</th>}
             </tr>
           </thead>
           <tbody>
             {legs.map((leg, index) => (
               <tr key={leg._id || index}>
-                <td>{(leg.legOrder || index + 1)}</td>
-                <td>{leg.from || leg.origin || 'N/A'}</td>
-                <td>{leg.to || leg.destination || 'N/A'}</td>
+                <td>{leg.legOrder || index + 1}</td>
+                <td>{leg.from || 'N/A'}</td>
+                <td>{leg.to || 'N/A'}</td>
                 <td>{leg.carrier || 'N/A'}</td>
-                <td>{leg.flight || leg.flightNumber || 'N/A'}</td>
-                <td>{leg.awbNumber || leg.trackingNumber || leg.awb || 'N/A'}</td>
-                <td>
-                  {leg.departureDate ? (
-                    <Moment format="DD/MM/YYYY">{leg.departureDate}</Moment>
-                  ) : 'N/A'}
-                </td>
-                <td>
-                  {leg.arrivalDate ? (
-                    <Moment format="DD/MM/YYYY">{leg.arrivalDate}</Moment>
-                  ) : 'N/A'}
-                </td>
+                <td>{leg.flight || 'N/A'}</td>
+                <td>{leg.trackingNumber || leg.awbNumber || leg.awb || 'N/A'}</td>
+                <td>{formatDate(leg.departureDate)}</td>
+                <td>{formatDate(leg.arrivalDate)}</td>
                 <td>
                   <span className={`status-badge status-${leg.status?.toLowerCase()?.replace(/\s+/g, '-') || 'unknown'}`}>
                     {leg.status || 'Not Started'}
                   </span>
                 </td>
-                <td>{leg.notes || '-'}</td>
                 {!readOnly && (
                   <td>
                     <button 
-                      className="btn btn-sm btn-primary mr-1" 
-                      onClick={() => editLeg(leg)}
+                      className="btn btn-sm btn-primary mr-1"
+                      onClick={() => toast.info('Edit functionality not available in view mode')}
                     >
                       Edit
-                    </button>
-                    <button 
-                      className="btn btn-sm btn-danger" 
-                      onClick={() => handleDeleteLeg(leg._id)}
-                    >
-                      Delete
                     </button>
                   </td>
                 )}
