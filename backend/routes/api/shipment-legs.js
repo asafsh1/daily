@@ -63,8 +63,13 @@ router.get('/shipment/:shipment_id', async (req, res) => {
       return res.status(400).json({ msg: 'Invalid shipment ID format' });
     }
     
-    // Find legs by shipment ID
-    const legs = await ShipmentLeg.find({ shipment: shipmentId }).sort({ legOrder: 1 });
+    // Find legs by shipment ID - check both shipment and shipmentId fields
+    const legs = await ShipmentLeg.find({ 
+      $or: [
+        { shipment: shipmentId },
+        { shipmentId: shipmentId }
+      ]
+    }).sort({ legOrder: 1 });
     
     if (!legs || legs.length === 0) {
       // Try to look up legs in the shipment document itself
@@ -187,6 +192,14 @@ router.post('/', [
       status: req.body.status || 'Not Started',
       notes: req.body.notes,
       shipment: req.body.shipment,
+      // Add compatibility fields
+      origin: req.body.from,
+      destination: req.body.to,
+      flightNumber: req.body.flightNumber,
+      mawbNumber: req.body.trackingNumber,
+      departureTime: req.body.departureDate,
+      arrivalTime: req.body.arrivalDate,
+      shipmentId: req.body.shipment, // Add this for compatibility
       changeLog: req.body.changeLog || []
     });
 
@@ -291,13 +304,28 @@ router.put('/:id', async (req, res) => {
       arrivalDate, trackingNumber, status, notes, changeLog
     } = req.body;
     
-    if (from) leg.from = from;
-    if (to) leg.to = to;
+    if (from) {
+      leg.from = from;
+      leg.origin = from; // Update compatibility field
+    }
+    if (to) {
+      leg.to = to;
+      leg.destination = to; // Update compatibility field
+    }
     if (carrier) leg.carrier = carrier;
     if (legOrder !== undefined) leg.legOrder = legOrder;
-    if (departureDate) leg.departureDate = departureDate;
-    if (arrivalDate) leg.arrivalDate = arrivalDate;
-    if (trackingNumber) leg.trackingNumber = trackingNumber;
+    if (departureDate) {
+      leg.departureDate = departureDate;
+      leg.departureTime = departureDate; // Update compatibility field
+    }
+    if (arrivalDate) {
+      leg.arrivalDate = arrivalDate;
+      leg.arrivalTime = arrivalDate; // Update compatibility field
+    }
+    if (trackingNumber) {
+      leg.trackingNumber = trackingNumber;
+      leg.mawbNumber = trackingNumber; // Update compatibility field
+    }
     if (status) leg.status = status;
     if (notes) leg.notes = notes;
     if (changeLog && Array.isArray(changeLog)) {
@@ -404,7 +432,7 @@ router.delete('/:id', async (req, res) => {
     }
     
     // Get the shipment ID before deleting the leg
-    const shipmentId = leg.shipment;
+    const shipmentId = leg.shipment || leg.shipmentId;
     
     // Delete the leg
     await leg.remove();
@@ -447,8 +475,18 @@ router.put('/reassign/:tempId/:shipmentId', auth, async (req, res) => {
     
     // Find all legs with the temp ID and update them
     const legs = await ShipmentLeg.updateMany(
-      { shipment: tempId },
-      { $set: { shipment: shipmentId } }
+      { 
+        $or: [
+          { shipment: tempId },
+          { shipmentId: tempId }
+        ]
+      },
+      { 
+        $set: { 
+          shipment: shipmentId,
+          shipmentId: shipmentId
+        } 
+      }
     );
     
     res.json({ msg: 'Legs reassigned successfully', count: legs.nModified });
@@ -467,7 +505,12 @@ router.get('/export/:shipmentId', async (req, res) => {
     console.log(`EXPORT: Getting raw leg data for shipment: ${shipmentId}`);
     
     // 1. Find legs directly by shipment ID relationship
-    const directLegs = await ShipmentLeg.find({ shipment: shipmentId })
+    const directLegs = await ShipmentLeg.find({ 
+      $or: [
+        { shipment: shipmentId },
+        { shipmentId: shipmentId }
+      ]
+    })
       .sort({ legOrder: 1 })
       .lean();
     
@@ -582,7 +625,12 @@ router.get('/debug/:shipmentId', async (req, res) => {
     
     // Method 2: Look for legs directly associated with shipment ID
     try {
-      const directLegs = await ShipmentLeg.find({ shipment: shipmentId }).lean();
+      const directLegs = await ShipmentLeg.find({ 
+        $or: [
+          { shipment: shipmentId },
+          { shipmentId: shipmentId }
+        ]
+      }).lean();
       
       const formattedLegs = directLegs.map(leg => ({
         ...leg,
