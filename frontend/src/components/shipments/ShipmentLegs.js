@@ -39,7 +39,28 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
     }
   }, [shipmentId]);
   
-  // Simple function to fetch legs directly from API
+  // Add this helper function to ensure all leg fields are properly extracted
+  const normalizeLeg = (leg) => {
+    if (!leg) return null;
+    
+    return {
+      _id: leg._id || leg.id || `temp-${Date.now()}`,
+      legOrder: leg.legOrder || leg.order || 0,
+      from: leg.from || leg.origin || '',
+      to: leg.to || leg.destination || '',
+      origin: leg.origin || leg.from || '',
+      destination: leg.destination || leg.to || '',
+      carrier: leg.carrier || leg.airline || leg.shippingLine || '',
+      departureDate: leg.departureDate || leg.departureTime || null,
+      arrivalDate: leg.arrivalDate || leg.arrivalTime || null,
+      awbNumber: leg.awbNumber || leg.trackingNumber || leg.awb || '',
+      status: leg.status || 'Not Started',
+      notes: leg.notes || '',
+      flight: leg.flight || leg.flightNumber || ''
+    };
+  };
+
+  // Update the fetchLegs function to normalize all legs
   const fetchLegs = async () => {
     try {
       setLoading(true);
@@ -56,7 +77,8 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
       
       if (shipmentResponse.data?.legs && Array.isArray(shipmentResponse.data.legs) && shipmentResponse.data.legs.length > 0) {
         console.log(`Found ${shipmentResponse.data.legs.length} legs in shipment response`);
-        setLegs(sortLegs(shipmentResponse.data.legs));
+        const normalizedLegs = shipmentResponse.data.legs.map(leg => normalizeLeg(leg)).filter(Boolean);
+        setLegs(sortLegs(normalizedLegs));
         setLoading(false);
         return;
       }
@@ -67,7 +89,8 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
       
       if (Array.isArray(legsResponse.data) && legsResponse.data.length > 0) {
         console.log(`Found ${legsResponse.data.length} legs via direct endpoint`);
-        setLegs(sortLegs(legsResponse.data));
+        const normalizedLegs = legsResponse.data.map(leg => normalizeLeg(leg)).filter(Boolean);
+        setLegs(sortLegs(normalizedLegs));
       } else {
         console.log('No legs found');
         setLegs([]);
@@ -374,10 +397,12 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
               <th>Origin</th>
               <th>Destination</th>
               <th>Carrier</th>
+              <th>Flight</th>
               <th>AWB</th>
               <th>Departure Date</th>
               <th>Arrival Date</th>
               <th>Status</th>
+              <th>Notes</th>
             </tr>
           </thead>
           <tbody>
@@ -387,7 +412,8 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
                 <td>{leg.from || leg.origin || 'N/A'}</td>
                 <td>{leg.to || leg.destination || 'N/A'}</td>
                 <td>{leg.carrier || 'N/A'}</td>
-                <td>{getDisplayAwb(leg)}</td>
+                <td>{leg.flight || leg.flightNumber || 'N/A'}</td>
+                <td>{leg.awbNumber || leg.trackingNumber || leg.awb || 'N/A'}</td>
                 <td>
                   {leg.departureDate ? (
                     <Moment format="DD/MM/YYYY">{leg.departureDate}</Moment>
@@ -400,9 +426,10 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
                 </td>
                 <td>
                   <span className={`status-badge status-${leg.status?.toLowerCase()?.replace(/\s+/g, '-') || 'unknown'}`}>
-                    {getFormattedStatus(leg.status)}
+                    {leg.status || 'Not Started'}
                   </span>
                 </td>
+                <td>{leg.notes || '-'}</td>
               </tr>
             ))}
           </tbody>
