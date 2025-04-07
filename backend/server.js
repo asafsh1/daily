@@ -10,9 +10,10 @@ const Shipment = require('./models/Shipment');
 const Customer = require('./models/Customer');
 const { createServer } = require('http');
 const socketIo = require('socket.io');
+const connectDB = require('./config/db');
 
 // Read port from environment variable first, then config, then default
-const PORT = process.env.PORT || 10000;
+const PORT = process.env.PORT || 5001;
 
 // Initialize Express
 const app = express();
@@ -245,35 +246,8 @@ app.use((err, req, res, next) => {
 // Connect to MongoDB Atlas and start server
 async function startServer() {
   try {
-    console.log('Attempting to connect to MongoDB Atlas...');
-    
-    // Get MongoDB URI from environment variables first
-    let mongoURI = process.env.MONGODB_URI;
-    
-    if (!mongoURI) {
-      console.error('MONGODB_URI environment variable is not set.');
-      process.exit(1);
-    }
-    
-    // Log redacted connection string for debugging
-    const redactedURI = mongoURI.replace(/\/\/([^:]+):([^@]+)@/, '//***:***@');
-    console.log(`Using MongoDB URI: ${redactedURI}`);
-    console.log(`Using port: ${PORT}`);
-    console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
-
-    // Connect to MongoDB
-    await mongoose.connect(mongoURI, {
-      useNewUrlParser: true,
-      useUnifiedTopology: true,
-      serverSelectionTimeoutMS: 15000,
-      connectTimeoutMS: 15000,
-      socketTimeoutMS: 45000,
-      maxPoolSize: 50,
-      minPoolSize: 10,
-      retryWrites: true,
-      w: 'majority'
-    });
-
+    // Connect to MongoDB using the dedicated module
+    await connectDB();
     console.log(`✅ Connected to MongoDB Atlas: ${mongoose.connection.host}`);
 
     // Start the HTTP server
