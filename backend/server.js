@@ -22,26 +22,33 @@ const PORT = process.env.PORT || 5001;
 // Initialize Express
 const app = express();
 const httpServer = createServer(app);
+
+// Configure CORS - Allow all origins in development, specific in production
+const corsOptions = {
+  origin: process.env.NODE_ENV === 'production' 
+    ? ['https://vocal-cheesecake-1379ed.netlify.app', 'https://daily-shipment-tracker.netlify.app', 'https://veleka-shipments-daily-report.netlify.app'] 
+    : '*',
+  methods: ['GET', 'POST', 'PUT', 'DELETE'],
+  credentials: true
+};
+
+// Initialize socket.io with CORS settings
 const io = socketIo(httpServer, {
-  cors: {
-    origin: ['https://vocal-cheesecake-1379ed.netlify.app', 'https://daily-shipment-tracker.netlify.app', 'https://veleka-shipments-daily-report.netlify.app'],
-    methods: ['GET', 'POST', 'PUT', 'DELETE'],
-    credentials: true
-  }
+  cors: corsOptions
 });
 
 // Initialize Middleware
 app.use(express.json({ extended: false }));
-app.use(cors({
-  origin: ['https://vocal-cheesecake-1379ed.netlify.app', 'https://daily-shipment-tracker.netlify.app', 'https://veleka-shipments-daily-report.netlify.app'],
-  methods: ['GET', 'POST', 'PUT', 'DELETE'],
-  credentials: true
-}));
+app.use(cors(corsOptions));
 
 // Debug logging for all API requests
 app.use((req, res, next) => {
   const startTime = Date.now();
   console.log(`[${new Date().toISOString()}] ${req.method} ${req.url} started`);
+  
+  // Add CORS headers for all requests
+  res.header('Access-Control-Allow-Origin', corsOptions.origin === '*' ? '*' : req.headers.origin);
+  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, x-auth-token');
   
   // Once the request is processed, log the completion and response time
   res.on('finish', () => {
