@@ -167,6 +167,30 @@ const Shipments = ({ getShipments, updateShipment, deleteShipment, shipment: { s
     });
   };
 
+  // Calculate shipment status based on legs
+  const calculateShipmentStatus = (shipment) => {
+    if (!shipment || !shipment.legs || !shipment.legs.length) {
+      return shipment.shipmentStatus || 'Pending';
+    }
+    
+    // If all legs are arrived or completed, shipment is arrived
+    const allArrived = shipment.legs.every(leg => 
+      leg.status === 'Arrived' || leg.status === 'Completed'
+    );
+    if (allArrived) return 'Arrived';
+    
+    // If first leg is pending, shipment is pending
+    const firstLeg = shipment.legs[0];
+    const firstLegPending = firstLeg && (
+      firstLeg.status === 'Pending' || 
+      firstLeg.status === 'Planned'
+    );
+    if (firstLegPending) return 'Pending';
+    
+    // Otherwise, it's in transit
+    return 'In Transit';
+  };
+
   // Error handling - only show error if we have no data
   if (loading || (isRetrying && (!shipments || shipments.length === 0))) {
     return (
@@ -315,7 +339,14 @@ const Shipments = ({ getShipments, updateShipment, deleteShipment, shipment: { s
                     
                     debugShipmentField(shipment, 'destination', destinationObject);
                     
-                    const status = shipment.shipmentStatus || 'Pending';
+                    // Get status with better calculation
+                    const status = (() => {
+                      // Use already set status if available
+                      if (shipment.shipmentStatus) return shipment.shipmentStatus;
+                      
+                      // Calculate based on legs
+                      return calculateShipmentStatus(shipment);
+                    })();
                     
                     // Get departure date with better fallback logic
                     const departureDate = shipment.departureDate || 

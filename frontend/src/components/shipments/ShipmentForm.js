@@ -35,7 +35,9 @@ const initialState = {
   shipperName: '',
   consigneeName: '',
   notifyParty: '',
-  legs: []
+  vessel: '',
+  legs: [],
+  changeLog: []
 };
 
 const ShipmentForm = ({ 
@@ -303,6 +305,7 @@ const ShipmentForm = ({
     shipperName,
     consigneeName,
     notifyParty,
+    vessel,
     legs
   } = formData;
 
@@ -487,6 +490,26 @@ const ShipmentForm = ({
     }
   };
 
+  // Add function to calculate shipment status based on legs
+  const calculateShipmentStatus = (legs) => {
+    if (!legs || !legs.length) return 'Pending';
+    
+    // If all legs are arrived, shipment is completed
+    const allArrived = legs.every(leg => leg.status === 'Arrived' || leg.status === 'Completed');
+    if (allArrived) return 'Arrived';
+    
+    // If first leg is pending, shipment is pending
+    const firstLegPending = legs[0]?.status === 'Pending' || legs[0]?.status === 'Planned';
+    if (firstLegPending) return 'Pending';
+    
+    // If any leg is in transit or not arrived, shipment is in transit
+    const anyInTransit = legs.some(leg => leg.status !== 'Arrived' && leg.status !== 'Completed');
+    if (anyInTransit) return 'In Transit';
+    
+    return 'Pending'; // Default fallback
+  };
+
+  // Update the handleLegChange function to recalculate shipment status
   const handleLegChange = (index, field, value) => {
     const updatedLegs = [...formData.legs];
     updatedLegs[index] = {
@@ -494,7 +517,15 @@ const ShipmentForm = ({
       [field]: value,
       legId: updatedLegs[index].legId || `LEG-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
     };
-    setFormData({ ...formData, legs: updatedLegs });
+    
+    // Calculate new shipment status based on updated legs
+    const newShipmentStatus = calculateShipmentStatus(updatedLegs);
+    
+    setFormData({ 
+      ...formData, 
+      legs: updatedLegs,
+      shipmentStatus: newShipmentStatus // Update shipment status automatically
+    });
   };
 
   // Show loading indicator while fetching shipment data
@@ -543,21 +574,55 @@ const ShipmentForm = ({
             <div id="basic" className="form-section">
               <h3 className="section-title">Basic Information</h3>
               <div className="form-group">
-                <label htmlFor="shipmentStatus">Shipment Status</label>
+                <label htmlFor="orderStatus">Order Status</label>
                 <select
+                  id="orderStatus"
+                  name="orderStatus"
+                  value={formData.orderStatus}
+                  onChange={onChange}
+                  className={errors.orderStatus ? 'form-control is-invalid' : 'form-control'}
+                >
+                  <option value="planned">Planned</option>
+                  <option value="confirmed">Confirmed</option>
+                  <option value="done">Done</option>
+                  <option value="canceled">Canceled</option>
+                </select>
+                {errors.orderStatus && <div className="invalid-feedback">{errors.orderStatus}</div>}
+              </div>
+              
+              <div className="form-group">
+                <label htmlFor="shipmentStatus">Shipment Status (Auto-calculated)</label>
+                <input
+                  type="text"
                   id="shipmentStatus"
                   name="shipmentStatus"
                   value={formData.shipmentStatus}
+                  className="form-control"
+                  disabled
+                  title="This is automatically calculated based on the status of all legs"
+                />
+                <small className="form-text text-muted">
+                  This is calculated automatically based on leg statuses:
+                  <ul>
+                    <li>If all legs are 'Arrived' → Shipment is 'Arrived'</li>
+                    <li>If first leg is 'Pending' → Shipment is 'Pending'</li>
+                    <li>Otherwise → Shipment is 'In Transit'</li>
+                  </ul>
+                </small>
+              </div>
+              
+              <div className="form-group">
+                <label htmlFor="vessel">Vessel</label>
+                <input
+                  type="text"
+                  id="vessel"
+                  name="vessel"
+                  value={formData.vessel || ''}
                   onChange={onChange}
-                  className={errors.shipmentStatus ? 'form-control is-invalid' : 'form-control'}
-                >
-                  <option value="Pending">Pending</option>
-                  <option value="In Transit">In Transit</option>
-                  <option value="Arrived">Arrived</option>
-                  <option value="Delayed">Delayed</option>
-                  <option value="Canceled">Canceled</option>
-                </select>
-                {errors.shipmentStatus && <div className="invalid-feedback">{errors.shipmentStatus}</div>}
+                  className={errors.vessel ? 'form-control is-invalid' : 'form-control'}
+                  placeholder="Vessel name or identifier"
+                />
+                {errors.vessel && <div className="invalid-feedback">{errors.vessel}</div>}
               </div>
             </div>
             

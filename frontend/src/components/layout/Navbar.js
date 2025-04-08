@@ -28,12 +28,6 @@ const Navbar = () => {
             <span className="hide-sm">Admin Panel</span>
           </Link>
         </li>
-        <li>
-          <Link to="/add-shipment">
-            <i className="fas fa-plus"></i>{' '}
-            <span className="hide-sm">Add Shipment</span>
-          </Link>
-        </li>
       </ul>
       <style jsx>{`
         .navbar {

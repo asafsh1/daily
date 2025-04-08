@@ -15,10 +15,13 @@ const initialState = {
   carrier: '',
   legOrder: 0,
   departureDate: '',
+  departureTime: '',
   arrivalDate: '',
+  arrivalTime: '',
   trackingNumber: '',
-  status: 'pending',
-  notes: ''
+  status: 'Pending',
+  notes: '',
+  vessel: ''
 };
 
 const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
@@ -45,6 +48,17 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
     
     console.log("Normalizing leg:", leg);
     
+    // Extract date and time parts
+    const extractDateTime = (datetime) => {
+      if (!datetime) return { date: '', time: '' };
+      const date = moment(datetime).format('YYYY-MM-DD');
+      const time = moment(datetime).format('HH:mm');
+      return { date, time };
+    };
+    
+    const departure = extractDateTime(leg.departureDate || leg.departureTime);
+    const arrival = extractDateTime(leg.arrivalDate || leg.arrivalTime);
+    
     // Create a standard leg object with all possible field mappings
     return {
       _id: leg._id || leg.id || `temp-${Date.now()}`,
@@ -52,12 +66,15 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
       from: leg.from || leg.origin || '',
       to: leg.to || leg.destination || '',
       carrier: leg.carrier || leg.airline || leg.shippingLine || '',
-      departureDate: leg.departureDate || leg.departureTime || null,
-      arrivalDate: leg.arrivalDate || leg.arrivalTime || null,
+      departureDate: departure.date,
+      departureTime: departure.time,
+      arrivalDate: arrival.date,
+      arrivalTime: arrival.time,
       trackingNumber: leg.trackingNumber || leg.awbNumber || leg.awb || '',
-      status: leg.status || 'Not Started',
+      status: leg.status || 'Pending',
       notes: leg.notes || '',
-      flight: leg.flight || leg.flightNumber || ''
+      flight: leg.flight || leg.flightNumber || '',
+      vessel: leg.vessel || ''
     };
   };
 
@@ -164,8 +181,8 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
               return;
             }
           }
-        }
-      } catch (err) {
+          }
+        } catch (err) {
         console.log("Method 2 failed:", err.message);
       }
       
@@ -194,10 +211,10 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
           console.log(`Found ${response.data.length} legs with specific endpoint`);
           const normalizedLegs = response.data.map(leg => normalizeLeg(leg)).filter(Boolean);
           setLegs(sortLegs(normalizedLegs));
-          setLoading(false);
+      setLoading(false);
           return;
         }
-      } catch (err) {
+    } catch (err) {
         console.log("Method 4 failed:", err.message);
       }
       
@@ -227,7 +244,7 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
           
           // We don't save this to the database - it's just for display
           setLegs([syntheticLeg]);
-          setLoading(false);
+      setLoading(false);
           return;
         }
       } catch (err) {
@@ -300,9 +317,9 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
       if (shipmentId.toString().startsWith('temp-')) {
         // Add to local state for temporary shipments
         setLegs([
-          ...legs,
-          {
-            ...formattedData,
+          ...legs, 
+          { 
+            ...formattedData, 
             _id: generateUniqueId(ID_PREFIXES.LEG),
             changeLog: [changeLogEntry]
           }
@@ -318,10 +335,10 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
           // Fallback to the original endpoint if the direct one fails
           console.warn("Direct leg add failed, using fallback endpoint:", directAddError.message);
           const response = await axios.post(`/api/shipment-legs`, {
-            ...formattedData,
+          ...formattedData,
             shipment: shipmentId,
-            changeLog: [changeLogEntry]
-          });
+          changeLog: [changeLogEntry]
+        });
           console.log("Server response from fallback endpoint:", response.data);
         }
         
@@ -379,7 +396,7 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
           shipment: shipmentId,
           changeLog: [...(editingLeg.changeLog || []), changeLogEntry]
         });
-        
+
         console.log("Server response after updating leg:", response.data);
         
         // Refresh the legs list
@@ -419,8 +436,9 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
       departureDate: departureDate,
       arrivalDate: arrivalDate,
       trackingNumber: leg.trackingNumber || leg.awbNumber || '',
-      status: leg.status || 'pending',
-      notes: leg.notes || ''
+      status: leg.status || 'Pending',
+      notes: leg.notes || '',
+      vessel: leg.vessel || ''
     });
     
     setShowForm(true);
@@ -504,15 +522,19 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
     resetForm();
   };
 
-  // Format status for display
-  const getFormattedStatus = (status) => {
-    return status || 'Not Started';
-  };
-
-  // Format date for display
-  const formatDate = (date) => {
+  // Format date for display - include time if available
+  const formatDate = (date, time) => {
     if (!date) return 'N/A';
-    return moment(date).format('DD/MM/YYYY');
+    
+    // Create base formatted date
+    const formattedDate = moment(date).format('DD/MM/YYYY');
+    
+    // Add time if available
+    if (time) {
+      return `${formattedDate} ${time}`;
+    }
+    
+    return formattedDate;
   };
 
   // Display error message
@@ -542,7 +564,7 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
   
   // Render no legs message
   if (!legs || legs.length === 0) {
-    return (
+  return (
       <div>
         {successMessage}
         <div className="alert alert-info mt-3">
@@ -628,7 +650,7 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
             </div>
             
             <div className="form-row">
-              <div className="form-group col-md-6">
+              <div className="form-group col-md-3">
                 <label>Departure Date</label>
                 <input
                   type="date"
@@ -638,13 +660,33 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
                   onChange={onChange}
                 />
               </div>
-              <div className="form-group col-md-6">
+              <div className="form-group col-md-3">
+                <label>Departure Time</label>
+                <input
+                  type="time"
+                  className="form-control"
+                  name="departureTime"
+                  value={formData.departureTime}
+                  onChange={onChange}
+                />
+              </div>
+              <div className="form-group col-md-3">
                 <label>Arrival Date</label>
                 <input
                   type="date"
                   className="form-control"
                   name="arrivalDate"
                   value={formData.arrivalDate}
+                  onChange={onChange}
+                />
+              </div>
+              <div className="form-group col-md-3">
+                <label>Arrival Time</label>
+                <input
+                  type="time"
+                  className="form-control"
+                  name="arrivalTime"
+                  value={formData.arrivalTime}
                   onChange={onChange}
                 />
               </div>
@@ -670,13 +712,28 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
                   value={formData.status}
                   onChange={onChange}
                 >
-                  <option value="Not Started">Not Started</option>
-                  <option value="In Progress">In Progress</option>
-                  <option value="Delayed">Delayed</option>
+                  <option value="Pending">Pending</option>
+                  <option value="Planned">Planned</option>
+                  <option value="In Transit">In Transit</option>
+                  <option value="Departed">Departed</option>
+                  <option value="Arrived">Arrived</option>
                   <option value="Completed">Completed</option>
+                  <option value="Delayed">Delayed</option>
                   <option value="Cancelled">Cancelled</option>
                 </select>
               </div>
+            </div>
+            
+            <div className="form-group">
+              <label>Vessel</label>
+              <input
+                type="text"
+                className="form-control"
+                name="vessel"
+                value={formData.vessel || ''}
+                onChange={onChange}
+                placeholder="Vessel name (if applicable)"
+              />
             </div>
             
             <div className="form-group">
@@ -736,8 +793,8 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
                 <td>{leg.carrier || 'N/A'}</td>
                 <td>{leg.flight || 'N/A'}</td>
                 <td>{leg.trackingNumber || leg.awbNumber || leg.awb || 'N/A'}</td>
-                <td>{formatDate(leg.departureDate)}</td>
-                <td>{formatDate(leg.arrivalDate)}</td>
+                <td>{formatDate(leg.departureDate, leg.departureTime)}</td>
+                <td>{formatDate(leg.arrivalDate, leg.arrivalTime)}</td>
                 <td>
                   <span className={`status-badge status-${leg.status?.toLowerCase()?.replace(/\s+/g, '-') || 'unknown'}`}>
                     {leg.status || 'Not Started'}
