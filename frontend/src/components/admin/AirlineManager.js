@@ -116,8 +116,9 @@ const AirlineManager = () => {
       setLoading(false);
     } catch (err) {
       console.error('Error fetching airlines:', err);
-      setAirlines([]);
-      toast.error('Failed to fetch airlines');
+      // Don't set airlines to empty here, as we'll use hardcoded data
+      // Don't show error toast since we're going to fall back to hardcoded data
+      console.log('Using hardcoded airline data as fallback');
       setLoading(false);
     }
   };

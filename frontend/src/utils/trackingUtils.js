@@ -153,20 +153,45 @@ export const getTrackingUrl = async (awb) => {
 /**
  * Synchronous version of getTrackingUrl that only uses the cache
  * Used for rendering components where async may not be practical
+ * @param {string} carrierName - The carrier/airline name
+ * @param {string} awb - The AWB number 
+ * @returns {string|null} The tracking URL or null
  */
-export const getTrackingUrlSync = (awb) => {
+export const getTrackingUrlSync = (carrierName, awb) => {
   if (!awb || typeof awb !== 'string') return null;
   
   const cleanAwb = awb.trim();
   const airlineCode = getAirlineCode(cleanAwb);
   if (!airlineCode) return null;
   
+  // If we have carrier name, look for matching airline in hardcoded list
+  if (carrierName && typeof carrierName === 'string') {
+    const carrierLower = carrierName.toLowerCase();
+    
+    // Match carrier name to code
+    if (carrierLower.includes('el al') && HARDCODED_TRACKING['114']) {
+      return HARDCODED_TRACKING['114'](cleanAwb);
+    }
+    if (carrierLower.includes('emirates') && HARDCODED_TRACKING['176']) {
+      return HARDCODED_TRACKING['176'](cleanAwb);
+    }
+    if (carrierLower.includes('qatar') && HARDCODED_TRACKING['157']) {
+      return HARDCODED_TRACKING['157'](cleanAwb);
+    }
+    if (carrierLower.includes('delta') && HARDCODED_TRACKING['006']) {
+      return HARDCODED_TRACKING['006'](cleanAwb);
+    }
+    if (carrierLower.includes('american') && HARDCODED_TRACKING['001']) {
+      return HARDCODED_TRACKING['001'](cleanAwb);
+    }
+  }
+  
   // Try from cache first
   if (airlineCache[airlineCode]) {
     return generateTrackingUrl(cleanAwb, airlineCache[airlineCode]);
   }
   
-  // Fall back to hardcoded
+  // Fall back to hardcoded based on AWB code
   if (HARDCODED_TRACKING[airlineCode]) {
     return HARDCODED_TRACKING[airlineCode](cleanAwb);
   }

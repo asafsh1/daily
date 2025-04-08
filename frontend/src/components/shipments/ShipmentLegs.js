@@ -47,29 +47,31 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
   const fetchAirlines = async () => {
     try {
       const response = await axios.get('/api/airlines');
-      if (response.data && Array.isArray(response.data)) {
+      if (response.data && Array.isArray(response.data) && response.data.length > 0) {
         setAirlines(response.data);
+        console.log('Loaded airlines from API:', response.data);
       } else {
-        // Use hardcoded airlines as fallback
-        setAirlines([
-          { _id: '1', name: 'El Al', code: '114' },
-          { _id: '2', name: 'Emirates', code: '176' },
-          { _id: '3', name: 'Qatar Airways', code: '157' },
-          { _id: '4', name: 'Delta', code: '006' },
-          { _id: '5', name: 'American Airlines', code: '001' }
-        ]);
+        // API returned empty array or invalid data, use hardcoded airlines
+        setAirlinesFromHardcodedData();
       }
     } catch (err) {
       console.error('Error fetching airlines:', err);
       // Use hardcoded airlines as fallback
-      setAirlines([
-        { _id: '1', name: 'El Al', code: '114' },
-        { _id: '2', name: 'Emirates', code: '176' },
-        { _id: '3', name: 'Qatar Airways', code: '157' },
-        { _id: '4', name: 'Delta', code: '006' },
-        { _id: '5', name: 'American Airlines', code: '001' }
-      ]);
+      setAirlinesFromHardcodedData();
     }
+  };
+  
+  // Helper to set hardcoded airlines
+  const setAirlinesFromHardcodedData = () => {
+    console.log('Using hardcoded airlines data');
+    const hardcodedAirlines = [
+      { _id: '1', name: 'El Al', code: '114' },
+      { _id: '2', name: 'Emirates', code: '176' },
+      { _id: '3', name: 'Qatar Airways', code: '157' },
+      { _id: '4', name: 'Delta', code: '006' },
+      { _id: '5', name: 'American Airlines', code: '001' }
+    ];
+    setAirlines(hardcodedAirlines);
   };
   
   // Function to normalize inconsistent leg data structure from API
@@ -302,16 +304,24 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
   };
 
   // Function to handle edit button click
-  const editLeg = (leg) => {
+  const editLeg = (leg, e) => {
+    if (e) e.stopPropagation(); // Prevent event bubbling
     console.log('Editing leg:', leg);
     setEditingLeg(normalizeLeg(leg));
     setShowModal(true);
   };
 
   // Function to handle add new leg button click
-  const addNewLeg = () => {
+  const addNewLeg = (e) => {
+    if (e) e.stopPropagation(); // Prevent event bubbling
     setEditingLeg(null);
     setShowModal(true);
+  };
+
+  // Close the modal
+  const closeModal = (e) => {
+    if (e) e.stopPropagation(); // Prevent event bubbling
+    setShowModal(false);
   };
 
   // Generate a tracking URL for the leg
@@ -339,7 +349,9 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
   };
 
   // Handle leg deletion
-  const handleDeleteLeg = async (legId) => {
+  const handleDeleteLeg = async (legId, e) => {
+    if (e) e.stopPropagation(); // Prevent event bubbling
+    
     if (!window.confirm('Are you sure you want to delete this leg?')) {
       return;
     }
@@ -357,7 +369,9 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
   };
 
   // Handle leg status change
-  const handleLegStatusChange = async (legId, newStatus) => {
+  const handleLegStatusChange = async (legId, newStatus, e) => {
+    if (e) e.stopPropagation(); // Prevent event bubbling
+    
     try {
       if (!legId) {
         console.error('Cannot update status: No leg ID provided');
@@ -410,7 +424,7 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
         {error}
         <button 
           className="btn btn-sm btn-outline-danger ml-2" 
-          onClick={() => { setError(null); fetchLegs(); }}
+          onClick={(e) => { e.stopPropagation(); setError(null); fetchLegs(); }}
         >
           Retry
         </button>
@@ -435,7 +449,10 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
       <div className="d-flex justify-content-between align-items-center mb-3">
         <h3>Shipment Legs ({legs.length})</h3>
         {!readOnly && (
-          <button className="btn btn-primary" onClick={addNewLeg}>
+          <button 
+            className="btn btn-primary" 
+            onClick={addNewLeg}
+          >
             <i className="fas fa-plus"></i> Add Leg
           </button>
         )}
@@ -466,22 +483,27 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
             </thead>
             <tbody>
               {legs.map((leg) => (
-                <tr key={leg._id} className={leg.synthetic ? 'table-warning' : ''}>
+                <tr 
+                  key={leg._id} 
+                  className={leg.synthetic ? 'table-warning' : ''}
+                  onClick={(e) => editLeg(leg, e)}
+                  style={{ cursor: 'pointer' }}
+                >
                   <td>{leg.legOrder || 'N/A'}</td>
                   <td>{leg.legId || 'N/A'}</td>
                   <td>{leg.from || leg.origin || 'N/A'}</td>
                   <td>{leg.to || leg.destination || 'N/A'}</td>
                   <td>{leg.carrier || 'N/A'}</td>
                   <td>{leg.flightNumber || 'N/A'}</td>
-                  <td>{getDisplayAwb(leg)}</td>
+                  <td onClick={(e) => e.stopPropagation()}>{getDisplayAwb(leg)}</td>
                   <td>{formatDate(leg.departureDate, leg.departureTime)}</td>
                   <td>{formatDate(leg.arrivalDate, leg.arrivalTime)}</td>
-                  <td>
+                  <td onClick={(e) => e.stopPropagation()}>
                     {!readOnly ? (
                       <select 
                         className={`form-control form-control-sm status-${leg.status?.toLowerCase().replace(/\s+/g, '-')}`}
                         value={leg.status || 'Pending'}
-                        onChange={(e) => handleLegStatusChange(leg._id, e.target.value)}
+                        onChange={(e) => handleLegStatusChange(leg._id, e.target.value, e)}
                       >
                         <option value="Pending">Pending</option>
                         <option value="Planned">Planned</option>
@@ -499,17 +521,17 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
                     )}
                   </td>
                   {!readOnly && (
-                    <td>
+                    <td onClick={(e) => e.stopPropagation()}>
                       <button 
                         className="btn btn-sm btn-outline-primary mr-1" 
-                        onClick={() => editLeg(leg)}
+                        onClick={(e) => editLeg(leg, e)}
                         title="Edit leg"
                       >
                         <i className="fas fa-edit"></i>
                       </button>
                       <button 
                         className="btn btn-sm btn-outline-danger" 
-                        onClick={() => handleDeleteLeg(leg._id)}
+                        onClick={(e) => handleDeleteLeg(leg._id, e)}
                         title="Delete leg"
                       >
                         <i className="fas fa-trash"></i>
@@ -526,7 +548,7 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
       {/* Leg edit/add modal */}
       <LegModal 
         isOpen={showModal}
-        onClose={() => setShowModal(false)}
+        onClose={closeModal}
         shipmentId={shipmentId}
         editingLeg={editingLeg}
         onSave={handleLegSave}

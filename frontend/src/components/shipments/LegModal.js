@@ -187,7 +187,7 @@ const LegModal = ({
       <div className="leg-modal" onClick={e => e.stopPropagation()}>
         <div className="leg-modal-header">
           <h4>{editingLeg ? 'Edit Leg' : 'Add New Leg'}</h4>
-          <button className="leg-modal-close" onClick={onClose}>&times;</button>
+          <button type="button" className="leg-modal-close" onClick={onClose}>&times;</button>
         </div>
         
         <form onSubmit={handleSubmit}>
