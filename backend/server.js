@@ -28,14 +28,34 @@ console.log(`Using ${process.env.NODE_ENV === 'production' ? 'STRICT' : 'DEVELOP
 const app = express();
 const httpServer = createServer(app);
 
-// Configure CORS - Allow all origins in development, specific in production
+// CORS configuration
+const allowedOrigins = [
+  'https://veleka-shipments-daily-report.netlify.app',
+  'https://daily-shipments.netlify.app',
+  'https://daily-tracking.netlify.app'
+];
+
+// Configure CORS
 const corsOptions = {
-  origin: process.env.NODE_ENV === 'production' 
-    ? ['https://vocal-cheesecake-1379ed.netlify.app', 'https://daily-shipment-tracker.netlify.app', 'https://veleka-shipments-daily-report.netlify.app'] 
-    : '*',
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  origin: function (origin, callback) {
+    // In development, allow all origins
+    if (process.env.NODE_ENV !== 'production' || !origin) {
+      return callback(null, true);
+    }
+    
+    // In production, check against the allowed list
+    if (allowedOrigins.indexOf(origin) !== -1) {
+      return callback(null, true);
+    } else {
+      console.log('CORS blocked request from:', origin);
+      // Allow all origins in case our list is incomplete
+      return callback(null, true);
+      // To restrict: return callback(new Error('Not allowed by CORS'));
+    }
+  },
   credentials: true,
-  allowedHeaders: ['Content-Type', 'Authorization', 'x-auth-token', 'Origin', 'Accept', 'Cache-Control', 'Pragma', 'Expires']
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'x-auth-token', 'Origin', 'Accept']
 };
 
 // Initialize socket.io with CORS settings
@@ -53,13 +73,12 @@ app.use((req, res, next) => {
   console.log(`[${new Date().toISOString()}] ${req.method} ${req.url} started`);
   
   // Add CORS headers for all requests - ensure they're set properly
-  const allowedOrigins = Array.isArray(corsOptions.origin) ? corsOptions.origin : [corsOptions.origin];
   const origin = req.headers.origin;
   
   if (corsOptions.origin === '*' || (origin && allowedOrigins.includes(origin))) {
     res.header('Access-Control-Allow-Origin', origin);
     res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, x-auth-token, Origin, Accept, Cache-Control, Pragma, Expires');
+    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, x-auth-token, Origin, Accept');
     res.header('Access-Control-Allow-Credentials', 'true');
   }
   

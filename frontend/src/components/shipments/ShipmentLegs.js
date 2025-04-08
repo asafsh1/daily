@@ -296,6 +296,20 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
     return awb;
   };
 
+  // Format timestamp for display
+  const formatTimestamp = (timestamp) => {
+    if (!timestamp) return 'Never';
+    return moment(timestamp).format('DD/MM/YYYY HH:mm');
+  };
+
+  // Get last update time
+  const getLastUpdateTime = (leg) => {
+    if (leg.changeLog && leg.changeLog.length > 0) {
+      return formatTimestamp(leg.changeLog[leg.changeLog.length - 1].timestamp);
+    }
+    return formatTimestamp(leg.updatedAt);
+  };
+
   // Display error message
   if (error) {
     return (
@@ -349,6 +363,7 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
                 <th>Departure</th>
                 <th>Arrival</th>
                 <th>Status</th>
+                <th>Last Updated</th>
                 {!readOnly && <th>Actions</th>}
               </tr>
             </thead>
@@ -476,6 +491,9 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
                         </select>
                       </td>
                       <td>
+                        <small className="text-muted">{getLastUpdateTime(leg)}</small>
+                      </td>
+                      <td>
                         <button
                           className="btn btn-sm btn-success mr-1"
                           onClick={() => saveLeg(leg._id)}
@@ -521,6 +539,9 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
                             {leg.status || 'Pending'}
                           </span>
                         )}
+                      </td>
+                      <td>
+                        <small className="text-muted">{getLastUpdateTime(leg)}</small>
                       </td>
                       {!readOnly && (
                         <td>

@@ -372,6 +372,50 @@ router.put('/:id', async (req, res) => {
       });
     }
     
+    // Create changelog entry
+    const changeLogEntry = {
+      timestamp: new Date(),
+      user: req.body.user || 'User',
+      action: 'Update',
+      details: 'Updated leg information',
+      fields: {}
+    };
+    
+    // Track which fields changed
+    if (req.body.from && req.body.from !== leg.from) {
+      changeLogEntry.fields.from = { old: leg.from, new: req.body.from };
+    }
+    if (req.body.to && req.body.to !== leg.to) {
+      changeLogEntry.fields.to = { old: leg.to, new: req.body.to };
+    }
+    if (req.body.carrier && req.body.carrier !== leg.carrier) {
+      changeLogEntry.fields.carrier = { old: leg.carrier, new: req.body.carrier };
+    }
+    if (req.body.status && req.body.status !== leg.status) {
+      changeLogEntry.fields.status = { old: leg.status, new: req.body.status };
+      changeLogEntry.details = `Status changed from ${leg.status} to ${req.body.status}`;
+    }
+    if (req.body.departureDate && req.body.departureDate !== leg.departureDate) {
+      changeLogEntry.fields.departureDate = { 
+        old: leg.departureDate, 
+        new: req.body.departureDate 
+      };
+    }
+    if (req.body.arrivalDate && req.body.arrivalDate !== leg.arrivalDate) {
+      changeLogEntry.fields.arrivalDate = { 
+        old: leg.arrivalDate, 
+        new: req.body.arrivalDate 
+      };
+    }
+    
+    // Add changelog entry if we have changes
+    if (Object.keys(changeLogEntry.fields).length > 0) {
+      if (!leg.changeLog) {
+        leg.changeLog = [];
+      }
+      leg.changeLog.push(changeLogEntry);
+    }
+    
     // Update all the fields
     if (req.body.from) leg.from = req.body.from;
     if (req.body.to) leg.to = req.body.to;

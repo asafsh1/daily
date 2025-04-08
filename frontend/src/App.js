@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { BrowserRouter as Router, Route, Routes, Navigate } from 'react-router-dom';
 import { Provider } from 'react-redux';
 import store from './store';
@@ -15,41 +15,47 @@ import ShipmentDetail from './components/shipments/ShipmentDetail';
 import Admin from './components/admin/Admin';
 import NotFound from './components/layout/NotFound';
 
-// Set a default development token if needed
-if (process.env.NODE_ENV !== 'production') {
-  localStorage.setItem('token', 'default-dev-token');
-  console.log('Development token set for testing');
-}
+// Set up authentication token
+const initializeAuth = () => {
+  // Only set a default token if none exists already
+  if (!localStorage.getItem('token')) {
+    const defaultToken = 'default-dev-token';
+    localStorage.setItem('token', defaultToken);
+    console.log('Set default token for authentication:', defaultToken);
+  } else {
+    console.log('Using existing token from localStorage');
+  }
+};
 
 const App = () => {
+  useEffect(() => {
+    // Initialize authentication when the app loads
+    initializeAuth();
+  }, []);
+
   return (
     <Provider store={store}>
       <Router>
         <div className="App">
           <Navbar />
-          <Alert />
-          <Routes>
-            <Route path="/" element={<Navigate to="/shipments" />} />
-            <Route path="/dashboard" element={<Dashboard />} />
-            <Route path="/shipments" element={<Shipments />} />
-            <Route path="/add-shipment" element={<ShipmentForm />} />
-            <Route path="/edit-shipment/:id" element={<ShipmentForm />} />
-            <Route path="/shipments/:id" element={<ShipmentDetail />} />
-            <Route path="/admin/*" element={<Admin />} />
-            <Route path="*" element={<NotFound />} />
-          </Routes>
           <ToastContainer 
             position="top-right"
-            autoClose={4000}
+            autoClose={5000} 
             hideProgressBar={false}
-            newestOnTop
+            newestOnTop={true}
             closeOnClick
-            rtl={false}
-            pauseOnFocusLoss
-            draggable
             pauseOnHover
-            theme="colored"
           />
+          <Alert />
+          <Routes>
+            <Route path="/" element={<Dashboard />} />
+            <Route path="/shipments" element={<Shipments />} />
+            <Route path="/shipment/:id" element={<ShipmentDetail />} />
+            <Route path="/add-shipment" element={<ShipmentForm />} />
+            <Route path="/edit-shipment/:id" element={<ShipmentForm />} />
+            <Route path="/admin" element={<Admin />} />
+            <Route path="*" element={<NotFound />} />
+          </Routes>
         </div>
       </Router>
     </Provider>

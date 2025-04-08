@@ -75,6 +75,28 @@ const ShipmentLegSchema = new mongoose.Schema({
     status: String,
     timestamp: Date
   }],
+  changeLog: {
+    type: [{
+      timestamp: {
+        type: Date,
+        default: Date.now
+      },
+      user: {
+        type: String,
+        default: 'System'
+      },
+      action: {
+        type: String
+      },
+      details: {
+        type: String
+      },
+      fields: {
+        type: Object
+      }
+    }],
+    default: []
+  },
   createdAt: {
     type: Date,
     default: Date.now
