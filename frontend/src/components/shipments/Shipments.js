@@ -27,27 +27,14 @@ const Shipments = ({ getShipments, updateShipment, deleteShipment, shipment: { s
         setIsRetrying(true);
         console.log('Fetching shipments data...');
         
-        // Check if user is authenticated
-        const token = localStorage.getItem('token');
-        if (!token) {
-          console.error('Authentication token missing - cannot fetch shipments');
-          setFetchError('Authentication required. Please log in to view shipments.');
-          setIsRetrying(false);
-          return;
-        }
-        
-        console.log('Using token to fetch shipments:', token.substring(0, 10) + '...');
+        // No longer requiring authentication
         const result = await getShipments();
         console.log('Shipments fetched successfully, count:', result?.length || 0);
         setFetchError(null);
       } catch (err) {
         console.error('Failed to fetch shipments:', err);
         // Check for specific error types
-        if (err.response && err.response.status === 401) {
-          setFetchError('Authentication expired. Please log in again.');
-        } else if (err.response && err.response.status === 403) {
-          setFetchError('You do not have permission to view shipments.');
-        } else if (err.message && err.message.includes('Network Error')) {
+        if (err.message && err.message.includes('Network Error')) {
           setFetchError('Network error. Please check your internet connection.');
         } else {
           setFetchError(err.message || 'Failed to load shipments');

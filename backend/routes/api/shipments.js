@@ -27,8 +27,8 @@ const getSampleShipments = () => {
 
 // @route   GET api/shipments
 // @desc    Get all shipments
-// @access  Private
-router.get('/', auth, async (req, res) => {
+// @access  Public
+router.get('/', async (req, res) => {
   try {
     // Check database connection
     if (mongoose.connection.readyState !== 1) {
@@ -169,8 +169,8 @@ router.get('/repair-legs/:id', async (req, res) => {
 
 // @route   GET api/shipments/:id
 // @desc    Get shipment by ID
-// @access  Private
-router.get('/:id', auth, async (req, res) => {
+// @access  Public
+router.get('/:id', async (req, res) => {
   try {
     // Check database connection
     if (mongoose.connection.readyState !== 1) {

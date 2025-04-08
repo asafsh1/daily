@@ -28,26 +28,8 @@ export const getShipments = () => async (dispatch) => {
     dispatch(setShipmentsLoading());
     console.log('Calling API to get shipments...');
     
-    // Make sure we have a token in the header
-    const token = localStorage.getItem('token');
-    if (!token) {
-      console.error('No authentication token found');
-      dispatch({
-        type: SHIPMENT_ERROR,
-        payload: { msg: 'Authentication required', status: 401 }
-      });
-      throw new Error('Authentication required');
-    }
-    
-    // Add explicit headers to ensure token is included
-    const config = {
-      headers: {
-        'Content-Type': 'application/json',
-        'x-auth-token': token
-      }
-    };
-    
-    const res = await axios.get('/api/shipments', config);
+    // No longer requiring authentication token
+    const res = await axios.get('/api/shipments');
     
     // Debug the API response
     console.log('API response for shipments:', res.data);
