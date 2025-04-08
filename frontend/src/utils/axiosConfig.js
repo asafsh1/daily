@@ -19,7 +19,8 @@ instance.interceptors.request.use(
       config.headers['x-auth-token'] = token;
     }
     
-    // Add timestamp to GET requests to prevent caching
+    // Add timestamp to GET requests to prevent caching instead of using cache-control headers
+    // This avoids CORS preflight issues with complex headers
     if (config.method === 'get' && !config.url.includes('timestamp=')) {
       const separator = config.url.includes('?') ? '&' : '?';
       config.url = `${config.url}${separator}timestamp=${new Date().getTime()}`;
@@ -43,6 +44,14 @@ instance.interceptors.response.use(
       // The request was made and the server responded with a status code
       // that falls out of the range of 2xx
       console.error(`[Axios Error] Status: ${error.response.status}`, error.response.data);
+      
+      // If unauthorized, try to redirect to login page or use fallback data
+      if (error.response.status === 401) {
+        console.warn('Authentication error - using fallback data where available');
+        // You could redirect to login or handle differently
+        // window.location.href = '/login';
+      }
+      
       return Promise.reject(error);
     } 
     

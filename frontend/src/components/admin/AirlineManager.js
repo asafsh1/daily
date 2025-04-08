@@ -93,8 +93,7 @@ const AirlineManager = () => {
       
       const response = await fetch(apiUrl, {
         headers: {
-          'x-auth-token': token,
-          'Cache-Control': 'no-cache'
+          'x-auth-token': token
         }
       });
       
@@ -165,10 +164,7 @@ const AirlineManager = () => {
           method: 'PUT',
           headers: {
             'Content-Type': 'application/json',
-            'x-auth-token': localStorage.getItem('token') || 'default-dev-token',
-            'Cache-Control': 'no-cache, no-store, must-revalidate',
-            'Pragma': 'no-cache',
-            'Expires': '0'
+            'x-auth-token': localStorage.getItem('token') || 'default-dev-token'
           },
           body: JSON.stringify(airlineData)
         });
