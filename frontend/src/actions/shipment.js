@@ -28,7 +28,26 @@ export const getShipments = () => async (dispatch) => {
     dispatch(setShipmentsLoading());
     console.log('Calling API to get shipments...');
     
-    const res = await axios.get('/api/shipments');
+    // Make sure we have a token in the header
+    const token = localStorage.getItem('token');
+    if (!token) {
+      console.error('No authentication token found');
+      dispatch({
+        type: SHIPMENT_ERROR,
+        payload: { msg: 'Authentication required', status: 401 }
+      });
+      throw new Error('Authentication required');
+    }
+    
+    // Add explicit headers to ensure token is included
+    const config = {
+      headers: {
+        'Content-Type': 'application/json',
+        'x-auth-token': token
+      }
+    };
+    
+    const res = await axios.get('/api/shipments', config);
     
     // Debug the API response
     console.log('API response for shipments:', res.data);
@@ -55,10 +74,23 @@ export const getShipments = () => async (dispatch) => {
     return shipmentsArray;
   } catch (err) {
     console.error('Error fetching shipments:', err);
+    let errorMsg = 'Failed to fetch shipments';
+    let statusCode = 500;
+    
+    if (err.response) {
+      errorMsg = err.response.data?.msg || 'Server returned an error';
+      statusCode = err.response.status;
+      console.error(`Server error ${statusCode}: ${errorMsg}`);
+    } else if (err.request) {
+      errorMsg = 'No response received from server';
+      console.error('No response from server:', err.request);
+    } else {
+      errorMsg = err.message || 'Unknown error occurred';
+    }
     
     dispatch({
       type: SHIPMENT_ERROR,
-      payload: { msg: err.response?.data?.msg || 'Failed to fetch shipments', status: err.response?.status }
+      payload: { msg: errorMsg, status: statusCode }
     });
     
     throw err;
