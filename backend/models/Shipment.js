@@ -103,6 +103,10 @@ const ShipmentSchema = new Schema(
     updatedBy: {
       type: String
     },
+    // Change carrier to airline
+    airline: {
+      type: String
+    },
     // References to entity IDs
     shipper: {
       type: Schema.Types.ObjectId,
@@ -185,27 +189,18 @@ ShipmentSchema.pre('save', async function(next) {
     
     next();
   } catch (err) {
-    console.error('Error generating serial number:', err);
+    console.error('Error in serial number generation:', err);
     next(err);
   }
 });
 
-// Add a virtual property to get routing from legs
-ShipmentSchema.virtual('routing').get(function() {
-  if (!this.legs || this.legs.length === 0) {
-    return 'No routing';
-  }
-  
-  // Map legs to their origin/destination and join with hyphens
-  const routePoints = [];
-  this.legs.forEach((leg, index) => {
-    if (index === 0) {
-      routePoints.push(leg.origin);
-    }
-    routePoints.push(leg.destination);
-  });
-  
-  return routePoints.join('-');
+// Backwards compatibility for carrier field (map to airline)
+ShipmentSchema.virtual('carrier').get(function() {
+  return this.airline;
+});
+
+ShipmentSchema.virtual('carrier').set(function(value) {
+  this.airline = value;
 });
 
 // Set toJSON and toObject options to include virtuals
@@ -213,7 +208,6 @@ ShipmentSchema.set('toJSON', { virtuals: true });
 ShipmentSchema.set('toObject', { virtuals: true });
 
 // Add middleware to auto-populate legs when getting a shipment
-// This ensures legs are always available without explicit population
 ShipmentSchema.pre('findOne', function() {
   this.populate('legs');
 });

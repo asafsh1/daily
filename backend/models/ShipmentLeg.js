@@ -36,8 +36,8 @@ const ShipmentLegSchema = new mongoose.Schema({
   },
   status: {
     type: String,
-    enum: ['pending', 'in-transit', 'delayed', 'completed', 'cancelled'],
-    default: 'pending'
+    enum: ['Pending', 'Planned', 'In Transit', 'Departed', 'Arrived', 'Completed', 'Delayed', 'Cancelled'],
+    default: 'Pending'
   },
   trackingNumber: {
     type: String,
@@ -128,35 +128,14 @@ ShipmentLegSchema.pre('save', async function(next) {
     
     // Generate a consistent legId if it doesn't exist (LEG001, LEG002, etc.)
     if (!this.legId) {
-      // Find the highest legId with our format
-      const latestLeg = await this.constructor
-        .findOne(
-          { legId: /^LEG\d{3}$/ }, // Match LEGxxx format
-          { legId: 1 }
-        )
-        .sort({ legId: -1 }); // Get the highest one
-      
-      let nextNumber = 1;
-      if (latestLeg && latestLeg.legId) {
-        console.log('Found existing highest legId:', latestLeg.legId);
-        
-        // Extract the numeric part
-        const numberPart = latestLeg.legId.replace('LEG', '');
-        if (numberPart && !isNaN(numberPart)) {
-          nextNumber = parseInt(numberPart, 10) + 1;
-        }
-      }
-      
-      // Format with leading zeros (e.g., LEG001)
-      this.legId = `LEG${nextNumber.toString().padStart(3, '0')}`;
-      console.log('Generated new legId:', this.legId);
+      this.legId = `LEG${Math.floor(Math.random() * 10000).toString().padStart(3, '0')}`;
     }
     
     next();
-  } catch (err) {
-    console.error('Error in ShipmentLeg pre-save hook:', err);
-    next(err);
+  } catch (error) {
+    console.error('Error in ShipmentLeg pre-save hook:', error);
+    next(error);
   }
 });
 
-module.exports = mongoose.model('shipmentLeg', ShipmentLegSchema); 
+module.exports = ShipmentLeg = mongoose.model('shipmentLeg', ShipmentLegSchema); 

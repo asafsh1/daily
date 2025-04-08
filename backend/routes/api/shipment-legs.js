@@ -193,7 +193,7 @@ router.post('/', [
       departureDate: req.body.departureDate,
       arrivalDate: req.body.arrivalDate,
       trackingNumber: req.body.trackingNumber,
-      status: req.body.status || 'Not Started',
+      status: req.body.status || 'Pending',
       notes: req.body.notes,
       shipment: req.body.shipment,
       // Add compatibility fields
@@ -204,9 +204,13 @@ router.post('/', [
       departureTime: req.body.departureDate,
       arrivalTime: req.body.arrivalDate,
       shipmentId: req.body.shipment, // Add this for compatibility
-      changeLog: req.body.changeLog || [],
       // Set the legId manually
-      legId: legId
+      legId: legId,
+      // Initialize the status history
+      statusHistory: [{
+        status: req.body.status || 'Pending',
+        timestamp: new Date()
+      }]
     });
 
     try {
@@ -226,29 +230,24 @@ router.post('/', [
             shipment.legs.push(leg._id);
             await shipment.save();
             console.log('Added leg to shipment:', shipment._id);
+          } else {
+            console.log('Shipment not found:', req.body.shipment);
           }
-        } catch (shipmentErr) {
-          console.error('Error updating shipment with leg reference:', shipmentErr);
-          // Continue anyway, we've already created the leg
+        } catch (err) {
+          console.error('Error updating shipment with leg:', err);
         }
+      } else {
+        console.log('Invalid shipment ID format:', req.body.shipment);
       }
-
-      return res.json(leg);
-    } catch (saveErr) {
-      console.error('Error saving leg:', saveErr);
-      return res.status(500).json({ 
-        msg: 'Error saving leg', 
-        error: saveErr.message,
-        stack: process.env.NODE_ENV === 'production' ? null : saveErr.stack
-      });
+      
+      res.json(leg);
+    } catch (err) {
+      console.error('Error saving leg:', err);
+      res.status(500).json({ msg: 'Server error saving leg', error: err.message });
     }
   } catch (err) {
-    console.error('Error in shipment leg creation route:', err);
-    return res.status(500).json({
-      msg: 'Server Error',
-      error: err.message,
-      stack: process.env.NODE_ENV === 'production' ? null : err.stack
-    });
+    console.error(err.message);
+    res.status(500).send('Server Error');
   }
 });
 
@@ -358,78 +357,44 @@ router.put('/:id', async (req, res) => {
     const leg = await ShipmentLeg.findById(req.params.id);
     
     if (!leg) {
-      return res.status(404).json({ msg: 'Leg not found' });
+      return res.status(404).json({ msg: 'Shipment leg not found' });
     }
-
-    // Update fields
-    const {
-      from, to, carrier, legOrder, departureDate,
-      arrivalDate, trackingNumber, status, notes, changeLog
-    } = req.body;
     
-    if (from) {
-      leg.from = from;
-      leg.origin = from; // Update compatibility field
+    // Check if status has changed to update the status history
+    if (req.body.status && req.body.status !== leg.status) {
+      if (!leg.statusHistory) {
+        leg.statusHistory = [];
+      }
+      
+      leg.statusHistory.push({
+        status: req.body.status,
+        timestamp: new Date()
+      });
     }
-    if (to) {
-      leg.to = to;
-      leg.destination = to; // Update compatibility field
-    }
-    if (carrier) leg.carrier = carrier;
-    if (legOrder !== undefined) leg.legOrder = legOrder;
-    if (departureDate) {
-      leg.departureDate = departureDate;
-      leg.departureTime = departureDate; // Update compatibility field
-    }
-    if (arrivalDate) {
-      leg.arrivalDate = arrivalDate;
-      leg.arrivalTime = arrivalDate; // Update compatibility field
-    }
-    if (trackingNumber) {
-      leg.trackingNumber = trackingNumber;
-      leg.mawbNumber = trackingNumber; // Update compatibility field
-    }
-    if (status) leg.status = status;
-    if (notes) leg.notes = notes;
-    if (changeLog && Array.isArray(changeLog)) {
-      leg.changeLog = changeLog;
-    }
+    
+    // Update all the fields
+    if (req.body.from) leg.from = req.body.from;
+    if (req.body.to) leg.to = req.body.to;
+    if (req.body.carrier) leg.carrier = req.body.carrier;
+    if (req.body.legOrder !== undefined) leg.legOrder = req.body.legOrder;
+    if (req.body.departureDate) leg.departureDate = req.body.departureDate;
+    if (req.body.arrivalDate) leg.arrivalDate = req.body.arrivalDate;
+    if (req.body.trackingNumber) leg.trackingNumber = req.body.trackingNumber;
+    if (req.body.status) leg.status = req.body.status;
+    if (req.body.notes !== undefined) leg.notes = req.body.notes;
+    if (req.body.flightNumber) leg.flightNumber = req.body.flightNumber;
+    
+    // Update compatibility fields
+    if (req.body.from) leg.origin = req.body.from;
+    if (req.body.to) leg.destination = req.body.to;
+    if (req.body.trackingNumber) leg.mawbNumber = req.body.trackingNumber;
+    if (req.body.departureDate) leg.departureTime = req.body.departureDate;
+    if (req.body.arrivalDate) leg.arrivalTime = req.body.arrivalDate;
+    
+    // Update timestamp
+    leg.updatedAt = Date.now();
     
     await leg.save();
-    
-    // Also update the leg in the shipment
-    if (leg.shipment) {
-      try {
-        const shipment = await Shipment.findById(leg.shipment);
-        if (shipment && shipment.legs && Array.isArray(shipment.legs)) {
-          // Find the leg in the shipment's legs array
-          const legIndex = shipment.legs.findIndex(
-            l => l._id.toString() === req.params.id
-          );
-          
-          if (legIndex !== -1) {
-            // Update the leg
-            shipment.legs[legIndex] = {
-              ...shipment.legs[legIndex],
-              from: leg.from,
-              to: leg.to,
-              carrier: leg.carrier,
-              legOrder: leg.legOrder,
-              departureDate: leg.departureDate,
-              arrivalDate: leg.arrivalDate,
-              trackingNumber: leg.trackingNumber,
-              status: leg.status,
-              notes: leg.notes
-            };
-            
-            await shipment.save();
-          }
-        }
-      } catch (shipmentErr) {
-        console.error('Error updating leg in shipment:', shipmentErr.message);
-      }
-    }
-    
     res.json(leg);
   } catch (err) {
     console.error(err.message);
@@ -438,45 +403,57 @@ router.put('/:id', async (req, res) => {
 });
 
 // @route   PUT api/shipment-legs/:id/status
-// @desc    Update a shipment leg's status
+// @desc    Update just the status of a leg
 // @access  Public
 router.put('/:id/status', async (req, res) => {
   try {
-    if (!req.body.status) {
-      return res.status(400).json({ msg: 'Status is required' });
-    }
-    
     const leg = await ShipmentLeg.findById(req.params.id);
     
     if (!leg) {
-      return res.status(404).json({ msg: 'Leg not found' });
+      return res.status(404).json({ msg: 'Shipment leg not found' });
     }
     
-    leg.status = req.body.status;
-    await leg.save();
-    
-    // Also update the leg in the shipment document if it exists there
-    if (leg.shipment) {
-      try {
-        const shipment = await Shipment.findById(leg.shipment);
-        if (shipment && shipment.legs && Array.isArray(shipment.legs)) {
-          // Find the leg in the shipment's legs array
-          const legIndex = shipment.legs.findIndex(
-            l => l._id.toString() === req.params.id
-          );
-          
-          if (legIndex !== -1) {
-            // Update just the status
-            shipment.legs[legIndex].status = req.body.status;
-            await shipment.save();
-          }
-        }
-      } catch (shipmentErr) {
-        console.error('Error updating leg status in shipment:', shipmentErr.message);
+    // Only update the status
+    if (req.body.status) {
+      // Track status history
+      if (!leg.statusHistory) {
+        leg.statusHistory = [];
       }
+      
+      // Add status change to history
+      leg.statusHistory.push({
+        status: req.body.status,
+        timestamp: new Date()
+      });
+      
+      // Update the current status
+      leg.status = req.body.status;
+      leg.updatedAt = Date.now();
+      
+      await leg.save();
+      res.json(leg);
+    } else {
+      return res.status(400).json({ msg: 'Status field is required' });
+    }
+  } catch (err) {
+    console.error(err.message);
+    res.status(500).send('Server Error');
+  }
+});
+
+// @route   GET api/shipment-legs/:id/history
+// @desc    Get the status history of a leg
+// @access  Public
+router.get('/:id/history', async (req, res) => {
+  try {
+    const leg = await ShipmentLeg.findById(req.params.id);
+    
+    if (!leg) {
+      return res.status(404).json({ msg: 'Shipment leg not found' });
     }
     
-    res.json(leg);
+    // Return the status history
+    res.json(leg.statusHistory || []);
   } catch (err) {
     console.error(err.message);
     res.status(500).send('Server Error');
