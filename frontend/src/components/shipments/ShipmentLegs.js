@@ -42,7 +42,7 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
       fetchAirlines();
     }
   }, [shipmentId]);
-  
+
   // Fetch airlines from the API
   const fetchAirlines = async () => {
     try {
@@ -127,128 +127,52 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
 
   // Fetch legs data from API - try all possible endpoints
   const fetchLegs = async () => {
+    setLoading(true);
+    setError('');
+    
     try {
-      setLoading(true);
-      setError(null);
-      
       console.log(`Fetching legs for shipment ID: ${shipmentId}`);
       
-      // First attempt - use the debugging endpoint to find legs in any possible location
-      try {
-        const debugResponse = await axios.get(`/api/shipment-legs/debug/${shipmentId}`);
-        console.log('Debug response:', debugResponse.data);
-        
-        if (debugResponse.data && debugResponse.data.uniqueLegs && 
-            Array.isArray(debugResponse.data.uniqueLegs) && 
-            debugResponse.data.uniqueLegs.length > 0) {
-              
-          // We found legs through the debugger - use them
-          console.log(`Debug API found ${debugResponse.data.uniqueLegs.length} legs`);
-          const normalizedLegs = debugResponse.data.uniqueLegs.map(leg => normalizeLeg(leg)).filter(Boolean);
-          setLegs(sortLegs(normalizedLegs));
-          setLoading(false);
-          return;
-        } else {
-          console.log('Debug API found no legs');
-        }
-      } catch (debugErr) {
-        console.error('Error using debug endpoint:', debugErr);
-      }
-      
-      // Method 1: Try direct shipment-legs endpoint 
+      // Try the main API route first - should work based on backend implementation
       try {
         const response = await axios.get(`/api/shipment-legs/shipment/${shipmentId}`);
-        logResponse("Direct API", response.data);
+        console.log('API response from shipment-legs/shipment/', response.data);
         
-        if (response.data && Array.isArray(response.data) && response.data.length > 0) {
-          console.log(`Found ${response.data.length} legs in response`);
-          const normalizedLegs = response.data.map(leg => normalizeLeg(leg)).filter(Boolean);
-          setLegs(sortLegs(normalizedLegs));
+        if (Array.isArray(response.data) && response.data.length > 0) {
+          setLegs(response.data);
           setLoading(false);
           return;
         }
       } catch (err) {
-        console.log("Method 1 failed:", err.message);
+        console.log("Main API route failed:", err.message);
       }
       
-      // Method 2: Try getting shipment and extracting legs
-      try {
-        const response = await axios.get(`/api/shipments/${shipmentId}`);
-        logResponse("Shipment API", response.data);
-        
-        if (response.data && response.data.legs && 
-            Array.isArray(response.data.legs) && response.data.legs.length > 0) {
-              
-          // Check if the legs are objects with data or just references
-          const firstLeg = response.data.legs[0];
-          const areEmbeddedLegs = firstLeg && (firstLeg.from || firstLeg.origin);
-          
-          if (areEmbeddedLegs) {
-            console.log(`Found ${response.data.legs.length} embedded legs in shipment`);
-            const normalizedLegs = response.data.legs.map(leg => normalizeLeg(leg)).filter(Boolean);
-            setLegs(sortLegs(normalizedLegs));
-            setLoading(false);
-            return;
-          } else {
-            // These are leg references - we need to fetch each one
-            console.log(`Found ${response.data.legs.length} leg references in shipment`);
-            
-            const legFetches = response.data.legs.map(legId => {
-              const id = typeof legId === 'string' ? legId : legId._id;
-              return axios.get(`/api/shipment-legs/${id}`)
-                .then(res => res.data)
-                .catch(err => {
-                  console.error(`Failed to fetch leg ${id}:`, err);
-                  return null;
-                });
-            });
-            
-            const legResults = await Promise.all(legFetches);
-            const validLegs = legResults.filter(Boolean);
-            
-            if (validLegs.length > 0) {
-              console.log(`Fetched ${validLegs.length} legs from references`);
-              const normalizedLegs = validLegs.map(leg => normalizeLeg(leg)).filter(Boolean);
-              setLegs(sortLegs(normalizedLegs));
-              setLoading(false);
-              return;
-            }
-          }
-        }
-      } catch (err) {
-        console.log("Method 2 failed:", err.message);
-      }
-      
-      // Method 3: Try alternative shipment-legs endpoint
-      try {
-        const response = await axios.get(`/api/shipment-legs/${shipmentId}`);
-        logResponse("Alt API", response.data);
-        
-        if (response.data && Array.isArray(response.data) && response.data.length > 0) {
-          console.log(`Found ${response.data.length} legs with alt endpoint`);
-          const normalizedLegs = response.data.map(leg => normalizeLeg(leg)).filter(Boolean);
-          setLegs(sortLegs(normalizedLegs));
-          setLoading(false);
-          return;
-        }
-      } catch (err) {
-        console.log("Method 3 failed:", err.message);
-      }
-      
-      // Method 4: Try more specific endpoint format
+      // Try the second method - shipments/:id/legs approach
       try {
         const response = await axios.get(`/api/shipments/${shipmentId}/legs`);
-        logResponse("Specific API", response.data);
+        console.log('API response from shipments/:id/legs', response.data);
         
-        if (response.data && Array.isArray(response.data) && response.data.length > 0) {
-          console.log(`Found ${response.data.length} legs with specific endpoint`);
-          const normalizedLegs = response.data.map(leg => normalizeLeg(leg)).filter(Boolean);
-          setLegs(sortLegs(normalizedLegs));
+        if (Array.isArray(response.data) && response.data.length > 0) {
+          setLegs(response.data);
           setLoading(false);
           return;
         }
       } catch (err) {
-        console.log("Method 4 failed:", err.message);
+        console.log("Secondary API route failed:", err.message);
+      }
+      
+      // Try the fallback route
+      try {
+        const response = await axios.get(`/api/shipment-legs/${shipmentId}`);
+        console.log('API response from fallback route', response.data);
+        
+        if (Array.isArray(response.data) && response.data.length > 0) {
+          setLegs(response.data);
+          setLoading(false);
+          return;
+        }
+      } catch (err) {
+        console.log("Fallback API route failed:", err.message);
       }
       
       // Manual method as last resort
@@ -361,7 +285,7 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
       toast.success('Leg deleted successfully');
       
       // Update local state
-      setLegs(legs.filter(leg => leg._id !== legId));
+        setLegs(legs.filter(leg => leg._id !== legId));
     } catch (err) {
       console.error('Error deleting leg:', err);
       toast.error('Failed to delete leg');
@@ -389,13 +313,13 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
       
       // For real legs, update on the server
       const res = await axios.put(`/api/shipment-legs/${legId}/status`, { status: newStatus });
-      
-      // Update local state
-      setLegs(legs.map(leg => 
-        leg._id === legId ? { ...leg, status: newStatus } : leg
-      ));
-      
-      toast.success('Leg status updated');
+        
+        // Update local state
+        setLegs(legs.map(leg => 
+          leg._id === legId ? { ...leg, status: newStatus } : leg
+        ));
+        
+        toast.success('Leg status updated');
     } catch (err) {
       console.error('Error updating leg status:', err);
       setError('Failed to update leg status');
@@ -450,14 +374,14 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
         <h3>Shipment Legs ({legs.length})</h3>
         {!readOnly && (
           <button 
-            className="btn btn-primary" 
+            className="btn btn-primary"
             onClick={addNewLeg}
           >
             <i className="fas fa-plus"></i> Add Leg
           </button>
         )}
       </div>
-      
+
       {legs.length === 0 ? (
         <div className="alert alert-info">
           No legs found for this shipment. 
@@ -500,7 +424,7 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
                   <td>{formatDate(leg.arrivalDate, leg.arrivalTime)}</td>
                   <td onClick={(e) => e.stopPropagation()}>
                     {!readOnly ? (
-                      <select 
+                      <select
                         className={`form-control form-control-sm status-${leg.status?.toLowerCase().replace(/\s+/g, '-')}`}
                         value={leg.status || 'Pending'}
                         onChange={(e) => handleLegStatusChange(leg._id, e.target.value, e)}
@@ -520,23 +444,23 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
                       </span>
                     )}
                   </td>
-                  {!readOnly && (
+                    {!readOnly && (
                     <td onClick={(e) => e.stopPropagation()}>
-                      <button 
+                        <button
                         className="btn btn-sm btn-outline-primary mr-1" 
                         onClick={(e) => editLeg(leg, e)}
                         title="Edit leg"
                       >
                         <i className="fas fa-edit"></i>
-                      </button>
-                      <button 
+                        </button>
+                        <button
                         className="btn btn-sm btn-outline-danger" 
                         onClick={(e) => handleDeleteLeg(leg._id, e)}
                         title="Delete leg"
                       >
                         <i className="fas fa-trash"></i>
-                      </button>
-                    </td>
+                        </button>
+                  </td>
                   )}
                 </tr>
               ))}
@@ -544,7 +468,7 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
           </table>
         </div>
       )}
-      
+
       {/* Leg edit/add modal */}
       <LegModal 
         isOpen={showModal}
