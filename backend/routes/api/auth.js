@@ -7,6 +7,11 @@ const { check, validationResult } = require('express-validator');
 const auth = require('../../middleware/auth');
 const mockAuth = require('../../utils/mockAuth');
 
+// Get the appropriate auth middleware based on environment
+const authMiddleware = process.env.NODE_ENV === 'production' 
+  ? require('../../middleware/auth') 
+  : require('../../middleware/devAuth');
+
 const User = require('../../models/User');
 
 // Default admin credentials
@@ -28,14 +33,14 @@ router.get('/test', (req, res) => {
 // @route   GET api/auth/user
 // @desc    Get user by token
 // @access  Private
-router.get('/user', auth, (req, res) => {
+router.get('/user', authMiddleware, (req, res) => {
   res.json({ userId: req.user.id });
 });
 
 // @route   GET api/auth
 // @desc    Get user by token
 // @access  Private
-router.get('/', auth, async (req, res) => {
+router.get('/', authMiddleware, async (req, res) => {
   try {
     // First try to get user from mock auth
     const mockUser = mockAuth.getUserById(req.user.id);

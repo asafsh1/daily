@@ -1,124 +1,135 @@
 import React, { useEffect, useState } from 'react';
 import axios from '../../utils/axiosConfig';
 import Spinner from '../layout/Spinner';
+import { toast } from 'react-toastify';
 
 const UserManager = () => {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
-  const [editUser, setEditUser] = useState(null);
+  const [editingUser, setEditingUser] = useState(null);
   const [formData, setFormData] = useState({
     name: '',
     email: '',
-    role: 'user'
+    password: '',
+    role: 'team_member'
   });
-  const { name, email, role } = formData;
+  const [error, setError] = useState(null);
 
-  // Load users on component mount
+  // Fetch users on component mount
   useEffect(() => {
     getUsers();
   }, []);
 
   // Fetch users from API
   const getUsers = async () => {
+    setLoading(true);
+    setError(null);
     try {
-      setLoading(true);
       const res = await axios.get('/api/users');
       setUsers(res.data);
-      setLoading(false);
     } catch (err) {
       console.error('Error fetching users:', err);
+      setError('Failed to load users. Please try again later.');
+      toast.error('Failed to load users');
+    } finally {
       setLoading(false);
     }
   };
 
-  // Delete user
+  // Handle user deletion
   const handleDelete = async (id) => {
-    if (window.confirm('Are you sure you want to delete this user?')) {
-      try {
-        await axios.delete(`/api/users/${id}`);
-        setUsers(users.filter(user => user._id !== id));
-      } catch (err) {
-        console.error('Error deleting user:', err);
-        alert(`Error: ${err.response?.data?.msg || 'Something went wrong'}`);
-      }
+    if (!window.confirm('Are you sure you want to delete this user?')) return;
+    
+    try {
+      await axios.delete(`/api/users/${id}`);
+      setUsers(users.filter(user => user._id !== id && user.id !== id));
+      toast.success('User deleted successfully');
+    } catch (err) {
+      console.error('Error deleting user:', err);
+      toast.error(err.response?.data?.msg || 'Failed to delete user');
     }
   };
 
-  // Open form to edit user
-  const handleEdit = (user) => {
-    setEditUser(user);
-    setFormData({
-      name: user.name || '',
-      email: user.email || '',
-      role: user.role || 'user'
-    });
-    setShowForm(true);
-  };
-
-  // Handle form change
+  // Handle form input changes
   const onChange = e => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
-  // Handle form submission (add/edit)
+  // Handle form submission
   const onSubmit = async e => {
     e.preventDefault();
     
     try {
-      if (editUser) {
+      if (editingUser) {
         // Update existing user
-        const res = await axios.put(`/api/users/${editUser._id}`, formData);
-        setUsers(
-          users.map(user => 
-            user._id === editUser._id ? res.data : user
-          )
-        );
+        const res = await axios.put(`/api/users/${editingUser._id || editingUser.id}`, formData);
+        setUsers(users.map(user => 
+          (user._id === editingUser._id || user.id === editingUser.id) ? res.data : user
+        ));
+        toast.success('User updated successfully');
       } else {
-        // Add new user - requires password for new users
-        const newUserData = {
-          ...formData,
-          password: generatePassword()
-        };
-        
-        const res = await axios.post('/api/users', newUserData);
+        // Create new user
+        const res = await axios.post('/api/users', formData);
         setUsers([...users, res.data]);
+        toast.success('User created successfully');
       }
       
-      // Close form and reset
-      setShowForm(false);
-      setEditUser(null);
+      // Reset form
       setFormData({
         name: '',
         email: '',
-        role: 'user'
+        password: '',
+        role: 'team_member'
       });
+      setShowForm(false);
+      setEditingUser(null);
     } catch (err) {
       console.error('Error saving user:', err);
-      alert(`Error: ${err.response?.data?.errors?.[0]?.msg || err.response?.data?.msg || 'Something went wrong'}`);
+      const errorMsg = err.response?.data?.errors?.[0]?.msg || err.response?.data?.msg || 'An error occurred';
+      toast.error(errorMsg);
     }
   };
 
-  // Generate a random password for new users
+  // Generate a random password
   const generatePassword = () => {
-    const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*";
-    let password = "";
-    for (let i = 0; i < 10; i++) {
-      password += chars.charAt(Math.floor(Math.random() * chars.length));
+    const length = 10;
+    const charset = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*()-_=+';
+    let password = '';
+    
+    for (let i = 0; i < length; i++) {
+      const randomIndex = Math.floor(Math.random() * charset.length);
+      password += charset[randomIndex];
     }
-    return password;
+    
+    setFormData({ ...formData, password });
   };
 
-  // Handle form cancel
+  // Edit a user
+  const handleEdit = (user) => {
+    setEditingUser(user);
+    setFormData({
+      name: user.name,
+      email: user.email,
+      password: '', // Don't include the password
+      role: user.role
+    });
+    setShowForm(true);
+  };
+
+  // Cancel form editing
   const handleCancel = () => {
     setShowForm(false);
-    setEditUser(null);
+    setEditingUser(null);
     setFormData({
       name: '',
       email: '',
-      role: 'user'
+      password: '',
+      role: 'team_member'
     });
   };
+
+  if (loading) return <Spinner />;
 
   return (
     <div className="admin-section">
@@ -133,71 +144,89 @@ const UserManager = () => {
         </button>
       </div>
 
+      {error && <div className="alert alert-danger">{error}</div>}
+
       {showForm && (
-        <div className="card my-3">
-          <div className="card-header bg-light">
-            <h3>{editUser ? 'Edit User' : 'Add New User'}</h3>
+        <div className="card mb-4">
+          <div className="card-header">
+            <h3>{editingUser ? 'Edit User' : 'Add New User'}</h3>
           </div>
           <div className="card-body">
             <form onSubmit={onSubmit}>
               <div className="form-group">
-                <label htmlFor="name">Name *</label>
-                <input 
-                  type="text" 
-                  className="form-control" 
-                  id="name" 
-                  name="name" 
-                  value={name} 
-                  onChange={onChange} 
-                  required 
+                <label htmlFor="name">Name</label>
+                <input
+                  type="text"
+                  id="name"
+                  name="name"
+                  className="form-control"
+                  value={formData.name}
+                  onChange={onChange}
+                  required
                 />
               </div>
-
+              
               <div className="form-group">
-                <label htmlFor="email">Email *</label>
-                <input 
-                  type="email" 
-                  className="form-control" 
-                  id="email" 
-                  name="email" 
-                  value={email} 
-                  onChange={onChange} 
-                  required 
+                <label htmlFor="email">Email</label>
+                <input
+                  type="email"
+                  id="email"
+                  name="email"
+                  className="form-control"
+                  value={formData.email}
+                  onChange={onChange}
+                  required
                 />
               </div>
-
+              
               <div className="form-group">
-                <label htmlFor="role">Role *</label>
-                <select 
-                  className="form-control" 
-                  id="role" 
-                  name="role" 
-                  value={role} 
-                  onChange={onChange} 
-                  required 
+                <label htmlFor="password">
+                  Password
+                  {editingUser && ' (Leave blank to keep unchanged)'}
+                </label>
+                <div className="input-group">
+                  <input
+                    type="password"
+                    id="password"
+                    name="password"
+                    className="form-control"
+                    value={formData.password}
+                    onChange={onChange}
+                    required={!editingUser}
+                  />
+                  <div className="input-group-append">
+                    <button 
+                      type="button" 
+                      className="btn btn-outline-secondary"
+                      onClick={generatePassword}
+                    >
+                      Generate
+                    </button>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="form-group">
+                <label htmlFor="role">Role</label>
+                <select
+                  id="role"
+                  name="role"
+                  className="form-control"
+                  value={formData.role}
+                  onChange={onChange}
+                  required
                 >
-                  <option value="user">User</option>
-                  <option value="manager">Manager</option>
                   <option value="admin">Admin</option>
+                  <option value="manager">Manager</option>
+                  <option value="team_member">Team Member</option>
                 </select>
               </div>
-
-              {!editUser && (
-                <div className="alert alert-info">
-                  <i className="fas fa-info-circle"></i> A random password will be generated for new users.
-                  They can reset it after their first login.
-                </div>
-              )}
-
-              <div className="form-actions mt-4">
-                <button type="submit" className="btn btn-primary">
-                  {editUser ? 'Update User' : 'Add User'}
+              
+              <div className="form-group mt-4">
+                <button type="submit" className="btn btn-primary mr-2">
+                  {editingUser ? 'Update User' : 'Add User'}
                 </button>
-                <button 
-                  type="button" 
-                  className="btn btn-secondary ml-2" 
-                  onClick={handleCancel}
-                >
+                <button type="button" className="btn btn-secondary" onClick={handleCancel}>
                   Cancel
                 </button>
               </div>
@@ -206,45 +235,44 @@ const UserManager = () => {
         </div>
       )}
 
-      {loading ? (
-        <Spinner />
-      ) : users.length > 0 ? (
-        <div className="users">
-          <table className="table">
+      {users.length === 0 ? (
+        <div className="alert alert-info">No users found</div>
+      ) : (
+        <div className="table-responsive">
+          <table className="table table-striped">
             <thead>
               <tr>
                 <th>Name</th>
                 <th>Email</th>
                 <th>Role</th>
-                <th>Date Joined</th>
                 <th>Actions</th>
               </tr>
             </thead>
             <tbody>
               {users.map(user => (
-                <tr key={user._id}>
+                <tr key={user._id || user.id}>
                   <td>{user.name}</td>
                   <td>{user.email}</td>
                   <td>
-                    <span className={`badge badge-${
-                      user.role === 'admin' ? 'danger' : 
-                      user.role === 'manager' ? 'warning' : 'primary'
+                    <span className={`badge ${
+                      user.role === 'admin' ? 'bg-danger' : 
+                      user.role === 'manager' ? 'bg-warning' : 'bg-info'
                     }`}>
-                      {user.role}
+                      {user.role === 'admin' ? 'Admin' : 
+                       user.role === 'manager' ? 'Manager' : 'Team Member'}
                     </span>
                   </td>
-                  <td>{new Date(user.date).toLocaleDateString()}</td>
                   <td>
                     <button 
-                      onClick={() => handleEdit(user)} 
-                      className="btn btn-sm btn-primary"
+                      className="btn btn-sm btn-outline-primary mr-2" 
+                      onClick={() => handleEdit(user)}
                     >
                       <i className="fas fa-edit"></i>
                     </button>
                     <button 
-                      onClick={() => handleDelete(user._id)} 
-                      className="btn btn-sm btn-danger"
-                      disabled={user.role === 'admin'}
+                      className="btn btn-sm btn-outline-danger"
+                      onClick={() => handleDelete(user._id || user.id)}
+                      disabled={user.role === 'admin' && users.filter(u => u.role === 'admin').length <= 1}
                     >
                       <i className="fas fa-trash"></i>
                     </button>
@@ -254,8 +282,6 @@ const UserManager = () => {
             </tbody>
           </table>
         </div>
-      ) : (
-        <p>No users found. Please add a user.</p>
       )}
     </div>
   );

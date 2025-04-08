@@ -9,6 +9,7 @@ const path = require('path');
 const mongoose = require('mongoose');
 const fs = require('fs');
 const auth = require('./middleware/auth');
+const devAuth = require('./middleware/devAuth');
 const User = require('./models/User');
 const Shipment = require('./models/Shipment');
 const Customer = require('./models/Customer');
@@ -18,6 +19,10 @@ const connectDB = require('./config/db');
 
 // Read port from environment variable first, then config, then default
 const PORT = process.env.PORT || 5001;
+
+// Determine which auth middleware to use based on environment
+const authMiddleware = process.env.NODE_ENV === 'production' ? auth : devAuth;
+console.log(`Using ${process.env.NODE_ENV === 'production' ? 'STRICT' : 'DEVELOPMENT'} authentication mode`);
 
 // Initialize Express
 const app = express();

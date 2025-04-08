@@ -3,12 +3,17 @@ const router = express.Router();
 const auth = require('../../middleware/auth');
 const { check, validationResult } = require('express-validator');
 
+// Get the appropriate auth middleware based on environment
+const authMiddleware = process.env.NODE_ENV === 'production' 
+  ? require('../../middleware/auth') 
+  : require('../../middleware/devAuth');
+
 const Customer = require('../../models/Customer');
 
 // @route    GET api/customers
 // @desc     Get all customers
 // @access   Private
-router.get('/', auth, async (req, res) => {
+router.get('/', authMiddleware, async (req, res) => {
   try {
     const customers = await Customer.find().sort({ name: 1 });
     res.json(customers);
@@ -21,7 +26,7 @@ router.get('/', auth, async (req, res) => {
 // @route    GET api/customers/:id
 // @desc     Get customer by ID
 // @access   Private
-router.get('/:id', auth, async (req, res) => {
+router.get('/:id', authMiddleware, async (req, res) => {
   try {
     const customer = await Customer.findById(req.params.id);
     
@@ -45,7 +50,7 @@ router.get('/:id', auth, async (req, res) => {
 router.post(
   '/',
   [
-    auth,
+    authMiddleware,
     [
       check('name', 'Name is required').not().isEmpty()
     ]
@@ -86,7 +91,7 @@ router.post(
 // @route    PUT api/customers/:id
 // @desc     Update a customer
 // @access   Private
-router.put('/:id', auth, async (req, res) => {
+router.put('/:id', authMiddleware, async (req, res) => {
   try {
     const { name, contactPerson, email, phone, address, notes } = req.body;
 
@@ -123,7 +128,7 @@ router.put('/:id', auth, async (req, res) => {
 // @route    DELETE api/customers/:id
 // @desc     Delete a customer
 // @access   Private (Admin/Manager only)
-router.delete('/:id', auth, async (req, res) => {
+router.delete('/:id', authMiddleware, async (req, res) => {
   try {
     // Only allow admin or manager to delete customers
     if (req.user.role !== 'admin' && req.user.role !== 'manager') {
