@@ -21,16 +21,16 @@ const ShipmentSchema = new Schema(
     customer: {
       type: Schema.Types.Mixed, // Changed to Mixed to handle both ObjectId and string
       ref: 'customer',
-      required: true
+      default: 'N/A'
     },
     shipperName: {
       type: String,
-      required: true,
+      default: '',
       trim: true
     },
     consigneeName: {
       type: String,
-      required: true,
+      default: '',
       trim: true
     },
     notifyParty: {

@@ -367,6 +367,8 @@ router.post('/', [
   check('origin', 'Origin is required').not().isEmpty(),
   check('destination', 'Destination is required').not().isEmpty(),
   check('carrier', 'Carrier is required').not().isEmpty(),
+  check('shipperName', 'Shipper name is required').not().isEmpty(),
+  check('consigneeName', 'Consignee name is required').not().isEmpty(),
   check('departureDate', 'Departure date is required').not().isEmpty(),
   check('arrivalDate', 'Arrival date is required').not().isEmpty()
 ], async (req, res) => {
@@ -382,6 +384,9 @@ router.post('/', [
       origin: req.body.origin,
       destination: req.body.destination,
       carrier: req.body.carrier,
+      shipperName: req.body.shipperName,
+      consigneeName: req.body.consigneeName,
+      notifyParty: req.body.notifyParty || '',
       departureDate: req.body.departureDate,
       arrivalDate: req.body.arrivalDate,
       status: req.body.status || 'Planned',
@@ -393,7 +398,8 @@ router.post('/', [
       invoiceSent: req.body.invoiceSent || false,
       cost: req.body.cost || 0,
       receivables: req.body.receivables || 0,
-      invoiceStatus: req.body.invoiceStatus || 'Pending'
+      invoiceStatus: req.body.invoiceStatus || 'Pending',
+      customer: req.body.customer || 'N/A' // Default customer value
     };
 
     // Add customer if provided

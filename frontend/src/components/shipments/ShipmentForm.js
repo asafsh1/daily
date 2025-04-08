@@ -423,12 +423,25 @@ const ShipmentForm = ({
     // Log what legs we're submitting
     console.log("Submitting shipment with legs:", currentLegs);
 
+    // Ensure all required fields have values
     const newShipment = {
       ...formData,
       legs: currentLegs,
+      // Provide default values for required fields
+      shipperName: formData.shipperName || 'Default Shipper',
+      consigneeName: formData.consigneeName || 'Default Consignee',
+      customer: formData.customer || 'N/A',
+      reference: formData.reference || `REF-${Date.now()}`,
+      origin: formData.origin || { name: 'Default Origin', code: 'DEF' },
+      destination: formData.destination || { name: 'Default Destination', code: 'DEF' },
+      carrier: formData.carrier || { name: 'Default Carrier', code: 'DEF' },
+      departureDate: formData.departureDate || new Date().toISOString().split('T')[0],
+      arrivalDate: formData.arrivalDate || new Date(Date.now() + 86400000).toISOString().split('T')[0],
+      // Entity references
       shipper: selectedShipper ? selectedShipper._id : null,
       consignee: selectedConsignee ? selectedConsignee._id : null,
       notifyParty: selectedNotifyParty ? selectedNotifyParty._id : null,
+      // Changelog
       changeLog: isEditMode && shipment.changeLog ? 
         [...(shipment.changeLog || []), {
           timestamp: new Date(),
@@ -445,11 +458,17 @@ const ShipmentForm = ({
     };
 
     try {
-      if (isEditMode) {
-        updateShipment(id, newShipment, navigate);
-      } else {
-        addShipment(newShipment);
-      }
+      console.log('Submitting shipment with data:', newShipment);
+      
+      // Add debug log to catch any errors
+      const result = isEditMode 
+        ? updateShipment(id, newShipment, navigate)
+        : addShipment(newShipment, navigate);
+      
+      result.catch(error => {
+        console.error('Error in shipment submission:', error);
+        toast.error('Failed to save shipment. Please check console for details.');
+      });
       
       // Reset form only if not editing
       if (!isEditMode) {

@@ -208,12 +208,31 @@ if (process.env.NODE_ENV === 'production') {
 
 // Error handling middleware
 app.use((err, req, res, next) => {
-  console.error('Server error:', err.message);
+  // Log error details
+  console.error(`[${new Date().toISOString()}] Server error:`, err.message);
   console.error(err.stack);
-  res.status(500).json({
+  
+  // Create a structured error response
+  const errorResponse = {
     message: 'Server Error',
-    error: process.env.NODE_ENV === 'production' ? 'An unexpected error occurred' : err.message
-  });
+    timestamp: new Date().toISOString(),
+    path: req.path,
+    method: req.method,
+    error: process.env.NODE_ENV === 'production' ? 'An unexpected error occurred' : err.message,
+    code: err.code || 'INTERNAL_SERVER_ERROR',
+    details: process.env.NODE_ENV !== 'production' ? {
+      stack: err.stack?.split('\n').slice(0, 3).join('\n'), // Only include first 3 lines of stack
+      name: err.name,
+      original: err.original || null
+    } : undefined
+  };
+  
+  // Include validation errors if any
+  if (err.errors) {
+    errorResponse.validationErrors = err.errors;
+  }
+  
+  res.status(err.status || 500).json(errorResponse);
 });
 
 // Connect to MongoDB Atlas and start server

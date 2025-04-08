@@ -106,7 +106,18 @@ export const getShipment = (id) => async (dispatch) => {
 // Add shipment
 export const addShipment = (formData, navigate) => async (dispatch) => {
   try {
-    const res = await axios.post('/api/shipments', formData);
+    console.log('Creating new shipment with data:', formData);
+    
+    // Ensure required fields are provided with defaults if missing
+    const shipmentData = {
+      ...formData,
+      shipperName: formData.shipperName || 'Unknown',
+      consigneeName: formData.consigneeName || 'Unknown',
+      customer: formData.customer || 'N/A'
+    };
+    
+    const res = await axios.post('/api/shipments', shipmentData);
+    console.log('Shipment creation response:', res.data);
 
     dispatch({
       type: ADD_SHIPMENT,
@@ -123,16 +134,50 @@ export const addShipment = (formData, navigate) => async (dispatch) => {
     // Return the created shipment for further processing
     return res.data;
   } catch (err) {
-    const errors = err.response.data.errors;
+    console.error('Error creating shipment:', err);
+    
+    // Handle various error types
+    if (err.response) {
+      // The request was made and the server responded with a status code
+      // that falls out of the range of 2xx
+      console.error('Server Error Response:', err.response.data);
+      
+      const errors = err.response.data.errors;
+      if (errors) {
+        errors.forEach((error) => dispatch(setAlert(error.msg, 'danger')));
+      } else if (err.response.data.msg) {
+        dispatch(setAlert(err.response.data.msg, 'danger'));
+      } else {
+        dispatch(setAlert('Failed to create shipment', 'danger'));
+      }
 
-    if (errors) {
-      errors.forEach((error) => dispatch(setAlert(error.msg, 'danger')));
+      dispatch({
+        type: SHIPMENT_ERROR,
+        payload: { 
+          msg: err.response.data.msg || 'Server error', 
+          status: err.response.status,
+          errors: err.response.data.errors || []
+        }
+      });
+    } else if (err.request) {
+      // The request was made but no response was received
+      console.error('No response received from server:', err.request);
+      dispatch(setAlert('Server not responding, please try again later', 'danger'));
+      
+      dispatch({
+        type: SHIPMENT_ERROR,
+        payload: { msg: 'No response from server', status: 'network-error' }
+      });
+    } else {
+      // Something happened in setting up the request that triggered an Error
+      console.error('Error setting up request:', err.message);
+      dispatch(setAlert('Application error, please try again', 'danger'));
+      
+      dispatch({
+        type: SHIPMENT_ERROR,
+        payload: { msg: err.message, status: 'request-setup-error' }
+      });
     }
-
-    dispatch({
-      type: SHIPMENT_ERROR,
-      payload: { msg: err.response.statusText, status: err.response.status }
-    });
     
     // Return null to indicate failure
     return null;
