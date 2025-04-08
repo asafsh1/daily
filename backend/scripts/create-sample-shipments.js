@@ -11,6 +11,11 @@ const mongoURI = process.env.MONGODB_URI;
 
 console.log(`Using MongoDB URI: ${mongoURI.replace(/\/\/([^:]+):([^@]+)@/, '//***:***@')}`);
 
+// Generate sequential IDs
+const generateSequentialId = (prefix, num) => {
+  return `${prefix}${num.toString().padStart(3, '0')}`;
+};
+
 // Connect to MongoDB
 mongoose.connect(mongoURI, {
   useNewUrlParser: true,
@@ -23,12 +28,23 @@ mongoose.connect(mongoURI, {
     const shipmentCollection = mongoose.connection.db.collection('shipments');
     const legCollection = mongoose.connection.db.collection('shipmentlegs');
     
+    // Get the current count of shipments to determine next sequential number
+    const shipmentCount = await shipmentCollection.countDocuments();
+    const startingShipmentNum = shipmentCount + 1;
+    
+    // Get the current count of legs to determine next sequential number
+    const legCount = await legCollection.countDocuments();
+    const startingLegNum = legCount + 1;
+    
+    let currentShipmentNum = startingShipmentNum;
+    let currentLegNum = startingLegNum;
+    
     // Sample shipment data
     const shipments = [
       {
         _id: new ObjectId(),
-        reference: "SHP-12345",
-        serialNumber: "SN-" + Date.now() + "-1",
+        reference: generateSequentialId("SHIPMENT", currentShipmentNum++),
+        serialNumber: generateSequentialId("SHIPMENT", startingShipmentNum),
         origin: {
           name: "Shanghai, China",
           code: "PVG"
@@ -46,8 +62,8 @@ mongoose.connect(mongoURI, {
       },
       {
         _id: new ObjectId(),
-        reference: "AIR-78901",
-        serialNumber: "SN-" + Date.now() + "-2",
+        reference: generateSequentialId("SHIPMENT", currentShipmentNum++),
+        serialNumber: generateSequentialId("SHIPMENT", startingShipmentNum + 1),
         origin: {
           name: "London, UK",
           code: "LHR"
@@ -82,11 +98,12 @@ mongoose.connect(mongoURI, {
       console.log(`Created shipment with ID: ${shipment._id} and reference ${shipment.reference}`);
       
       // Create legs for this shipment
-      if (shipment.reference === "SHP-12345") {
+      if (shipment.reference === generateSequentialId("SHIPMENT", startingShipmentNum)) {
         // Create 2 legs for the first shipment
         const legs = [
           {
             _id: new ObjectId(),
+            legId: generateSequentialId("LEG", currentLegNum++),
             shipment: shipment._id,
             shipmentId: shipment._id.toString(),
             from: "Shanghai, China",
@@ -109,6 +126,7 @@ mongoose.connect(mongoURI, {
           },
           {
             _id: new ObjectId(),
+            legId: generateSequentialId("LEG", currentLegNum++),
             shipment: shipment._id,
             shipmentId: shipment._id.toString(),
             from: "Singapore",
@@ -142,11 +160,12 @@ mongoose.connect(mongoURI, {
           { $set: { legs: legIds } }
         );
         console.log(`Updated shipment with ${legIds.length} leg references`);
-      } else if (shipment.reference === "AIR-78901") {
+      } else if (shipment.reference === generateSequentialId("SHIPMENT", startingShipmentNum + 1)) {
         // Create 3 legs for the second shipment
         const legs = [
           {
             _id: new ObjectId(),
+            legId: generateSequentialId("LEG", currentLegNum++),
             shipment: shipment._id,
             shipmentId: shipment._id.toString(),
             from: "London, UK",
@@ -169,6 +188,7 @@ mongoose.connect(mongoURI, {
           },
           {
             _id: new ObjectId(),
+            legId: generateSequentialId("LEG", currentLegNum++),
             shipment: shipment._id,
             shipmentId: shipment._id.toString(),
             from: "Frankfurt, Germany",
@@ -191,6 +211,7 @@ mongoose.connect(mongoURI, {
           },
           {
             _id: new ObjectId(),
+            legId: generateSequentialId("LEG", currentLegNum++),
             shipment: shipment._id,
             shipmentId: shipment._id.toString(),
             from: "Toronto, Canada",

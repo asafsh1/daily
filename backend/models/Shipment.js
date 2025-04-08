@@ -158,26 +158,29 @@ ShipmentSchema.pre('save', async function(next) {
     
     console.log('Generating new serial number for shipment');
     
-    // Generate serial number (format: SHP-YYYY-XXXX)
-    const currentYear = new Date().getFullYear();
+    // Generate a consistent sequential ID (format: SHIPMENT + 3-digit number)
     
-    // Find the highest serial number for this year
-    const latestShipment = await this.constructor.findOne(
-      { serialNumber: new RegExp(`SHP-${currentYear}-\\d+`) },
-      { serialNumber: 1 }
-    ).sort({ serialNumber: -1 });
+    // Find the highest serial number with our format
+    const latestShipment = await this.constructor
+      .findOne(
+        { serialNumber: /^SHIPMENT\d{3}$/ }, // Match SHIPMENTxxx format
+        { serialNumber: 1 }
+      )
+      .sort({ serialNumber: -1 }); // Get the highest one
     
     let nextNumber = 1;
     if (latestShipment && latestShipment.serialNumber) {
       console.log('Found existing highest serial number:', latestShipment.serialNumber);
-      const parts = latestShipment.serialNumber.split('-');
-      if (parts.length === 3) {
-        nextNumber = parseInt(parts[2], 10) + 1;
+      
+      // Extract the numeric part
+      const numberPart = latestShipment.serialNumber.replace('SHIPMENT', '');
+      if (numberPart && !isNaN(numberPart)) {
+        nextNumber = parseInt(numberPart, 10) + 1;
       }
     }
     
-    // Format with leading zeros (e.g., SHP-2023-0001)
-    this.serialNumber = `SHP-${currentYear}-${nextNumber.toString().padStart(4, '0')}`;
+    // Format with leading zeros (e.g., SHIPMENT001)
+    this.serialNumber = `SHIPMENT${nextNumber.toString().padStart(3, '0')}`;
     console.log('Generated new serial number:', this.serialNumber);
     
     next();

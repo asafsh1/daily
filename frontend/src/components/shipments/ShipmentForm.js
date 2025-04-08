@@ -9,6 +9,7 @@ import ShipmentLegs from './ShipmentLegs';
 import AutocompleteSearch from '../common/AutocompleteSearch';
 import { toast } from 'react-hot-toast';
 import ShipmentSidebar from './ShipmentSidebar';
+import { generateUniqueId, ID_PREFIXES } from '../../utils/idGenerator';
 
 const initialState = {
   dateAdded: new Date().toISOString().split('T')[0],
@@ -35,7 +36,6 @@ const initialState = {
   shipperName: '',
   consigneeName: '',
   notifyParty: '',
-  vessel: '',
   legs: [],
   changeLog: []
 };
@@ -305,7 +305,6 @@ const ShipmentForm = ({
     shipperName,
     consigneeName,
     notifyParty,
-    vessel,
     legs
   } = formData;
 
@@ -426,18 +425,20 @@ const ShipmentForm = ({
     // Log what legs we're submitting
     console.log("Submitting shipment with legs:", currentLegs);
 
-    // Ensure all required fields have values
-    const newShipment = {
-      ...formData,
-      legs: currentLegs,
-      // Provide default values for required fields
-      shipperName: formData.shipperName || 'Default Shipper',
-      consigneeName: formData.consigneeName || 'Default Consignee',
-      customer: formData.customer || 'N/A',
-      reference: formData.reference || `REF-${Date.now()}`,
-      origin: formData.origin || { name: 'Default Origin', code: 'DEF' },
-      destination: formData.destination || { name: 'Default Destination', code: 'DEF' },
-      carrier: formData.carrier || { name: 'Default Carrier', code: 'DEF' },
+    // Format data for submission to API
+    const formattedData = {
+      // Basic fields
+      dateAdded: formData.dateAdded || new Date().toISOString().split('T')[0],
+      orderStatus: formData.orderStatus,
+      customer: formData.customer,
+      
+      // Use our consistent ID generator instead of timestamp-based references
+      reference: formData.reference || generateUniqueId(ID_PREFIXES.SHIPMENT),
+      
+      // Origin and Destination
+      origin: formData.origin,
+      destination: formData.destination,
+      carrier: formData.carrier,
       departureDate: formData.departureDate || new Date().toISOString().split('T')[0],
       arrivalDate: formData.arrivalDate || new Date(Date.now() + 86400000).toISOString().split('T')[0],
       // Entity references
@@ -461,12 +462,12 @@ const ShipmentForm = ({
     };
 
     try {
-      console.log('Submitting shipment with data:', newShipment);
+      console.log('Submitting shipment with data:', formattedData);
       
       // Add debug log to catch any errors
       const result = isEditMode 
-        ? updateShipment(id, newShipment, navigate)
-        : addShipment(newShipment, navigate);
+        ? updateShipment(id, formattedData, navigate)
+        : addShipment(formattedData, navigate);
       
       result.catch(error => {
         console.error('Error in shipment submission:', error);
@@ -609,20 +610,6 @@ const ShipmentForm = ({
                     <li>Otherwise → Shipment is 'In Transit'</li>
                   </ul>
                 </small>
-              </div>
-              
-              <div className="form-group">
-                <label htmlFor="vessel">Vessel</label>
-                <input
-                  type="text"
-                  id="vessel"
-                  name="vessel"
-                  value={formData.vessel || ''}
-                  onChange={onChange}
-                  className={errors.vessel ? 'form-control is-invalid' : 'form-control'}
-                  placeholder="Vessel name or identifier"
-                />
-                {errors.vessel && <div className="invalid-feedback">{errors.vessel}</div>}
               </div>
             </div>
             
@@ -807,29 +794,6 @@ const ShipmentForm = ({
                     title="The higher of actual weight or volumetric weight"
                   />
                   <small className="form-text text-muted">Higher of actual or volumetric weight</small>
-                </div>
-              </div>
-            </div>
-            
-            {/* SECTION 4: Shipment Status and Order Status */}
-            <div id="status" className="form-section">
-              <h3 className="section-title">Shipment Status</h3>
-              <div className="form-row">
-                <div className="form-group">
-                  <label htmlFor="orderStatus">Order Status*</label>
-                  <select
-                    id="orderStatus"
-                    name="orderStatus"
-                    value={orderStatus}
-                    onChange={onChange}
-                    className={errors.orderStatus ? 'form-control is-invalid' : 'form-control'}
-                  >
-                    <option value="planned">Planned</option>
-                    <option value="confirmed">Confirmed</option>
-                    <option value="done">Done</option>
-                    <option value="canceled">Canceled</option>
-                  </select>
-                  {errors.orderStatus && <div className="invalid-feedback">{errors.orderStatus}</div>}
                 </div>
               </div>
             </div>
