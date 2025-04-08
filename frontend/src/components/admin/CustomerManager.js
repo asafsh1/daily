@@ -3,12 +3,14 @@ import axios from '../../utils/axiosConfig';
 import Spinner from '../layout/Spinner';
 import CustomerItem from '../customers/CustomerItem';
 import CustomerForm from '../customers/CustomerForm';
+import { toast } from 'react-toastify';
 
 const CustomerManager = () => {
   const [customers, setCustomers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editCustomer, setEditCustomer] = useState(null);
+  const [error, setError] = useState(null);
 
   // Load customers on component mount
   useEffect(() => {
@@ -19,24 +21,31 @@ const CustomerManager = () => {
   const getCustomers = async () => {
     try {
       setLoading(true);
+      setError(null);
       const res = await axios.get('/api/customers');
       setCustomers(res.data);
-      setLoading(false);
     } catch (err) {
       console.error('Error fetching customers:', err);
+      setError('Failed to load customers. Please try again later.');
+      toast.error('Failed to load customers');
+    } finally {
       setLoading(false);
     }
   };
 
   // Delete customer
   const handleDelete = async (id) => {
-    if (window.confirm('Are you sure you want to delete this customer?')) {
-      try {
-        await axios.delete(`/api/customers/${id}`);
-        setCustomers(customers.filter(customer => customer._id !== id));
-      } catch (err) {
-        console.error('Error deleting customer:', err);
-      }
+    if (!window.confirm('Are you sure you want to delete this customer?')) {
+      return;
+    }
+    
+    try {
+      await axios.delete(`/api/customers/${id}`);
+      setCustomers(customers.filter(customer => customer._id !== id));
+      toast.success('Customer deleted successfully');
+    } catch (err) {
+      console.error('Error deleting customer:', err);
+      toast.error(err.response?.data?.msg || 'Error deleting customer');
     }
   };
 
@@ -57,10 +66,12 @@ const CustomerManager = () => {
             customer._id === editCustomer._id ? res.data : customer
           )
         );
+        toast.success('Customer updated successfully');
       } else {
         // Add new customer
         const res = await axios.post('/api/customers', customerData);
         setCustomers([...customers, res.data]);
+        toast.success('Customer added successfully');
       }
       
       // Close form and reset
@@ -68,7 +79,8 @@ const CustomerManager = () => {
       setEditCustomer(null);
     } catch (err) {
       console.error('Error saving customer:', err);
-      alert(`Error: ${err.response?.data?.errors?.[0]?.msg || 'Something went wrong'}`);
+      const errorMsg = err.response?.data?.errors?.[0]?.msg || err.response?.data?.msg || 'An error occurred';
+      toast.error(errorMsg);
     }
   };
 
@@ -77,6 +89,8 @@ const CustomerManager = () => {
     setShowForm(false);
     setEditCustomer(null);
   };
+
+  if (loading) return <Spinner />;
 
   return (
     <div className="admin-section">
@@ -91,6 +105,8 @@ const CustomerManager = () => {
         </button>
       </div>
 
+      {error && <div className="alert alert-danger">{error}</div>}
+
       {showForm && (
         <CustomerForm 
           initialData={editCustomer}
@@ -99,11 +115,9 @@ const CustomerManager = () => {
         />
       )}
 
-      {loading ? (
-        <Spinner />
-      ) : customers.length > 0 ? (
-        <div className="customers">
-          <table className="table">
+      {customers.length > 0 ? (
+        <div className="table-responsive">
+          <table className="table table-striped">
             <thead>
               <tr>
                 <th>Name</th>
@@ -126,7 +140,7 @@ const CustomerManager = () => {
           </table>
         </div>
       ) : (
-        <p>No customers found. Please add a customer.</p>
+        <p className="alert alert-info">No customers found. Please add a customer.</p>
       )}
     </div>
   );

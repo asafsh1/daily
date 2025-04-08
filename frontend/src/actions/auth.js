@@ -1,5 +1,6 @@
 import axios from '../utils/axiosConfig';
 import { setAlert } from './alert';
+import { toast } from 'react-toastify';
 import {
   REGISTER_SUCCESS,
   REGISTER_FAIL,
@@ -58,11 +59,17 @@ export const register = ({ name, email, password, role }) => async dispatch => {
     });
 
     dispatch(loadUser());
+    toast.success(`User ${name} registered successfully!`);
   } catch (err) {
-    const errors = err.response.data.errors;
+    const errors = err.response?.data?.errors;
 
     if (errors) {
-      errors.forEach(error => dispatch(setAlert(error.msg, 'danger')));
+      errors.forEach(error => {
+        dispatch(setAlert(error.msg, 'danger'));
+        toast.error(error.msg);
+      });
+    } else {
+      toast.error('Registration failed. Please try again.');
     }
 
     dispatch({
@@ -91,12 +98,18 @@ export const login = (email, password) => async dispatch => {
     });
 
     dispatch(loadUser());
+    toast.success('Login successful. Welcome back!');
   } catch (err) {
     console.error('Login error:', err); // Debug log
     const errors = err.response?.data?.errors;
 
     if (errors) {
-      errors.forEach(error => dispatch(setAlert(error.msg, 'danger')));
+      errors.forEach(error => {
+        dispatch(setAlert(error.msg, 'danger'));
+        toast.error(error.msg);
+      });
+    } else {
+      toast.error('Login failed. Please check your credentials.');
     }
 
     dispatch({
@@ -107,5 +120,6 @@ export const login = (email, password) => async dispatch => {
 
 // Logout
 export const logout = () => dispatch => {
+  toast.info('You have been logged out.');
   dispatch({ type: LOGOUT });
 }; 

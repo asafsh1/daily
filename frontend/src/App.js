@@ -38,7 +38,18 @@ const App = () => {
             <Route path="/admin/*" element={<Admin />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
-          <ToastContainer />
+          <ToastContainer 
+            position="top-right"
+            autoClose={4000}
+            hideProgressBar={false}
+            newestOnTop
+            closeOnClick
+            rtl={false}
+            pauseOnFocusLoss
+            draggable
+            pauseOnHover
+            theme="colored"
+          />
         </div>
       </Router>
     </Provider>
