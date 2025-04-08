@@ -3,6 +3,7 @@ import PropTypes from 'prop-types';
 import axios from '../../utils/axiosConfig';
 import { toast } from 'react-toastify';
 import moment from 'moment';
+import './Modal.css'; // New shared modal styles
 
 // Initial form state for add/edit
 const initialState = {
@@ -18,7 +19,8 @@ const initialState = {
   status: 'Pending',
   notes: '',
   legId: '',
-  flightNumber: ''
+  flightNumber: '',
+  vessel: '' // Add vessel field
 };
 
 const LegModal = ({ 
@@ -33,6 +35,7 @@ const LegModal = ({
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState({});
   const [changeLog, setChangeLog] = useState([]);
+  const [activeTab, setActiveTab] = useState('details'); // For tab navigation
 
   // When editing leg changes, update the form
   useEffect(() => {
@@ -62,7 +65,8 @@ const LegModal = ({
         status: editingLeg.status || 'Pending',
         notes: editingLeg.notes || '',
         legId: editingLeg.legId || '',
-        flightNumber: editingLeg.flightNumber || editingLeg.flight || ''
+        flightNumber: editingLeg.flightNumber || editingLeg.flight || '',
+        vessel: editingLeg.vessel || ''
       });
 
       // Load change log if available
@@ -183,258 +187,282 @@ const LegModal = ({
   };
 
   return (
-    <div className="leg-modal-backdrop" onClick={onClose}>
-      <div className="leg-modal" onClick={e => e.stopPropagation()}>
-        <div className="leg-modal-header">
-          <h4>{editingLeg ? 'Edit Leg' : 'Add New Leg'}</h4>
-          <button type="button" className="leg-modal-close" onClick={onClose}>&times;</button>
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-container" onClick={e => e.stopPropagation()}>
+        <div className="modal-header">
+          <h3>{editingLeg ? 'Edit Shipment Leg' : 'Add New Shipment Leg'}</h3>
+          <button className="modal-close-btn" onClick={onClose}>×</button>
         </div>
         
-        <form onSubmit={handleSubmit}>
-          {/* Leg ID field (read-only if editing) */}
-          {editingLeg && (
-            <div className="form-group">
-              <label htmlFor="legId">Leg ID</label>
-              <input
-                id="legId"
-                type="text"
-                className="form-control"
-                name="legId"
-                value={formData.legId}
-                disabled
-                readOnly
-              />
-            </div>
-          )}
-          
-          <div className="row">
-            <div className="col-md-2">
-              <div className="form-group">
-                <label htmlFor="legOrder">Leg Order</label>
-                <input
-                  id="legOrder"
-                  type="number"
-                  className="form-control"
-                  name="legOrder"
-                  value={formData.legOrder}
-                  onChange={onChange}
-                  min="1"
-                />
-              </div>
-            </div>
-            
-            <div className="col-md-5">
-              <div className="form-group">
-                <label htmlFor="from">Origin</label>
-                <input
-                  id="from"
-                  type="text"
-                  className={`form-control ${errors.from ? 'is-invalid' : ''}`}
-                  name="from"
-                  value={formData.from}
-                  onChange={onChange}
-                  placeholder="From location"
-                  required
-                />
-                {errors.from && <div className="invalid-feedback">{errors.from}</div>}
-              </div>
-            </div>
-            
-            <div className="col-md-5">
-              <div className="form-group">
-                <label htmlFor="to">Destination</label>
-                <input
-                  id="to"
-                  type="text"
-                  className={`form-control ${errors.to ? 'is-invalid' : ''}`}
-                  name="to"
-                  value={formData.to}
-                  onChange={onChange}
-                  placeholder="To location"
-                  required
-                />
-                {errors.to && <div className="invalid-feedback">{errors.to}</div>}
-              </div>
-            </div>
-          </div>
-          
-          <div className="row">
-            <div className="col-md-6">
-              <div className="form-group">
-                <label htmlFor="carrier">Airline</label>
-                <select
-                  id="carrier"
-                  className="form-control"
-                  name="carrier"
-                  value={formData.carrier}
-                  onChange={onChange}
-                >
-                  <option value="">-- Select Airline --</option>
-                  {airlines && airlines.length > 0 ? (
-                    airlines.map(airline => (
-                      <option key={airline._id} value={airline.name}>
-                        {airline.name}
-                      </option>
-                    ))
-                  ) : (
-                    <option value="" disabled>Loading airlines...</option>
-                  )}
-                </select>
-              </div>
-            </div>
-            
-            <div className="col-md-6">
-              <div className="form-group">
-                <label htmlFor="flightNumber">Flight Number</label>
-                <input
-                  id="flightNumber"
-                  type="text"
-                  className="form-control"
-                  name="flightNumber"
-                  value={formData.flightNumber}
-                  onChange={onChange}
-                  placeholder="Flight number"
-                />
-              </div>
-            </div>
-          </div>
-          
-          <div className="row">
-            <div className="col-md-6">
-              <div className="form-group">
-                <label htmlFor="trackingNumber">AWB/Tracking Number</label>
-                <input
-                  id="trackingNumber"
-                  type="text"
-                  className="form-control"
-                  name="trackingNumber"
-                  value={formData.trackingNumber}
-                  onChange={onChange}
-                  placeholder="AWB or tracking number"
-                />
-              </div>
-            </div>
-            
-            <div className="col-md-6">
-              <div className="form-group">
-                <label htmlFor="status">Status</label>
-                <select
-                  id="status"
-                  className="form-control"
-                  name="status"
-                  value={formData.status}
-                  onChange={onChange}
-                >
-                  <option value="Pending">Pending</option>
-                  <option value="Planned">Planned</option>
-                  <option value="In Transit">In Transit</option>
-                  <option value="Departed">Departed</option>
-                  <option value="Arrived">Arrived</option>
-                  <option value="Completed">Completed</option>
-                  <option value="Delayed">Delayed</option>
-                  <option value="Cancelled">Cancelled</option>
-                </select>
-              </div>
-            </div>
-          </div>
-          
-          <div className="row">
-            <div className="col-md-3">
-              <div className="form-group">
-                <label htmlFor="departureDate">Departure Date</label>
-                <input
-                  id="departureDate"
-                  type="date"
-                  className="form-control"
-                  name="departureDate"
-                  value={formData.departureDate}
-                  onChange={onChange}
-                />
-              </div>
-            </div>
-            
-            <div className="col-md-3">
-              <div className="form-group">
-                <label htmlFor="departureTime">Departure Time</label>
-                <input
-                  id="departureTime"
-                  type="time"
-                  className="form-control"
-                  name="departureTime"
-                  value={formData.departureTime}
-                  onChange={onChange}
-                />
-              </div>
-            </div>
-            
-            <div className="col-md-3">
-              <div className="form-group">
-                <label htmlFor="arrivalDate">Arrival Date</label>
-                <input
-                  id="arrivalDate"
-                  type="date"
-                  className="form-control"
-                  name="arrivalDate"
-                  value={formData.arrivalDate}
-                  onChange={onChange}
-                />
-              </div>
-            </div>
-            
-            <div className="col-md-3">
-              <div className="form-group">
-                <label htmlFor="arrivalTime">Arrival Time</label>
-                <input
-                  id="arrivalTime"
-                  type="time"
-                  className="form-control"
-                  name="arrivalTime"
-                  value={formData.arrivalTime}
-                  onChange={onChange}
-                />
-              </div>
-            </div>
-          </div>
-          
-          <div className="form-group">
-            <label htmlFor="notes">Notes</label>
-            <textarea
-              id="notes"
-              className="form-control"
-              name="notes"
-              value={formData.notes}
-              onChange={onChange}
-              placeholder="Additional notes"
-              rows="3"
-            ></textarea>
-          </div>
-          
-          {/* Display changelog if editing */}
+        <div className="modal-tabs">
+          <button 
+            className={`tab-btn ${activeTab === 'details' ? 'active' : ''}`}
+            onClick={() => setActiveTab('details')}
+          >
+            Leg Details
+          </button>
           {editingLeg && changeLog.length > 0 && (
-            <div className="changelog-section">
-              <h5>Change History</h5>
-              <div className="changelog-entries">
-                {changeLog.map((entry, index) => (
-                  <div key={index} className="changelog-entry">
-                    <span>Status: <strong>{entry.status}</strong></span>
-                    <div className="changelog-timestamp">
-                      {formatTimestamp(entry.timestamp)}
+            <button 
+              className={`tab-btn ${activeTab === 'history' ? 'active' : ''}`}
+              onClick={() => setActiveTab('history')}
+            >
+              Status History
+            </button>
+          )}
+        </div>
+
+        <div className="modal-content">
+          {activeTab === 'details' ? (
+            <form onSubmit={handleSubmit} className="leg-form">
+              <div className="form-grid">
+                <div className="form-section">
+                  <h4>Routing Information</h4>
+                  
+                  <div className="form-group order-field">
+                    <label htmlFor="legOrder">Leg #</label>
+                    <input
+                      id="legOrder"
+                      type="number"
+                      className="form-control"
+                      name="legOrder"
+                      value={formData.legOrder}
+                      onChange={onChange}
+                      min="1"
+                    />
+                  </div>
+                  
+                  <div className="form-group">
+                    <label htmlFor="from">Origin</label>
+                    <input
+                      id="from"
+                      type="text"
+                      className={`form-control ${errors.from ? 'is-invalid' : ''}`}
+                      name="from"
+                      value={formData.from}
+                      onChange={onChange}
+                      placeholder="From location"
+                      required
+                    />
+                    {errors.from && <div className="error-message">{errors.from}</div>}
+                  </div>
+                  
+                  <div className="form-group">
+                    <label htmlFor="to">Destination</label>
+                    <input
+                      id="to"
+                      type="text"
+                      className={`form-control ${errors.to ? 'is-invalid' : ''}`}
+                      name="to"
+                      value={formData.to}
+                      onChange={onChange}
+                      placeholder="To location"
+                      required
+                    />
+                    {errors.to && <div className="error-message">{errors.to}</div>}
+                  </div>
+                </div>
+                
+                <div className="form-section">
+                  <h4>Carrier Details</h4>
+                  
+                  <div className="form-group">
+                    <label htmlFor="carrier">Airline/Carrier</label>
+                    <select
+                      id="carrier"
+                      className="form-control"
+                      name="carrier"
+                      value={formData.carrier}
+                      onChange={onChange}
+                    >
+                      <option value="">-- Select Carrier --</option>
+                      {airlines && airlines.length > 0 ? (
+                        airlines.map(airline => (
+                          <option key={airline._id} value={airline.name}>
+                            {airline.name}
+                          </option>
+                        ))
+                      ) : (
+                        <option value="" disabled>Loading carriers...</option>
+                      )}
+                    </select>
+                  </div>
+                  
+                  <div className="form-group">
+                    <label htmlFor="vessel">Vessel/Aircraft</label>
+                    <input
+                      id="vessel"
+                      type="text"
+                      className="form-control"
+                      name="vessel"
+                      value={formData.vessel}
+                      onChange={onChange}
+                      placeholder="Vessel or aircraft name"
+                    />
+                  </div>
+                  
+                  <div className="form-group">
+                    <label htmlFor="flightNumber">Flight Number</label>
+                    <input
+                      id="flightNumber"
+                      type="text"
+                      className="form-control"
+                      name="flightNumber"
+                      value={formData.flightNumber}
+                      onChange={onChange}
+                      placeholder="Flight number"
+                    />
+                  </div>
+                </div>
+                
+                <div className="form-section">
+                  <h4>Tracking</h4>
+                  
+                  <div className="form-group">
+                    <label htmlFor="trackingNumber">AWB/Tracking Number</label>
+                    <input
+                      id="trackingNumber"
+                      type="text"
+                      className="form-control"
+                      name="trackingNumber"
+                      value={formData.trackingNumber}
+                      onChange={onChange}
+                      placeholder="AWB or tracking number"
+                    />
+                  </div>
+                  
+                  <div className="form-group">
+                    <label htmlFor="status">Status</label>
+                    <select
+                      id="status"
+                      className="form-control"
+                      name="status"
+                      value={formData.status}
+                      onChange={onChange}
+                    >
+                      <option value="Pending">Pending</option>
+                      <option value="Planned">Planned</option>
+                      <option value="In Transit">In Transit</option>
+                      <option value="Departed">Departed</option>
+                      <option value="Arrived">Arrived</option>
+                      <option value="Completed">Completed</option>
+                      <option value="Delayed">Delayed</option>
+                      <option value="Cancelled">Cancelled</option>
+                    </select>
+                  </div>
+                </div>
+                
+                <div className="form-section full-width">
+                  <h4>Schedule</h4>
+                  
+                  <div className="date-time-group">
+                    <div className="form-group">
+                      <label htmlFor="departureDate">Departure Date</label>
+                      <input
+                        id="departureDate"
+                        type="date"
+                        className="form-control"
+                        name="departureDate"
+                        value={formData.departureDate}
+                        onChange={onChange}
+                      />
+                    </div>
+                    
+                    <div className="form-group">
+                      <label htmlFor="departureTime">Departure Time</label>
+                      <input
+                        id="departureTime"
+                        type="time"
+                        className="form-control"
+                        name="departureTime"
+                        value={formData.departureTime}
+                        onChange={onChange}
+                      />
+                    </div>
+                    
+                    <div className="form-group">
+                      <label htmlFor="arrivalDate">Arrival Date</label>
+                      <input
+                        id="arrivalDate"
+                        type="date"
+                        className="form-control"
+                        name="arrivalDate"
+                        value={formData.arrivalDate}
+                        onChange={onChange}
+                      />
+                    </div>
+                    
+                    <div className="form-group">
+                      <label htmlFor="arrivalTime">Arrival Time</label>
+                      <input
+                        id="arrivalTime"
+                        type="time"
+                        className="form-control"
+                        name="arrivalTime"
+                        value={formData.arrivalTime}
+                        onChange={onChange}
+                      />
                     </div>
                   </div>
-                ))}
+                </div>
+                
+                <div className="form-section full-width">
+                  <div className="form-group">
+                    <label htmlFor="notes">Notes</label>
+                    <textarea
+                      id="notes"
+                      className="form-control"
+                      name="notes"
+                      value={formData.notes}
+                      onChange={onChange}
+                      placeholder="Additional notes"
+                      rows="3"
+                    ></textarea>
+                  </div>
+                </div>
               </div>
+            </form>
+          ) : (
+            <div className="history-container">
+              <h4>Status History</h4>
+              {changeLog.length > 0 ? (
+                <table className="history-table">
+                  <thead>
+                    <tr>
+                      <th>Status</th>
+                      <th>Changed On</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {changeLog.map((entry, index) => (
+                      <tr key={index} className={`status-${entry.status?.toLowerCase().replace(/\s+/g, '-')}`}>
+                        <td>{entry.status}</td>
+                        <td>{formatTimestamp(entry.timestamp)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              ) : (
+                <p className="no-history">No status changes recorded yet.</p>
+              )}
             </div>
           )}
-          
-          <div className="leg-modal-footer">
-            <button type="button" className="btn btn-secondary" onClick={onClose}>
-              Cancel
-            </button>
-            <button type="submit" className="btn btn-primary" disabled={loading}>
+        </div>
+        
+        <div className="modal-footer">
+          <button type="button" className="btn btn-secondary" onClick={onClose}>
+            Cancel
+          </button>
+          {activeTab === 'details' && (
+            <button 
+              type="button" 
+              className="btn btn-primary" 
+              disabled={loading}
+              onClick={handleSubmit}
+            >
               {loading ? 'Saving...' : (editingLeg ? 'Update Leg' : 'Add Leg')}
             </button>
-          </div>
-        </form>
+          )}
+        </div>
       </div>
     </div>
   );
