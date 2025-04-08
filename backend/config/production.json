@@ -1,4 +1,9 @@
 {
-  "mongoURI": "MONGODB_URI_FROM_ENV",
-  "jwtSecret": "JWT_SECRET_FROM_ENV"
+  "mongoURI": "mongodb+srv://asafasaf5347:asafasaf5347@cluster0.lyz67.mongodb.net/shipment-tracker?retryWrites=true&w=majority&appName=Cluster0",
+  "jwtSecret": "mysecrettoken",
+  "jwtExpiration": "1d",
+  "mailServerSettings": {
+    "apiKey": "your-api-key"
+  },
+  "enableSwagger": false
 } 

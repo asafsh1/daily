@@ -566,8 +566,8 @@ const Admin = () => {
 
                 {showCustomerForm && (
                   <CustomerForm
-                    customer={editingCustomer}
-                    onSave={editingCustomer ? handleUpdateCustomer : handleAddCustomer}
+                    initialData={editingCustomer}
+                    onSubmit={editingCustomer ? handleUpdateCustomer : handleAddCustomer}
                     onCancel={() => {
                       setShowCustomerForm(false);
                       setEditingCustomer(null);

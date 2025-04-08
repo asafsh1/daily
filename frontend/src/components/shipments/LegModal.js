@@ -194,8 +194,9 @@ const LegModal = ({
           {/* Leg ID field (read-only if editing) */}
           {editingLeg && (
             <div className="form-group">
-              <label>Leg ID</label>
+              <label htmlFor="legId">Leg ID</label>
               <input
+                id="legId"
                 type="text"
                 className="form-control"
                 name="legId"
@@ -209,8 +210,9 @@ const LegModal = ({
           <div className="row">
             <div className="col-md-2">
               <div className="form-group">
-                <label>Leg Order</label>
+                <label htmlFor="legOrder">Leg Order</label>
                 <input
+                  id="legOrder"
                   type="number"
                   className="form-control"
                   name="legOrder"
@@ -223,8 +225,9 @@ const LegModal = ({
             
             <div className="col-md-5">
               <div className="form-group">
-                <label>Origin</label>
+                <label htmlFor="from">Origin</label>
                 <input
+                  id="from"
                   type="text"
                   className={`form-control ${errors.from ? 'is-invalid' : ''}`}
                   name="from"
@@ -239,8 +242,9 @@ const LegModal = ({
             
             <div className="col-md-5">
               <div className="form-group">
-                <label>Destination</label>
+                <label htmlFor="to">Destination</label>
                 <input
+                  id="to"
                   type="text"
                   className={`form-control ${errors.to ? 'is-invalid' : ''}`}
                   name="to"
@@ -257,27 +261,33 @@ const LegModal = ({
           <div className="row">
             <div className="col-md-6">
               <div className="form-group">
-                <label>Airline</label>
+                <label htmlFor="carrier">Airline</label>
                 <select
+                  id="carrier"
                   className="form-control"
                   name="carrier"
                   value={formData.carrier}
                   onChange={onChange}
                 >
                   <option value="">-- Select Airline --</option>
-                  {airlines.map(airline => (
-                    <option key={airline._id} value={airline.name}>
-                      {airline.name}
-                    </option>
-                  ))}
+                  {airlines && airlines.length > 0 ? (
+                    airlines.map(airline => (
+                      <option key={airline._id} value={airline.name}>
+                        {airline.name}
+                      </option>
+                    ))
+                  ) : (
+                    <option value="" disabled>Loading airlines...</option>
+                  )}
                 </select>
               </div>
             </div>
             
             <div className="col-md-6">
               <div className="form-group">
-                <label>Flight Number</label>
+                <label htmlFor="flightNumber">Flight Number</label>
                 <input
+                  id="flightNumber"
                   type="text"
                   className="form-control"
                   name="flightNumber"
@@ -292,8 +302,9 @@ const LegModal = ({
           <div className="row">
             <div className="col-md-6">
               <div className="form-group">
-                <label>AWB/Tracking Number</label>
+                <label htmlFor="trackingNumber">AWB/Tracking Number</label>
                 <input
+                  id="trackingNumber"
                   type="text"
                   className="form-control"
                   name="trackingNumber"
@@ -306,8 +317,9 @@ const LegModal = ({
             
             <div className="col-md-6">
               <div className="form-group">
-                <label>Status</label>
+                <label htmlFor="status">Status</label>
                 <select
+                  id="status"
                   className="form-control"
                   name="status"
                   value={formData.status}
@@ -329,8 +341,9 @@ const LegModal = ({
           <div className="row">
             <div className="col-md-3">
               <div className="form-group">
-                <label>Departure Date</label>
+                <label htmlFor="departureDate">Departure Date</label>
                 <input
+                  id="departureDate"
                   type="date"
                   className="form-control"
                   name="departureDate"
@@ -342,8 +355,9 @@ const LegModal = ({
             
             <div className="col-md-3">
               <div className="form-group">
-                <label>Departure Time</label>
+                <label htmlFor="departureTime">Departure Time</label>
                 <input
+                  id="departureTime"
                   type="time"
                   className="form-control"
                   name="departureTime"
@@ -355,8 +369,9 @@ const LegModal = ({
             
             <div className="col-md-3">
               <div className="form-group">
-                <label>Arrival Date</label>
+                <label htmlFor="arrivalDate">Arrival Date</label>
                 <input
+                  id="arrivalDate"
                   type="date"
                   className="form-control"
                   name="arrivalDate"
@@ -368,8 +383,9 @@ const LegModal = ({
             
             <div className="col-md-3">
               <div className="form-group">
-                <label>Arrival Time</label>
+                <label htmlFor="arrivalTime">Arrival Time</label>
                 <input
+                  id="arrivalTime"
                   type="time"
                   className="form-control"
                   name="arrivalTime"
@@ -381,8 +397,9 @@ const LegModal = ({
           </div>
           
           <div className="form-group">
-            <label>Notes</label>
+            <label htmlFor="notes">Notes</label>
             <textarea
+              id="notes"
               className="form-control"
               name="notes"
               value={formData.notes}

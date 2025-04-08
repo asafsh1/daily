@@ -40,7 +40,23 @@ const ShipmentView = () => {
             }
           }
           
-          setShipment(res.data);
+          // Normalize field names for consistent display
+          const normalizedShipment = {
+            ...res.data,
+            reference: res.data.reference || res.data.shipmentNumber || res.data.shipmentId || 'N/A',
+            origin: res.data.origin || res.data.from || 'N/A',
+            destination: res.data.destination || res.data.to || 'N/A',
+            etd: res.data.etd || res.data.departureDate || null,
+            eta: res.data.eta || res.data.arrivalDate || null,
+            carrier: res.data.carrier || res.data.airline || res.data.shippingLine || 'N/A',
+            awbNumber: res.data.awbNumber || res.data.trackingNumber || 'N/A',
+            pieces: res.data.pieces || res.data.packageCount || 'N/A',
+            weight: res.data.weight || 'N/A',
+            weightUnit: res.data.weightUnit || 'kg',
+            status: res.data.shipmentStatus || res.data.status || 'Pending'
+          };
+          
+          setShipment(normalizedShipment);
         } else {
           setError('No shipment data received');
         }
@@ -61,6 +77,16 @@ const ShipmentView = () => {
   const formatDate = (date) => {
     if (!date) return 'N/A';
     return moment(date).format('DD/MM/YYYY');
+  };
+  
+  // Format date and time together
+  const formatDateTime = (date, time) => {
+    if (!date) return 'N/A';
+    
+    const dateStr = moment(date).format('DD/MM/YYYY');
+    if (!time) return dateStr;
+    
+    return `${dateStr} ${time}`;
   };
 
   if (loading) {
@@ -102,7 +128,7 @@ const ShipmentView = () => {
   return (
     <div className="container mt-4">
       <div className="d-flex justify-content-between align-items-center mb-4">
-        <h2>Shipment: {shipment.shipmentId || shipment.reference || 'No Reference'}</h2>
+        <h2>Shipment: {shipment.reference}</h2>
         <div>
           <Link to={`/shipments/edit/${shipmentId}`} className="btn btn-primary mr-2">
             Edit
@@ -119,7 +145,7 @@ const ShipmentView = () => {
         </div>
       </div>
 
-      {showDebugger && <LegDebugger />}
+      {showDebugger && <LegDebugger shipmentId={shipmentId} />}
 
       <div className="row">
         <div className="col-md-6">
@@ -132,11 +158,15 @@ const ShipmentView = () => {
                 <tbody>
                   <tr>
                     <th>Reference</th>
-                    <td>{shipment.reference || 'N/A'}</td>
+                    <td>{shipment.reference}</td>
                   </tr>
                   <tr>
-                    <th>Shipment ID</th>
-                    <td>{shipment.shipmentId || 'N/A'}</td>
+                    <th>Order Status</th>
+                    <td>{shipment.orderStatus || 'N/A'}</td>
+                  </tr>
+                  <tr>
+                    <th>Shipment Status</th>
+                    <td>{shipment.shipmentStatus || shipment.status || 'N/A'}</td>
                   </tr>
                   <tr>
                     <th>Customer</th>
@@ -153,16 +183,34 @@ const ShipmentView = () => {
                     </td>
                   </tr>
                   <tr>
-                    <th>Type</th>
-                    <td>{shipment.type || 'N/A'}</td>
+                    <th>Shipper</th>
+                    <td>
+                      {(() => {
+                        // Handle different shipper data formats
+                        if (!shipment.shipper && !shipment.shipperName) return 'N/A';
+                        if (shipment.shipperName) return shipment.shipperName;
+                        if (typeof shipment.shipper === 'string') return shipment.shipper;
+                        if (shipment.shipper && shipment.shipper.name) return shipment.shipper.name;
+                        return JSON.stringify(shipment.shipper);
+                      })()}
+                    </td>
                   </tr>
                   <tr>
-                    <th>Status</th>
-                    <td><ShipmentStatus status={shipment.status} /></td>
+                    <th>Consignee</th>
+                    <td>
+                      {(() => {
+                        // Handle different consignee data formats
+                        if (!shipment.consignee && !shipment.consigneeName) return 'N/A';
+                        if (shipment.consigneeName) return shipment.consigneeName;
+                        if (typeof shipment.consignee === 'string') return shipment.consignee;
+                        if (shipment.consignee && shipment.consignee.name) return shipment.consignee.name;
+                        return JSON.stringify(shipment.consignee);
+                      })()}
+                    </td>
                   </tr>
                   <tr>
                     <th>Created</th>
-                    <td>{formatDate(shipment.createdAt)}</td>
+                    <td>{formatDate(shipment.createdAt || shipment.dateAdded)}</td>
                   </tr>
                   <tr>
                     <th>Last Updated</th>
@@ -184,11 +232,11 @@ const ShipmentView = () => {
                 <tbody>
                   <tr>
                     <th>Origin</th>
-                    <td>{shipment.origin || 'N/A'}</td>
+                    <td>{shipment.origin}</td>
                   </tr>
                   <tr>
                     <th>Destination</th>
-                    <td>{shipment.destination || 'N/A'}</td>
+                    <td>{shipment.destination}</td>
                   </tr>
                   <tr>
                     <th>ETD</th>
@@ -200,15 +248,15 @@ const ShipmentView = () => {
                   </tr>
                   <tr>
                     <th>Carrier</th>
-                    <td>{shipment.carrier || 'N/A'}</td>
+                    <td>{shipment.carrier}</td>
                   </tr>
                   <tr>
-                    <th>AWB Number</th>
-                    <td>{shipment.awbNumber || 'N/A'}</td>
+                    <th>AWB/Tracking Number</th>
+                    <td>{shipment.awbNumber}</td>
                   </tr>
                   <tr>
-                    <th>Pieces</th>
-                    <td>{shipment.pieces || 'N/A'}</td>
+                    <th>Package Count</th>
+                    <td>{shipment.pieces}</td>
                   </tr>
                   <tr>
                     <th>Weight</th>
@@ -263,6 +311,33 @@ const ShipmentView = () => {
         </div>
         <div className="card-body">
           <ShipmentNotes shipmentId={shipmentId} readOnly={true} />
+        </div>
+      </div>
+
+      {/* Shipment Change Log */}
+      <div className="card mb-4">
+        <div className="card-header bg-secondary text-white">
+          <h5 className="mb-0">Change Log</h5>
+        </div>
+        <div className="card-body">
+          {shipment.changeLog && shipment.changeLog.length > 0 ? (
+            <ul className="list-group">
+              {shipment.changeLog.map((log, index) => (
+                <li key={index} className="list-group-item">
+                  <div className="d-flex justify-content-between">
+                    <span>
+                      <strong>{log.action || 'Changed'}: </strong>
+                      {log.details || log.description || 'No details'}
+                    </span>
+                    <small>{moment(log.timestamp).format('YYYY-MM-DD HH:mm')}</small>
+                  </div>
+                  {log.user && <small className="text-muted">By: {log.user}</small>}
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p>No change history available for this shipment.</p>
+          )}
         </div>
       </div>
 
