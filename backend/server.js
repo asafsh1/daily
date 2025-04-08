@@ -28,8 +28,9 @@ const corsOptions = {
   origin: process.env.NODE_ENV === 'production' 
     ? ['https://vocal-cheesecake-1379ed.netlify.app', 'https://daily-shipment-tracker.netlify.app', 'https://veleka-shipments-daily-report.netlify.app'] 
     : '*',
-  methods: ['GET', 'POST', 'PUT', 'DELETE'],
-  credentials: true
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  credentials: true,
+  allowedHeaders: ['Content-Type', 'Authorization', 'x-auth-token', 'Origin', 'Accept']
 };
 
 // Initialize socket.io with CORS settings
@@ -46,9 +47,21 @@ app.use((req, res, next) => {
   const startTime = Date.now();
   console.log(`[${new Date().toISOString()}] ${req.method} ${req.url} started`);
   
-  // Add CORS headers for all requests
-  res.header('Access-Control-Allow-Origin', corsOptions.origin === '*' ? '*' : req.headers.origin);
-  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, x-auth-token');
+  // Add CORS headers for all requests - ensure they're set properly
+  const allowedOrigins = Array.isArray(corsOptions.origin) ? corsOptions.origin : [corsOptions.origin];
+  const origin = req.headers.origin;
+  
+  if (corsOptions.origin === '*' || (origin && allowedOrigins.includes(origin))) {
+    res.header('Access-Control-Allow-Origin', origin);
+    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+    res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization, x-auth-token');
+    res.header('Access-Control-Allow-Credentials', 'true');
+  }
+  
+  // Handle preflight requests
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end();
+  }
   
   // Once the request is processed, log the completion and response time
   res.on('finish', () => {
