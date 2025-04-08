@@ -7,12 +7,16 @@ import axios from './axiosConfig';
 let airlineCache = {};
 let cacheExpiration = null;
 const CACHE_DURATION = 30 * 60 * 1000; // 30 minutes
+const MAX_RETRIES = 3;
+const RETRY_DELAY = 1000; // 1 second
 
 /**
  * Loads airline data from the API and caches it
+ * @param {boolean} forceRefresh - Whether to force a refresh of the cache
+ * @param {number} retryCount - Current retry count for error handling
  * @returns {Promise<Object>} A map of airline codes to their data
  */
-export const loadAirlines = async (forceRefresh = false) => {
+export const loadAirlines = async (forceRefresh = false, retryCount = 0) => {
   // Check if we have a valid cache
   const now = new Date().getTime();
   if (!forceRefresh && cacheExpiration && now < cacheExpiration && Object.keys(airlineCache).length > 0) {
@@ -22,9 +26,13 @@ export const loadAirlines = async (forceRefresh = false) => {
   try {
     const res = await axios.get('/api/airlines');
     
+    if (!res.data || !Array.isArray(res.data)) {
+      throw new Error('Invalid response format from airline API');
+    }
+    
     // Transform the array to a map keyed by airline code
     airlineCache = res.data.reduce((map, airline) => {
-      if (airline.active) {
+      if (airline.status === 'active') {
         map[airline.code] = airline;
       }
       return map;
@@ -36,7 +44,21 @@ export const loadAirlines = async (forceRefresh = false) => {
     return airlineCache;
   } catch (err) {
     console.error('Error loading airline data:', err);
-    return {};
+    
+    // Retry logic
+    if (retryCount < MAX_RETRIES) {
+      console.log(`Retrying airline data load (attempt ${retryCount + 1}/${MAX_RETRIES})...`);
+      await new Promise(resolve => setTimeout(resolve, RETRY_DELAY));
+      return loadAirlines(forceRefresh, retryCount + 1);
+    }
+    
+    // If we have cached data, return it even if expired
+    if (Object.keys(airlineCache).length > 0) {
+      console.log('Returning expired cache due to API failure');
+      return airlineCache;
+    }
+    
+    throw new Error('Failed to load airline data after multiple retries');
   }
 };
 
@@ -100,22 +122,29 @@ export const getAirlineCode = (awb) => {
 };
 
 /**
- * Generates a tracking URL for an AWB number using the template from the database
- * @param {string} awb - The AWB number (e.g., "114-12345678")
- * @param {Object} airline - The airline data object
- * @returns {string} The generated tracking URL
+ * Gets a tracking URL for an airline and AWB number
+ * @param {string} airlineCode - The airline's code
+ * @param {string} awbNumber - The AWB number
+ * @returns {string} The tracking URL
  */
-export const generateTrackingUrl = (awb, airline) => {
-  if (!awb || !airline || !airline.trackingUrlTemplate) return null;
-  
-  // Clean up the AWB
-  const cleanAwb = awb.trim();
-  
-  // Extract just the number part (after the prefix) if it has a dash
-  const awbNumber = cleanAwb.includes('-') ? cleanAwb.split('-')[1] : cleanAwb;
-  
-  // Create the tracking URL by replacing the placeholder in the template
-  return airline.trackingUrlTemplate.replace(/{awbNumber}/g, awbNumber);
+export const getTrackingUrl = async (airlineCode, awbNumber) => {
+  try {
+    const airlines = await loadAirlines();
+    const airline = airlines[airlineCode];
+    
+    if (!airline) {
+      throw new Error(`Airline with code ${airlineCode} not found`);
+    }
+    
+    if (!airline.trackingUrlTemplate) {
+      throw new Error(`No tracking URL template for airline ${airlineCode}`);
+    }
+    
+    return airline.trackingUrlTemplate.replace('{awb}', awbNumber);
+  } catch (err) {
+    console.error('Error generating tracking URL:', err);
+    throw err;
+  }
 };
 
 /**
@@ -123,7 +152,7 @@ export const generateTrackingUrl = (awb, airline) => {
  * @param {string} awb - The AWB number (e.g., "114-12345678")
  * @returns {string|null} The tracking URL or null if the airline is not supported
  */
-export const getTrackingUrl = async (awb) => {
+export const getTrackingUrlByAwb = async (awb) => {
   if (!awb || typeof awb !== 'string') return null;
   
   // Clean up the AWB by removing any spaces
@@ -138,7 +167,7 @@ export const getTrackingUrl = async (awb) => {
   
   // If we have airline data in the database, use its template
   if (airlines[airlineCode]) {
-    return generateTrackingUrl(cleanAwb, airlines[airlineCode]);
+    return getTrackingUrl(airlineCode, cleanAwb.split('-')[1]);
   }
   
   // Fall back to hardcoded tracking if available
@@ -188,7 +217,7 @@ export const getTrackingUrlSync = (carrierName, awb) => {
   
   // Try from cache first
   if (airlineCache[airlineCode]) {
-    return generateTrackingUrl(cleanAwb, airlineCache[airlineCode]);
+    return getTrackingUrl(airlineCode, cleanAwb.split('-')[1]);
   }
   
   // Fall back to hardcoded based on AWB code
@@ -222,6 +251,7 @@ loadAirlines();
 
 export default {
   getTrackingUrl,
+  getTrackingUrlByAwb,
   getTrackingUrlSync,
   hasTracking,
   getAirlineCode,

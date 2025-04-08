@@ -3,7 +3,7 @@ import PropTypes from 'prop-types';
 import axios from '../../utils/axiosConfig';
 import { toast } from 'react-toastify';
 import Moment from 'react-moment';
-import { getTrackingUrlSync, hasTracking } from '../../utils/trackingUtils';
+import { getTrackingUrlSync, hasTracking, loadAirlines } from '../../utils/trackingUtils';
 import moment from 'moment';
 import { generateUniqueId, ID_PREFIXES } from '../../utils/idGenerator';
 import './ShipmentLegs.css';
@@ -12,17 +12,15 @@ import './ShipmentLegs.css';
 const initialState = {
   from: '',
   to: '',
-  carrier: '',
-  legOrder: 0,
+  airline: '',
+  flightNumber: '',
   departureDate: '',
   departureTime: '',
   arrivalDate: '',
   arrivalTime: '',
-  trackingNumber: '',
   status: 'Pending',
-  notes: '',
-  flightNumber: '',
-  vessel: ''
+  vessel: '',
+  awb: ''
 };
 
 const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
@@ -31,51 +29,25 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
   const [editingLeg, setEditingLeg] = useState(null);
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState('');
-  const [airlines, setAirlines] = useState([]);
+  const [airlines, setAirlines] = useState({});
   const [formData, setFormData] = useState(initialState);
 
   // Fetch legs and airlines on component mount and when shipmentId changes
   useEffect(() => {
     if (shipmentId) {
       fetchLegs();
-      fetchAirlines();
+      loadAirlinesData();
     }
   }, [shipmentId]);
 
-  // Fetch airlines from the API
-  const fetchAirlines = async () => {
+  const loadAirlinesData = async () => {
     try {
-      const response = await axios.get('/api/airlines');
-      if (response.data && Array.isArray(response.data) && response.data.length > 0) {
-        setAirlines(response.data);
-        console.log('Loaded airlines from API:', response.data);
-      } else {
-        // API returned empty array or invalid data, use hardcoded airlines
-        setAirlinesFromHardcodedData();
-      }
+      const airlineData = await loadAirlines();
+      setAirlines(airlineData);
     } catch (err) {
-      console.error('Error fetching airlines:', err);
-      // Use hardcoded airlines as fallback
-      setAirlinesFromHardcodedData();
+      console.error('Error loading airlines:', err);
+      toast.error('Failed to load airline data. Some features may be limited.');
     }
-  };
-
-  // Set hardcoded airlines as fallback
-  const setAirlinesFromHardcodedData = () => {
-    const hardcodedAirlines = [
-      { _id: '1', name: 'Emirates' },
-      { _id: '2', name: 'Qatar Airways' },
-      { _id: '3', name: 'Turkish Airlines' },
-      { _id: '4', name: 'Lufthansa' },
-      { _id: '5', name: 'Air France' },
-      { _id: '6', name: 'KLM' },
-      { _id: '7', name: 'British Airways' },
-      { _id: '8', name: 'United Airlines' },
-      { _id: '9', name: 'Delta Air Lines' },
-      { _id: '10', name: 'American Airlines' }
-    ];
-    setAirlines(hardcodedAirlines);
-    console.log('Using hardcoded airlines:', hardcodedAirlines);
   };
 
   // Fetch legs for the shipment
@@ -109,8 +81,8 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
             _id: `synthetic-${Date.now()}`,
             from: shipmentResponse.data.origin,
             to: shipmentResponse.data.destination,
-            carrier: shipmentResponse.data.carrier || '',
-            legOrder: 1,
+            airline: shipmentResponse.data.carrier || '',
+            flightNumber: shipmentResponse.data.flight || '',
             departureDate: shipmentResponse.data.etd || null,
             arrivalDate: shipmentResponse.data.eta || null,
             status: 'Not Started',
@@ -145,19 +117,17 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
   const startEditing = (leg) => {
     setEditingLeg(leg._id);
     setFormData({
-      from: leg.from || leg.origin || '',
-      to: leg.to || leg.destination || '',
-      carrier: leg.carrier || '',
-      legOrder: leg.legOrder || 0,
-      departureDate: leg.departureDate ? moment(leg.departureDate).format('YYYY-MM-DD') : '',
+      from: leg.from || '',
+      to: leg.to || '',
+      airline: leg.airline || '',
+      flightNumber: leg.flightNumber || '',
+      departureDate: leg.departureDate ? leg.departureDate.split('T')[0] : '',
       departureTime: leg.departureTime || '',
-      arrivalDate: leg.arrivalDate ? moment(leg.arrivalDate).format('YYYY-MM-DD') : '',
+      arrivalDate: leg.arrivalDate ? leg.arrivalDate.split('T')[0] : '',
       arrivalTime: leg.arrivalTime || '',
-      trackingNumber: leg.trackingNumber || leg.mawbNumber || '',
       status: leg.status || 'Pending',
-      notes: leg.notes || '',
-      flightNumber: leg.flightNumber || leg.flight || '',
-      vessel: leg.vessel || ''
+      vessel: leg.vessel || '',
+      awb: leg.awb || ''
     });
   };
 
@@ -170,36 +140,24 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
   // Save leg changes
   const saveLeg = async (legId) => {
     try {
-      const combinedData = {
+      const method = legId ? 'PUT' : 'POST';
+      const url = legId 
+        ? `/api/shipment-legs/${legId}`
+        : `/api/shipment-legs/add-to-shipment/${shipmentId}`;
+
+      const response = await axios.post(url, {
         ...formData,
-        shipment: shipmentId,
-        departureDate: formData.departureDate ? 
-          `${formData.departureDate}T${formData.departureTime || '00:00'}:00.000Z` : 
-          null,
-        arrivalDate: formData.arrivalDate ? 
-          `${formData.arrivalDate}T${formData.arrivalTime || '00:00'}:00.000Z` : 
-          null
-      };
+        shipment: shipmentId
+      });
 
-      let result;
-      if (legId.startsWith('synthetic-')) {
-        // For synthetic legs, just update the local state
-        setLegs(legs.map(leg => 
-          leg._id === legId ? { ...leg, ...combinedData } : leg
-        ));
-        toast.success('Leg updated successfully');
-      } else {
-        // For real legs, update on the server
-        result = await axios.put(`/api/shipment-legs/${legId}`, combinedData);
-        toast.success('Leg updated successfully');
-      }
-
+      if (!response.ok) throw new Error('Failed to save leg');
+      
+      await fetchLegs();
       setEditingLeg(null);
-      setFormData(initialState);
-      fetchLegs(); // Refresh the legs list
+      toast.success(legId ? 'Leg updated successfully' : 'Leg added successfully');
     } catch (err) {
       console.error('Error saving leg:', err);
-      toast.error(`Failed to save leg: ${err.message}`);
+      toast.error('Failed to save leg');
     }
   };
 
@@ -207,7 +165,6 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
   const addNewLeg = () => {
     const newLeg = {
       _id: `new-${Date.now()}`,
-      legOrder: legs.length + 1,
       status: 'Pending'
     };
     setLegs([...legs, newLeg]);
@@ -274,16 +231,24 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
   };
 
   // Generate a tracking URL for the leg
-  const getTrackingUrl = (leg) => {
-    return leg.trackingNumber ? getTrackingUrlSync(leg.carrier, leg.trackingNumber) : null;
+  const getTrackingLink = (leg) => {
+    if (!leg.awb || !leg.airline) return null;
+    
+    try {
+      const url = getTrackingUrlSync(leg.airline, leg.awb);
+      return url;
+    } catch (err) {
+      console.error('Error generating tracking URL:', err);
+      return null;
+    }
   };
 
   // Format AWB/tracking number for display
   const getDisplayAwb = (leg) => {
-    const awb = leg.trackingNumber || leg.awbNumber || leg.mawbNumber;
+    const awb = leg.awb || leg.mawbNumber;
     if (!awb) return 'N/A';
     
-    const hasTrackingUrl = getTrackingUrl(leg);
+    const hasTrackingUrl = getTrackingLink(leg);
     
     if (hasTrackingUrl) {
       return (
@@ -405,13 +370,13 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
                       <td>
                         <select
                           className="form-control form-control-sm"
-                          name="carrier"
-                          value={formData.carrier}
+                          name="airline"
+                          value={formData.airline}
                           onChange={handleInputChange}
                         >
-                          <option value="">-- Select Carrier --</option>
-                          {airlines.map(airline => (
-                            <option key={airline._id} value={airline.name}>
+                          <option value="">-- Select Airline --</option>
+                          {Object.values(airlines).map(airline => (
+                            <option key={airline.code} value={airline.code}>
                               {airline.name}
                             </option>
                           ))}
@@ -431,8 +396,8 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
                         <input
                           type="text"
                           className="form-control form-control-sm"
-                          name="trackingNumber"
-                          value={formData.trackingNumber}
+                          name="awb"
+                          value={formData.awb}
                           onChange={handleInputChange}
                           placeholder="AWB/Tracking number"
                         />
@@ -513,7 +478,7 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
                       <td>{leg.legOrder || 'N/A'}</td>
                       <td>{leg.from || leg.origin || 'N/A'}</td>
                       <td>{leg.to || leg.destination || 'N/A'}</td>
-                      <td>{leg.carrier || 'N/A'}</td>
+                      <td>{leg.airline || 'N/A'}</td>
                       <td>{leg.flightNumber || 'N/A'}</td>
                       <td>{getDisplayAwb(leg)}</td>
                       <td>{formatDate(leg.departureDate, leg.departureTime)}</td>
