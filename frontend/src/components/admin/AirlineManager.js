@@ -10,233 +10,83 @@ const AirlineManager = () => {
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editingAirline, setEditingAirline] = useState(null);
+  const [error, setError] = useState(null);
 
   useEffect(() => {
-    // Add hardcoded airline data since API is not responding
-    const loadHardcodedAirlineData = () => {
-      console.log('Loading hardcoded airline data');
-      const hardcodedAirlines = [
-        {
-          _id: '1',
-          name: 'El Al',
-          code: '114',
-          trackingUrlTemplate: 'https://www.elalextra.net/info/awb.asp?aid=114&awb={awb}',
-          status: 'active'
-        },
-        {
-          _id: '2',
-          name: 'Emirates',
-          code: '176',
-          trackingUrlTemplate: 'https://eskycargo.emirates.com/app/offerandorder/#/shipments/list?type=D&values={awb}',
-          status: 'active'
-        },
-        {
-          _id: '3',
-          name: 'Qatar Airways',
-          code: '157',
-          trackingUrlTemplate: 'https://www.qrcargo.com/s/track-your-shipment?documentType=MAWB&documentPrefix=157&documentNumber={awb}',
-          status: 'active'
-        },
-        {
-          _id: '4',
-          name: 'Delta',
-          code: '006',
-          trackingUrlTemplate: 'https://www.deltacargo.com/Cargo/home/trackShipment?awbNumber={awb}',
-          status: 'active'
-        },
-        {
-          _id: '5',
-          name: 'American Airlines',
-          code: '001',
-          trackingUrlTemplate: 'https://www.aacargo.com/mobile/tracking-details.html?awb={awb}',
-          status: 'active'
-        }
-      ];
-      
-      setAirlines(hardcodedAirlines);
-      setLoading(false);
-      console.log('Hardcoded airline data loaded:', hardcodedAirlines);
-    };
-    
-    // Try API first, then fall back to hardcoded data
-    const tryFetchThenFallback = async () => {
-      try {
-        console.log('Trying API fetch first...');
-        await fetchAirlines();
-        
-        // If no airlines were loaded from API, use hardcoded data
-        if (airlines.length === 0) {
-          console.log('No airlines from API, using hardcoded data');
-          loadHardcodedAirlineData();
-        }
-      } catch (err) {
-        console.error('API fetch failed, using hardcoded data:', err);
-        loadHardcodedAirlineData();
-      }
-    };
-    
-    tryFetchThenFallback();
+    fetchAirlines();
   }, []);
 
   const fetchAirlines = async () => {
     try {
-      console.log('Fetching airlines...');
       setLoading(true);
+      setError(null);
       
-      // Log the API URL being used
-      const apiUrl = `${process.env.REACT_APP_API_URL || 'http://localhost:5001'}/api/airlines`;
-      console.log('API URL:', apiUrl);
+      console.log('Fetching airlines from database...');
+      const response = await axios.get('/api/airlines');
       
-      // Get the token or use default dev token if none exists
-      let token = localStorage.getItem('token');
-      if (!token) {
-        token = 'default-dev-token';
-        localStorage.setItem('token', token);
-        console.log('No token found, using default dev token');
-      }
-      console.log('Using token:', token ? 'Token available' : 'No token');
-      
-      const response = await fetch(apiUrl, {
-        headers: {
-          'x-auth-token': token
-        }
-      });
-      
-      console.log('Response status:', response.status);
-      
-      // If unauthorized, try again with default dev token
-      if (response.status === 401) {
-        console.log('Authentication failed, retrying with default dev token');
-        const defaultToken = 'default-dev-token';
-        localStorage.setItem('token', defaultToken);
-        
-        const retryResponse = await fetch(apiUrl, {
-          headers: {
-            'x-auth-token': defaultToken
-          }
-        });
-        
-        if (!retryResponse.ok) {
-          throw new Error(`HTTP error! status: ${retryResponse.status}`);
-        }
-        
-        const data = await retryResponse.json();
-        console.log('Fetched airlines with default token:', data);
-        
-        if (Array.isArray(data)) {
-          setAirlines(data);
-          setLoading(false);
-          return;
-        }
-      }
-      
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-      
-      const data = await response.json();
-      console.log('Fetched airlines:', data);
-      
-      if (Array.isArray(data)) {
-        setAirlines(data);
+      if (Array.isArray(response.data) && response.data.length > 0) {
+        console.log(`Successfully loaded ${response.data.length} airlines from database`);
+        setAirlines(response.data);
       } else {
-        console.error('Received non-array data:', data);
-        toast.error('Received invalid data format from server');
+        console.warn('No airlines found in database or empty response');
+        setError('No airlines found. Please add airlines to continue.');
+        setAirlines([]);
       }
-      setLoading(false);
+      
     } catch (err) {
       console.error('Error fetching airlines:', err);
-      // Don't set airlines to empty here, as we'll use hardcoded data
-      // Don't show error toast since we're going to fall back to hardcoded data
-      console.log('Using hardcoded airline data as fallback');
+      setError(`Failed to load airlines: ${err.message || 'Unknown error'}`);
+      toast.error('Failed to load airlines from database');
+      setAirlines([]);
+    } finally {
       setLoading(false);
     }
   };
 
   const handleAddAirline = async (airlineData) => {
     try {
-      // Generate a unique ID for the airline
-      const airlineWithId = {
-        ...airlineData,
-        airlineId: generateUniqueId(ID_PREFIXES.AIRLINE)
-      };
-
-      const response = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:5001'}/api/airlines`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-auth-token': localStorage.getItem('token') || 'default-dev-token'
-        },
-        body: JSON.stringify(airlineWithId)
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to add airline');
+      const response = await axios.post('/api/airlines', airlineData);
+      
+      if (response.data) {
+        const newAirline = response.data;
+        setAirlines([...airlines, newAirline]);
+        setShowForm(false);
+        toast.success('Airline added successfully');
+      } else {
+        throw new Error('Invalid response from server');
       }
-
-      const newAirline = await response.json();
-      setAirlines([...airlines, newAirline]);
-      setShowForm(false);
-      toast.success('Airline added successfully');
     } catch (err) {
       console.error('Error adding airline:', err);
-      toast.error(err.message || 'Failed to add airline');
+      toast.error(`Failed to add airline: ${err.response?.data?.msg || err.message || 'Unknown error'}`);
     }
   };
 
   const handleUpdateAirline = async (airlineData) => {
     try {
-      console.log('Updating airline:', airlineData);
-      
-      // Try API first
-      try {
-        // Proceed with update
-        const response = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:5001'}/api/airlines/${editingAirline._id}`, {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-            'x-auth-token': localStorage.getItem('token') || 'default-dev-token'
-          },
-          body: JSON.stringify(airlineData)
-        });
-        
-        if (response.ok) {
-          const updatedAirline = await response.json();
-          console.log('Updated airline from API:', updatedAirline);
-          
-          // Update the local state with the API data
-          const updatedAirlines = airlines.map(airline => 
-            airline._id === updatedAirline._id ? updatedAirline : airline
-          );
-          setAirlines(updatedAirlines);
-          setEditingAirline(null);
-          setShowForm(false);
-          toast.success('Airline updated successfully');
-          return;
-        }
-      } catch (apiErr) {
-        console.log('API update failed, using local update:', apiErr);
+      if (!editingAirline || !editingAirline._id) {
+        throw new Error('No airline selected for update');
       }
       
-      // Fall back to local update if API failed
-      const updatedAirline = {
-        ...airlineData,
-        _id: editingAirline._id
-      };
+      const response = await axios.put(`/api/airlines/${editingAirline._id}`, airlineData);
       
-      // Update the local state
-      const updatedAirlines = airlines.map(airline => 
-        airline._id === editingAirline._id ? updatedAirline : airline
-      );
-      
-      console.log('Updated airlines with local data:', updatedAirlines);
-      setAirlines(updatedAirlines);
-      setEditingAirline(null);
-      setShowForm(false);
-      toast.success('Airline updated successfully (local only)');
+      if (response.data) {
+        const updatedAirline = response.data;
+        
+        // Update the local state with the API data
+        const updatedAirlines = airlines.map(airline => 
+          airline._id === updatedAirline._id ? updatedAirline : airline
+        );
+        
+        setAirlines(updatedAirlines);
+        setEditingAirline(null);
+        setShowForm(false);
+        toast.success('Airline updated successfully');
+      } else {
+        throw new Error('Invalid response from server');
+      }
     } catch (err) {
       console.error('Error updating airline:', err);
-      toast.error(err.message || 'Failed to update airline');
+      toast.error(`Failed to update airline: ${err.response?.data?.msg || err.message || 'Unknown error'}`);
     }
   };
 
@@ -246,49 +96,31 @@ const AirlineManager = () => {
     }
 
     try {
-      console.log('Deleting airline with ID:', id);
+      await axios.delete(`/api/airlines/${id}`);
       
-      // Try API first
-      try {
-        const response = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:5001'}/api/airlines/${id}`, {
-          method: 'DELETE',
-          headers: {
-            'x-auth-token': localStorage.getItem('token') || 'default-dev-token'
-          }
-        });
-        
-        if (response.ok) {
-          setAirlines(airlines.filter(airline => airline._id !== id));
-          toast.success('Airline deleted successfully');
-          return;
-        }
-      } catch (apiErr) {
-        console.log('API delete failed, using local delete:', apiErr);
-      }
+      // Update local state
+      const updatedAirlines = airlines.filter(airline => airline._id !== id);
+      setAirlines(updatedAirlines);
       
-      // Fall back to local delete if API failed
-      setAirlines(airlines.filter(airline => airline._id !== id));
-      toast.success('Airline deleted successfully (local only)');
+      toast.success('Airline deleted successfully');
     } catch (err) {
       console.error('Error deleting airline:', err);
-      toast.error('Failed to delete airline');
+      toast.error(`Failed to delete airline: ${err.message || 'Unknown error'}`);
     }
   };
 
   const handleExportCSV = () => {
-    const csv = Papa.unparse(airlines.map(airline => ({
-      name: airline.name,
-      code: airline.code,
-      trackingUrlTemplate: airline.trackingUrlTemplate,
-      status: airline.status
-    })));
+    if (airlines.length === 0) {
+      toast.warn('No airlines to export');
+      return;
+    }
 
+    const csv = Papa.unparse(airlines);
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
     const url = URL.createObjectURL(blob);
-    link.setAttribute('href', url);
+    const link = document.createElement('a');
+    link.href = url;
     link.setAttribute('download', 'airlines.csv');
-    link.style.visibility = 'hidden';
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -299,341 +131,171 @@ const AirlineManager = () => {
     if (!file) return;
 
     Papa.parse(file, {
+      header: true,
       complete: async (results) => {
         try {
-          const response = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:5001'}/api/airlines/bulk`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'x-auth-token': localStorage.getItem('token') || 'default-dev-token'
-            },
-            body: JSON.stringify(results.data)
-          });
+          if (results.data.length === 0) {
+            toast.warn('No data found in CSV file');
+            return;
+          }
+
+          // Validate data format
+          const validData = results.data.filter(airline => 
+            airline.name && airline.code && airline.trackingUrlTemplate
+          );
+
+          if (validData.length === 0) {
+            toast.error('No valid airline data found in CSV');
+            return;
+          }
+
+          // Add missing required fields and prepare for bulk import
+          const preparedData = validData.map(airline => ({
+            name: airline.name,
+            code: airline.code,
+            trackingUrlTemplate: airline.trackingUrlTemplate,
+            status: airline.status || 'active'
+          }));
+
+          // Bulk import through API
+          const response = await axios.post('/api/airlines/bulk', preparedData);
           
-          if (response.ok) {
-            const importedAirlines = await response.json();
-            setAirlines([...airlines, ...importedAirlines]);
-            toast.success('Airlines imported successfully');
+          if (response.data && Array.isArray(response.data)) {
+            toast.success(`Successfully imported ${response.data.length} airlines`);
+            fetchAirlines(); // Refresh the list
           } else {
-            const errorData = await response.json();
-            toast.error(errorData.msg || 'Failed to import airlines');
+            throw new Error('Invalid response from server');
           }
         } catch (err) {
           console.error('Error importing airlines:', err);
-          toast.error('Failed to import airlines');
+          toast.error(`Failed to import airlines: ${err.message || 'Unknown error'}`);
         }
       },
-      header: true,
-      skipEmptyLines: true,
       error: (error) => {
         console.error('Error parsing CSV:', error);
-        toast.error('Failed to parse CSV file');
-      },
+        toast.error(`Failed to parse CSV: ${error.message}`);
+      }
     });
+
+    // Clear the file input
+    event.target.value = null;
   };
 
-  if (loading) {
-    return (
-      <div className="loading">
-        <i className="fas fa-spinner fa-spin"></i>
-        <p>Loading airlines...</p>
-      </div>
-    );
-  }
-
   return (
-    <div className="airline-manager">
-      <div className="airline-header">
-        <h2 className="airline-title">Airlines Management</h2>
-        <div className="airline-actions">
+    <div className="airlines-section admin-section">
+      <div className="section-header">
+        <h2>Airlines</h2>
+        <div>
+          <input
+            type="file"
+            id="csv-upload"
+            accept=".csv"
+            style={{ display: 'none' }}
+            onChange={handleImportCSV}
+          />
           <button 
-            className="btn btn-success"
+            className="btn btn-secondary"
+            onClick={() => document.getElementById('csv-upload').click()}
+          >
+            Import CSV
+          </button>
+          <button 
+            className="btn btn-secondary"
             onClick={handleExportCSV}
           >
-            <i className="fas fa-file-export"></i> Export CSV
+            Export CSV
           </button>
-          <label className="btn btn-secondary">
-            <i className="fas fa-file-import"></i> Import CSV
-            <input
-              type="file"
-              className="file-input"
-              accept=".csv"
-              onChange={handleImportCSV}
-            />
-          </label>
           <button 
             className="btn btn-primary"
-            onClick={() => setShowForm(true)}
+            onClick={() => { setShowForm(true); setEditingAirline(null); }}
           >
-            <i className="fas fa-plus"></i> Add Airline
+            Add Airline
           </button>
         </div>
       </div>
 
-      {showForm && (
-        <AirlineForm
-          onSubmit={editingAirline ? handleUpdateAirline : handleAddAirline}
-          onCancel={() => {
-            setShowForm(false);
-            setEditingAirline(null);
-          }}
-          initialData={editingAirline}
-        />
+      {loading ? (
+        <div className="loading">
+          <i className="fas fa-spinner fa-spin"></i>
+          <span>Loading airlines...</span>
+        </div>
+      ) : error ? (
+        <div className="error-message">
+          <p>{error}</p>
+          <button 
+            className="btn btn-primary"
+            onClick={() => { setShowForm(true); setEditingAirline(null); }}
+          >
+            Add First Airline
+          </button>
+        </div>
+      ) : airlines.length === 0 ? (
+        <div className="text-center">
+          <p>No airlines found. Add your first airline to get started.</p>
+          <button 
+            className="btn btn-primary"
+            onClick={() => { setShowForm(true); setEditingAirline(null); }}
+          >
+            Add First Airline
+          </button>
+        </div>
+      ) : (
+        <div className="table-responsive">
+          <table className="table">
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Code</th>
+                <th>Tracking URL Template</th>
+                <th>Status</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {airlines.map(airline => (
+                <tr key={airline._id}>
+                  <td>{airline.name}</td>
+                  <td>{airline.code}</td>
+                  <td>
+                    <span className="url-preview" title={airline.trackingUrlTemplate}>
+                      {airline.trackingUrlTemplate}
+                    </span>
+                  </td>
+                  <td>
+                    <span className={`status-badge status-${airline.status}`}>
+                      {airline.status}
+                    </span>
+                  </td>
+                  <td>
+                    <button
+                      className="btn-icon btn-edit"
+                      onClick={() => { setEditingAirline(airline); setShowForm(true); }}
+                      title="Edit"
+                    >
+                      <i className="fas fa-edit"></i>
+                    </button>
+                    <button
+                      className="btn-icon btn-delete"
+                      onClick={() => handleDeleteAirline(airline._id)}
+                      title="Delete"
+                    >
+                      <i className="fas fa-trash"></i>
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
 
-      <div className="airline-list">
-        <table>
-          <thead>
-            <tr>
-              <th>ID</th>
-              <th>Name</th>
-              <th>Code</th>
-              <th>Tracking URL Template</th>
-              <th>Status</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {airlines.map(airline => (
-              <tr key={airline._id}>
-                <td>{airline.airlineId || `AIR-${airline._id.substring(0, 8)}`}</td>
-                <td>{airline.name}</td>
-                <td>{airline.code}</td>
-                <td>{airline.trackingUrlTemplate}</td>
-                <td>
-                  <span className={`status-badge status-${airline.status}`}>
-                    {airline.status}
-                  </span>
-                </td>
-                <td>
-                  <button
-                    className="btn-icon btn-edit"
-                    onClick={() => {
-                      setEditingAirline(airline);
-                      setShowForm(true);
-                    }}
-                  >
-                    <i className="fas fa-edit"></i>
-                  </button>
-                  <button
-                    className="btn-icon btn-delete"
-                    onClick={() => handleDeleteAirline(airline._id)}
-                  >
-                    <i className="fas fa-trash"></i>
-                  </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-
-      <style jsx>{`
-        .airline-manager {
-          padding: 20px;
-        }
-
-        .airline-header {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          margin-bottom: 30px;
-          flex-wrap: wrap;
-          gap: 15px;
-        }
-
-        .airline-title {
-          color: #2c3e50;
-          font-size: 20px;
-          margin: 0;
-        }
-
-        .airline-actions {
-          display: flex;
-          gap: 10px;
-          flex-wrap: wrap;
-        }
-
-        .btn {
-          padding: 8px 16px;
-          border: none;
-          border-radius: 4px;
-          cursor: pointer;
-          font-size: 14px;
-          display: flex;
-          align-items: center;
-          gap: 8px;
-          white-space: nowrap;
-          transition: background-color 0.2s;
-        }
-
-        .btn-primary {
-          background: #0d6efd;
-          color: white;
-        }
-
-        .btn-primary:hover {
-          background: #0b5ed7;
-        }
-
-        .btn-secondary {
-          background: #6c757d;
-          color: white;
-        }
-
-        .btn-secondary:hover {
-          background: #5c636a;
-        }
-
-        .btn-success {
-          background: #198754;
-          color: white;
-        }
-
-        .btn-success:hover {
-          background: #157347;
-        }
-
-        .airline-list table {
-          width: 100%;
-          border-collapse: collapse;
-          margin-top: 20px;
-          min-width: 600px;
-        }
-
-        .airline-list {
-          overflow-x: auto;
-          border-radius: 8px;
-          box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-          background: white;
-        }
-
-        .airline-list th,
-        .airline-list td {
-          padding: 12px;
-          text-align: left;
-          border-bottom: 1px solid #ddd;
-        }
-
-        .airline-list th {
-          background-color: #f8f9fa;
-          font-weight: 600;
-          color: #495057;
-          position: sticky;
-          top: 0;
-          z-index: 10;
-        }
-
-        .airline-list tr:hover {
-          background-color: #f8f9fa;
-        }
-
-        .status-badge {
-          padding: 4px 8px;
-          border-radius: 4px;
-          font-size: 12px;
-          font-weight: 500;
-        }
-
-        .status-active {
-          background: #e8f5e9;
-          color: #2e7d32;
-        }
-
-        .status-inactive {
-          background: #ffebee;
-          color: #c62828;
-        }
-
-        .btn-icon {
-          padding: 6px;
-          border: none;
-          border-radius: 4px;
-          cursor: pointer;
-          margin-right: 4px;
-          color: #6c757d;
-        }
-
-        .btn-edit {
-          background: #e3f2fd;
-          color: #1976d2;
-        }
-
-        .btn-edit:hover {
-          background: #bbdefb;
-        }
-
-        .btn-delete {
-          background: #ffebee;
-          color: #d32f2f;
-        }
-
-        .btn-delete:hover {
-          background: #ffcdd2;
-        }
-
-        .file-input {
-          display: none;
-        }
-
-        .loading {
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          justify-content: center;
-          padding: 40px;
-          color: #6c757d;
-        }
-
-        .loading i {
-          font-size: 24px;
-          margin-bottom: 10px;
-        }
-
-        @media (max-width: 768px) {
-          .airline-header {
-            flex-direction: column;
-            align-items: flex-start;
-          }
-          
-          .airline-actions {
-            width: 100%;
-            justify-content: space-between;
-          }
-          
-          .btn {
-            padding: 8px 12px;
-            font-size: 13px;
-          }
-          
-          .airline-list td, 
-          .airline-list th {
-            padding: 8px;
-            font-size: 14px;
-          }
-        }
-
-        @media (max-width: 480px) {
-          .airline-manager {
-            padding: 10px;
-          }
-          
-          .airline-title {
-            font-size: 18px;
-          }
-          
-          .btn {
-            padding: 6px 10px;
-            font-size: 12px;
-          }
-          
-          .airline-list td, 
-          .airline-list th {
-            padding: 6px;
-            font-size: 13px;
-          }
-        }
-      `}</style>
+      {showForm && (
+        <AirlineForm
+          airline={editingAirline}
+          onSubmit={editingAirline ? handleUpdateAirline : handleAddAirline}
+          onCancel={() => { setShowForm(false); setEditingAirline(null); }}
+        />
+      )}
     </div>
   );
 };

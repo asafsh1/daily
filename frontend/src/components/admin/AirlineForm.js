@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import PropTypes from 'prop-types';
 
-const AirlineForm = ({ onSubmit, onCancel, initialData }) => {
+const AirlineForm = ({ onSubmit, onCancel, airline }) => {
   const [formData, setFormData] = useState({
     name: '',
     code: '',
@@ -10,15 +10,15 @@ const AirlineForm = ({ onSubmit, onCancel, initialData }) => {
   });
 
   useEffect(() => {
-    if (initialData) {
+    if (airline) {
       setFormData({
-        name: initialData.name || '',
-        code: initialData.code || '',
-        trackingUrlTemplate: initialData.trackingUrlTemplate || '',
-        status: initialData.status || 'active'
+        name: airline.name || '',
+        code: airline.code || '',
+        trackingUrlTemplate: airline.trackingUrlTemplate || '',
+        status: airline.status || 'active'
       });
     }
-  }, [initialData]);
+  }, [airline]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -37,7 +37,7 @@ const AirlineForm = ({ onSubmit, onCancel, initialData }) => {
     <div className="modal-overlay">
       <div className="airline-form modal-content">
         <div className="modal-header">
-          <h3>{initialData ? 'Edit Airline' : 'Add New Airline'}</h3>
+          <h3>{airline ? 'Edit Airline' : 'Add New Airline'}</h3>
           <button type="button" className="close-button" onClick={onCancel}>×</button>
         </div>
         <form onSubmit={handleSubmit}>
@@ -62,7 +62,11 @@ const AirlineForm = ({ onSubmit, onCancel, initialData }) => {
               value={formData.code}
               onChange={handleChange}
               required
+              placeholder="Airline Code (e.g., 114, 176)"
             />
+            <small className="form-text text-muted">
+              Standard 3-digit IATA airline code
+            </small>
           </div>
 
           <div className="form-group">
@@ -74,7 +78,11 @@ const AirlineForm = ({ onSubmit, onCancel, initialData }) => {
               value={formData.trackingUrlTemplate}
               onChange={handleChange}
               required
+              placeholder="https://example.com/track/{awb}"
             />
+            <small className="form-text text-muted">
+              Use {awb} as a placeholder for the AWB number
+            </small>
           </div>
 
           <div className="form-group">
@@ -93,7 +101,7 @@ const AirlineForm = ({ onSubmit, onCancel, initialData }) => {
 
           <div className="form-actions">
             <button type="submit" className="btn btn-primary">
-              {initialData ? 'Update' : 'Add'} Airline
+              {airline ? 'Update' : 'Add'} Airline
             </button>
             <button type="button" className="btn btn-secondary" onClick={onCancel}>
               Cancel
@@ -173,6 +181,13 @@ const AirlineForm = ({ onSubmit, onCancel, initialData }) => {
             border-radius: 4px;
             font-size: 14px;
           }
+          
+          .form-text {
+            display: block;
+            margin-top: 5px;
+            font-size: 12px;
+            color: #6c757d;
+          }
 
           .form-actions {
             display: flex;
@@ -207,7 +222,7 @@ const AirlineForm = ({ onSubmit, onCancel, initialData }) => {
 AirlineForm.propTypes = {
   onSubmit: PropTypes.func.isRequired,
   onCancel: PropTypes.func.isRequired,
-  initialData: PropTypes.shape({
+  airline: PropTypes.shape({
     name: PropTypes.string,
     code: PropTypes.string,
     trackingUrlTemplate: PropTypes.string,
