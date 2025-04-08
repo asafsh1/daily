@@ -60,6 +60,31 @@ router.get('/', auth, async (req, res) => {
   }
 });
 
+// @route   POST api/shipments/debug
+// @desc    Debug endpoint to test request handling
+// @access  Public
+router.post('/debug', async (req, res) => {
+  try {
+    // Log the request details
+    console.log('Debug endpoint called');
+    console.log('Request headers:', req.headers);
+    console.log('Request body:', req.body);
+    
+    // Echo back the request
+    res.json({
+      message: 'Debug endpoint successful',
+      receivedBody: req.body,
+      timestamp: new Date()
+    });
+  } catch (err) {
+    console.error('Debug endpoint error:', err.message);
+    res.status(500).json({
+      error: err.message,
+      stack: process.env.NODE_ENV === 'production' ? null : err.stack
+    });
+  }
+});
+
 // @route   GET api/shipments/repair-legs/:id
 // @desc    Special endpoint to fix legs for a shipment
 // @access  Public
