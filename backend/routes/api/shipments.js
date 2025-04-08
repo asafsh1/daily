@@ -391,7 +391,6 @@ router.post('/', [
       arrivalDate: req.body.arrivalDate,
       status: req.body.status || 'Planned',
       // Include any other fields from the request
-      serialNumber: req.body.serialNumber || `SN-${Date.now()}`,
       orderStatus: req.body.orderStatus || 'planned',
       shipmentStatus: req.body.shipmentStatus || 'Pending',
       invoiced: req.body.invoiced || false,
