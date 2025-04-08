@@ -2,6 +2,7 @@
 
 .shipment-legs {
   margin-bottom: 30px;
+  position: relative;
 }
 
 .shipment-legs h3 {
@@ -93,13 +94,14 @@
   left: 0;
   width: 100%;
   height: 100%;
-  background: rgba(0, 0, 0, 0.5);
+  background: rgba(0, 0, 0, 0.7);
   display: flex;
   justify-content: center;
   align-items: center;
-  z-index: 1050;
+  z-index: 9999;
   padding: 15px;
   box-sizing: border-box;
+  overflow: auto;
 }
 
 .leg-modal {
@@ -107,11 +109,12 @@
   border-radius: 8px;
   width: 100%;
   max-width: 960px;
-  max-height: 90vh;
+  max-height: 85vh;
   overflow-y: auto;
   padding: 25px;
   box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
   position: relative;
+  margin: 30px auto;
 }
 
 .leg-modal-header {
@@ -121,6 +124,10 @@
   border-bottom: 1px solid #eee;
   padding-bottom: 15px;
   margin-bottom: 20px;
+  position: sticky;
+  top: 0;
+  background: white;
+  z-index: 10;
 }
 
 .leg-modal-header h4 {
@@ -151,11 +158,16 @@
   margin-top: 25px;
   padding-top: 15px;
   border-top: 1px solid #eee;
+  position: sticky;
+  bottom: 0;
+  background: white;
+  z-index: 10;
 }
 
 /* Form styling within modal */
 .leg-modal .form-group {
   margin-bottom: 20px;
+  position: relative;
 }
 
 .leg-modal label {
@@ -170,6 +182,9 @@
   border: 1px solid #ced4da;
   border-radius: 4px;
   height: auto;
+  box-sizing: border-box;
+  background-color: #fff;
+  font-size: 14px;
 }
 
 .leg-modal .row {
@@ -186,6 +201,7 @@
   padding-left: 10px;
   padding-right: 10px;
   box-sizing: border-box;
+  margin-bottom: 10px;
 }
 
 .leg-modal .col-md-2 {
@@ -217,6 +233,7 @@
   .leg-modal {
     padding: 15px;
     max-height: 95vh;
+    margin: 10px auto;
   }
 }
 

@@ -1,60 +1,43 @@
 import React, { useState, useEffect } from 'react';
 import PropTypes from 'prop-types';
-import { generateUniqueId, ID_PREFIXES } from '../../utils/idGenerator';
 
 const NotifyPartyForm = ({ notifyParty, onSave, onCancel }) => {
   const [formData, setFormData] = useState({
     name: '',
+    contactPerson: '',
     email: '',
     phone: '',
     address: '',
-    contactPerson: '',
     notes: ''
   });
 
+  // Load notifyParty data if editing
   useEffect(() => {
-    // If notifyParty data is provided, populate the form
     if (notifyParty) {
       setFormData({
         name: notifyParty.name || '',
+        contactPerson: notifyParty.contactPerson || '',
         email: notifyParty.email || '',
         phone: notifyParty.phone || '',
         address: notifyParty.address || '',
-        contactPerson: notifyParty.contactPerson || '',
         notes: notifyParty.notes || ''
-      });
-    } else {
-      // Reset form when no notifyParty is provided
-      setFormData({
-        name: '',
-        email: '',
-        phone: '',
-        address: '',
-        contactPerson: '',
-        notes: ''
       });
     }
   }, [notifyParty]);
 
   const handleChange = (e) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: value
-    }));
+    setFormData({
+      ...formData,
+      [e.target.name]: e.target.value
+    });
   };
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    
-    // Create the notifyParty object
-    const notifyPartyData = {
+    onSave({
       ...formData,
-      ...(notifyParty && { _id: notifyParty._id }),
-      notifyPartyId: notifyParty?.notifyPartyId || generateUniqueId(ID_PREFIXES.NOTIFY_PARTY)
-    };
-    
-    onSave(notifyPartyData);
+      _id: notifyParty?._id
+    });
   };
 
   return (
@@ -149,78 +132,6 @@ const NotifyPartyForm = ({ notifyParty, onSave, onCancel }) => {
           {notifyParty ? 'Update Notify Party' : 'Add Notify Party'}
         </button>
       </div>
-
-      <style jsx>{`
-        .form {
-          background-color: #f9f9f9;
-          padding: 20px;
-          border-radius: 8px;
-          margin-top: 20px;
-        }
-        
-        .form-row {
-          display: flex;
-          gap: 20px;
-        }
-        
-        .form-group {
-          margin-bottom: 15px;
-          width: 100%;
-        }
-        
-        .form-control {
-          width: 100%;
-          padding: 10px;
-          border: 1px solid #ddd;
-          border-radius: 4px;
-          font-size: 16px;
-        }
-        
-        textarea.form-control {
-          resize: vertical;
-        }
-        
-        .form-buttons {
-          display: flex;
-          justify-content: flex-end;
-          gap: 10px;
-          margin-top: 20px;
-        }
-        
-        .btn {
-          padding: 10px 15px;
-          border: none;
-          border-radius: 4px;
-          cursor: pointer;
-          font-size: 16px;
-          transition: all 0.3s ease;
-        }
-        
-        .btn-primary {
-          background-color: #0d6efd;
-          color: white;
-        }
-        
-        .btn-primary:hover {
-          background-color: #0b5ed7;
-        }
-        
-        .btn-secondary {
-          background-color: #6c757d;
-          color: white;
-        }
-        
-        .btn-secondary:hover {
-          background-color: #5c636a;
-        }
-        
-        @media (max-width: 768px) {
-          .form-row {
-            flex-direction: column;
-            gap: 0;
-          }
-        }
-      `}</style>
     </form>
   );
 };

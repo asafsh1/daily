@@ -719,16 +719,31 @@ const Admin = () => {
                 )}
 
                 {showShipperForm && (
-                  <div className="form-modal">
-                    <h3>{editShipper ? 'Edit Shipper' : 'Add Shipper'}</h3>
-                    <ShipperForm
-                      shipper={editShipper}
-                      onSave={handleSaveShipper}
-                      onCancel={() => {
-                        setShowShipperForm(false);
-                        setEditShipper(null);
-                      }}
-                    />
+                  <div className="modal-backdrop">
+                    <div className="modal-content">
+                      <div className="modal-header">
+                        <h3>{editShipper ? 'Edit Shipper' : 'Add Shipper'}</h3>
+                        <button 
+                          className="btn-close" 
+                          onClick={() => {
+                            setShowShipperForm(false);
+                            setEditShipper(null);
+                          }}
+                        >
+                          &times;
+                        </button>
+                      </div>
+                      <div className="modal-body">
+                        <ShipperForm
+                          shipper={editShipper}
+                          onSave={handleSaveShipper}
+                          onCancel={() => {
+                            setShowShipperForm(false);
+                            setEditShipper(null);
+                          }}
+                        />
+                      </div>
+                    </div>
                   </div>
                 )}
               </>
@@ -800,16 +815,31 @@ const Admin = () => {
                 )}
 
                 {showConsigneeForm && (
-                  <div className="form-modal">
-                    <h3>{editConsignee ? 'Edit Consignee' : 'Add Consignee'}</h3>
-                    <ConsigneeForm
-                      consignee={editConsignee}
-                      onSave={handleSaveConsignee}
-                      onCancel={() => {
-                        setShowConsigneeForm(false);
-                        setEditConsignee(null);
-                      }}
-                    />
+                  <div className="modal-backdrop">
+                    <div className="modal-content">
+                      <div className="modal-header">
+                        <h3>{editConsignee ? 'Edit Consignee' : 'Add Consignee'}</h3>
+                        <button 
+                          className="btn-close" 
+                          onClick={() => {
+                            setShowConsigneeForm(false);
+                            setEditConsignee(null);
+                          }}
+                        >
+                          &times;
+                        </button>
+                      </div>
+                      <div className="modal-body">
+                        <ConsigneeForm
+                          consignee={editConsignee}
+                          onSave={handleSaveConsignee}
+                          onCancel={() => {
+                            setShowConsigneeForm(false);
+                            setEditConsignee(null);
+                          }}
+                        />
+                      </div>
+                    </div>
                   </div>
                 )}
               </>
@@ -881,16 +911,31 @@ const Admin = () => {
                 )}
 
                 {showNotifyPartyForm && (
-                  <div className="form-modal">
-                    <h3>{editNotifyParty ? 'Edit Notify Party' : 'Add Notify Party'}</h3>
-                    <NotifyPartyForm
-                      notifyParty={editNotifyParty}
-                      onSave={handleSaveNotifyParty}
-                      onCancel={() => {
-                        setShowNotifyPartyForm(false);
-                        setEditNotifyParty(null);
-                      }}
-                    />
+                  <div className="modal-backdrop">
+                    <div className="modal-content">
+                      <div className="modal-header">
+                        <h3>{editNotifyParty ? 'Edit Notify Party' : 'Add Notify Party'}</h3>
+                        <button 
+                          className="btn-close" 
+                          onClick={() => {
+                            setShowNotifyPartyForm(false);
+                            setEditNotifyParty(null);
+                          }}
+                        >
+                          &times;
+                        </button>
+                      </div>
+                      <div className="modal-body">
+                        <NotifyPartyForm
+                          notifyParty={editNotifyParty}
+                          onSave={handleSaveNotifyParty}
+                          onCancel={() => {
+                            setShowNotifyPartyForm(false);
+                            setEditNotifyParty(null);
+                          }}
+                        />
+                      </div>
+                    </div>
                   </div>
                 )}
               </>
