@@ -180,6 +180,10 @@ router.post('/', [
   }
 
   try {
+    // Generate a legId manually to avoid relying on pre-save hook
+    const legId = `LEG${Math.floor(Math.random() * 10000).toString().padStart(3, '0')}`;
+    console.log('Manually generated legId:', legId);
+    
     // Create a new shipment leg
     const newLeg = new ShipmentLeg({
       from: req.body.from,
@@ -200,28 +204,51 @@ router.post('/', [
       departureTime: req.body.departureDate,
       arrivalTime: req.body.arrivalDate,
       shipmentId: req.body.shipment, // Add this for compatibility
-      changeLog: req.body.changeLog || []
+      changeLog: req.body.changeLog || [],
+      // Set the legId manually
+      legId: legId
     });
 
-    const leg = await newLeg.save();
-    
-    // Update the shipment to include this leg ID in its legs array
-    if (mongoose.Types.ObjectId.isValid(req.body.shipment)) {
-      const shipment = await Shipment.findById(req.body.shipment);
-      if (shipment) {
-        if (!shipment.legs) {
-          shipment.legs = [];
+    try {
+      console.log('Saving leg with data:', newLeg);
+      const leg = await newLeg.save();
+      console.log('Successfully saved leg:', leg._id);
+      
+      // Update the shipment to include this leg ID in its legs array
+      if (mongoose.Types.ObjectId.isValid(req.body.shipment)) {
+        try {
+          const shipment = await Shipment.findById(req.body.shipment);
+          if (shipment) {
+            if (!shipment.legs) {
+              shipment.legs = [];
+            }
+            // Add this leg to the shipment's legs array
+            shipment.legs.push(leg._id);
+            await shipment.save();
+            console.log('Added leg to shipment:', shipment._id);
+          }
+        } catch (shipmentErr) {
+          console.error('Error updating shipment with leg reference:', shipmentErr);
+          // Continue anyway, we've already created the leg
         }
-        // Add this leg to the shipment's legs array
-        shipment.legs.push(leg);
-        await shipment.save();
       }
-    }
 
-    res.json(leg);
+      return res.json(leg);
+    } catch (saveErr) {
+      console.error('Error saving leg:', saveErr);
+      return res.status(500).json({ 
+        msg: 'Error saving leg', 
+        error: saveErr.message,
+        stack: process.env.NODE_ENV === 'production' ? null : saveErr.stack
+      });
+    }
   } catch (err) {
-    console.error(err.message);
-    res.status(500).send('Server Error');
+    console.error('Error in shipment leg creation route:', err);
+    return res.status(500).json({
+      msg: 'Server Error',
+      error: err.message,
+      stack: process.env.NODE_ENV === 'production' ? null : err.stack
+    });
   }
 });
 
@@ -250,6 +277,10 @@ router.post('/add-to-shipment/:shipment_id', [
       return res.status(404).json({ msg: 'Shipment not found' });
     }
     
+    // Generate a legId manually
+    const legId = `LEG${Math.floor(Math.random() * 10000).toString().padStart(3, '0')}`;
+    console.log('Manually generated legId:', legId);
+    
     // Create the leg
     const legData = {
       from: req.body.from,
@@ -262,28 +293,60 @@ router.post('/add-to-shipment/:shipment_id', [
       status: req.body.status || 'Not Started',
       notes: req.body.notes,
       shipment: shipmentId,
-      changeLog: req.body.changeLog || []
+      changeLog: req.body.changeLog || [],
+      // Set the legId manually
+      legId: legId,
+      // Add compatibility fields
+      origin: req.body.from,
+      destination: req.body.to,
+      shipmentId: shipmentId
     };
     
-    // Option 1: Add as a standalone leg document
-    const newLeg = new ShipmentLeg(legData);
-    const leg = await newLeg.save();
-    
-    // Option 2: Add to the shipment document's legs array
-    if (!shipment.legs) {
-      shipment.legs = [];
+    try {
+      // Option 1: Add as a standalone leg document
+      const newLeg = new ShipmentLeg(legData);
+      console.log('Saving leg with data:', legData);
+      const leg = await newLeg.save();
+      console.log('Successfully saved leg:', leg._id);
+      
+      // Option 2: Add to the shipment document's legs array
+      try {
+        if (!shipment.legs) {
+          shipment.legs = [];
+        }
+        
+        shipment.legs.push(leg._id);
+        await shipment.save();
+        console.log('Added leg to shipment:', shipment._id);
+        
+        return res.json({ 
+          message: 'Leg added to shipment successfully',
+          leg: leg 
+        });
+      } catch (shipmentErr) {
+        console.error('Error adding leg to shipment:', shipmentErr);
+        // Return the leg anyway since we've already created it
+        return res.json({ 
+          message: 'Leg created successfully but failed to update shipment',
+          leg: leg,
+          error: shipmentErr.message
+        });
+      }
+    } catch (legErr) {
+      console.error('Error saving leg:', legErr);
+      return res.status(500).json({ 
+        msg: 'Error saving leg', 
+        error: legErr.message,
+        stack: process.env.NODE_ENV === 'production' ? null : legErr.stack
+      });
     }
-    
-    shipment.legs.push(leg);
-    await shipment.save();
-    
-    res.json({ 
-      message: 'Leg added to shipment successfully',
-      leg: leg 
-    });
   } catch (err) {
-    console.error(err.message);
-    res.status(500).send('Server Error');
+    console.error('Error in add-to-shipment route:', err);
+    return res.status(500).json({
+      msg: 'Server Error',
+      error: err.message,
+      stack: process.env.NODE_ENV === 'production' ? null : err.stack
+    });
   }
 });
 

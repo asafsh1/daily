@@ -325,7 +325,7 @@ router.post('/:id/legs', [
       return res.status(404).json({ msg: 'Shipment not found' });
     }
     
-    // Create the new leg object
+    // Create the new leg object with all required fields
     const legFields = {
       shipment: req.params.id,
       shipmentId: req.params.id,
@@ -337,25 +337,46 @@ router.post('/:id/legs', [
       legOrder: req.body.legOrder,
       departureDate: req.body.departureDate,
       arrivalDate: req.body.arrivalDate,
-      status: req.body.status || 'Planned'
+      status: req.body.status || 'Planned',
+      // Generate a legId manually to avoid relying on pre-save hook
+      legId: `LEG${Math.floor(Math.random() * 10000).toString().padStart(3, '0')}`
     };
 
-    // Create and save the new leg
-    const ShipmentLeg = mongoose.model('shipmentLeg');
-    const newLeg = new ShipmentLeg(legFields);
-    const leg = await newLeg.save();
+    // Create and save the new leg with try/catch for better error handling
+    try {
+      console.log('Creating new leg for shipment:', req.params.id);
+      console.log('Leg data:', legFields);
+      
+      const ShipmentLeg = mongoose.model('shipmentLeg');
+      const newLeg = new ShipmentLeg(legFields);
+      const leg = await newLeg.save();
+      
+      console.log('New leg created with ID:', leg._id);
 
-    // Add the leg to the shipment's legs array
-    if (!shipment.legs) {
-      shipment.legs = [];
+      // Add the leg to the shipment's legs array
+      if (!shipment.legs) {
+        shipment.legs = [];
+      }
+      shipment.legs.push(leg._id);
+      await shipment.save();
+      console.log('Shipment updated with new leg reference');
+
+      return res.json(leg);
+    } catch (legErr) {
+      console.error('Error creating leg:', legErr);
+      return res.status(500).json({ 
+        msg: 'Error creating leg', 
+        error: legErr.message,
+        stack: process.env.NODE_ENV === 'production' ? null : legErr.stack
+      });
     }
-    shipment.legs.push(leg._id);
-    await shipment.save();
-
-    res.json(leg);
   } catch (err) {
-    console.error('Error creating leg:', err.message);
-    res.status(500).send('Server Error');
+    console.error('Error in shipment leg creation route:', err.message);
+    return res.status(500).json({ 
+      msg: 'Server Error', 
+      error: err.message,
+      stack: process.env.NODE_ENV === 'production' ? null : err.stack
+    });
   }
 });
 
