@@ -281,17 +281,39 @@ const Shipments = ({ getShipments, updateShipment, deleteShipment, shipment: { s
                       : 'Unknown';
                       
                     // Get origin with better fallback logic
-                    const origin = shipment.origin || 
+                    const originObject = shipment.origin || 
                       (shipment.legs && Array.isArray(shipment.legs) && shipment.legs.length > 0 && 
-                       (shipment.legs[0].from || shipment.legs[0].origin || 'N/A')) || 'N/A';
-                    debugShipmentField(shipment, 'origin', origin);
+                       (shipment.legs[0].from || shipment.legs[0].origin)) || null;
+                    
+                    // Extract origin text
+                    const originText = (() => {
+                      if (!originObject) return 'N/A';
+                      if (typeof originObject === 'string') return originObject;
+                      if (typeof originObject === 'object') {
+                        return originObject.name || originObject.code || JSON.stringify(originObject);
+                      }
+                      return 'N/A';
+                    })();
+                    
+                    debugShipmentField(shipment, 'origin', originObject);
                       
                     // Get destination with better fallback logic
-                    const destination = shipment.destination || 
+                    const destinationObject = shipment.destination || 
                       (shipment.legs && Array.isArray(shipment.legs) && shipment.legs.length > 0 && 
                        (shipment.legs[shipment.legs.length-1].to || 
-                        shipment.legs[shipment.legs.length-1].destination || 'N/A')) || 'N/A';
-                    debugShipmentField(shipment, 'destination', destination);
+                        shipment.legs[shipment.legs.length-1].destination)) || null;
+                    
+                    // Extract destination text
+                    const destinationText = (() => {
+                      if (!destinationObject) return 'N/A';
+                      if (typeof destinationObject === 'string') return destinationObject;
+                      if (typeof destinationObject === 'object') {
+                        return destinationObject.name || destinationObject.code || JSON.stringify(destinationObject);
+                      }
+                      return 'N/A';
+                    })();
+                    
+                    debugShipmentField(shipment, 'destination', destinationObject);
                     
                     const status = shipment.shipmentStatus || 'Pending';
                     
@@ -332,8 +354,8 @@ const Shipments = ({ getShipments, updateShipment, deleteShipment, shipment: { s
                           ) : 'N/A'}
                   </td>
                         <td>{customerName}</td>
-                        <td>{origin}</td>
-                        <td>{destination}</td>
+                        <td>{originText}</td>
+                        <td>{destinationText}</td>
                         <td>
                           <span className={`badge ${getStatusClass(status)}`}>
                             {status}
