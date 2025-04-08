@@ -52,6 +52,30 @@ app.use((req, res, next) => {
   next();
 });
 
+// Serve static assets in production
+if (process.env.NODE_ENV === 'production') {
+  // Set static folder - look in current directory or one level up
+  const clientPath = path.resolve(__dirname, 'client', 'build');
+  const frontendPath = path.resolve(__dirname, '..', 'frontend', 'build');
+  
+  // Try to find the build folder in either location
+  let staticPath;
+  if (fs.existsSync(clientPath)) {
+    staticPath = clientPath;
+    console.log('Using client/build for static files');
+  } else if (fs.existsSync(frontendPath)) {
+    staticPath = frontendPath;
+    console.log('Using frontend/build for static files');
+  }
+  
+  if (staticPath) {
+    console.log(`Serving static files from: ${staticPath}`);
+    app.use(express.static(staticPath));
+  } else {
+    console.warn('No static build folder found. API-only mode.');
+  }
+}
+
 // Define Routes
 app.use('/api/users', require('./routes/api/users'));
 app.use('/api/auth', require('./routes/api/auth'));
@@ -105,61 +129,6 @@ app.get('/health', (req, res) => {
   });
 });
 
-// Change endpoint path to match frontend expectation
-app.get('/api/dashboard/diagnostics', auth, async (req, res) => {
-  try {
-    // Check if user has admin role
-    if (!req.user.role || req.user.role !== 'admin') {
-      return res.status(403).json({ msg: 'Not authorized to access diagnostics' });
-    }
-    
-    const dbStatus = require('mongoose').connection.readyState;
-    const diagnosticInfo = {
-      server: {
-        uptime: process.uptime(),
-        memory: process.memoryUsage(),
-        version: process.version,
-        nodeEnv: process.env.NODE_ENV || 'development'
-      },
-      database: {
-        status: dbStatus === 1 ? 'connected' : 'disconnected',
-        readyState: dbStatus,
-        host: dbStatus === 1 ? mongoose.connection.host : 'N/A'
-      },
-      config: {
-        port: PORT,
-        corsOrigins: Array.isArray(app.get('corsOrigins')) ? app.get('corsOrigins') : ['default'],
-        staticPath: app.get('staticPath') || 'none'
-      }
-    };
-    
-    // Try to get some DB stats if connected
-    if (dbStatus === 1) {
-      try {
-        const userCount = await User.countDocuments();
-        const shipmentCount = await Shipment.countDocuments();
-        const customerCount = await Customer.countDocuments();
-        
-        diagnosticInfo.database.collections = {
-          users: userCount,
-          shipments: shipmentCount,
-          customers: customerCount
-        };
-      } catch (err) {
-        diagnosticInfo.database.collectionError = err.message;
-      }
-    }
-    
-    res.json(diagnosticInfo);
-  } catch (err) {
-    console.error('Diagnostics error:', err.message);
-    res.status(500).json({ 
-      msg: 'Error running diagnostics',
-      error: process.env.NODE_ENV === 'production' ? 'Internal server error' : err.message
-    });
-  }
-});
-
 // Add a public diagnostics endpoint that works without authentication
 app.get('/api/public-diagnostics', (req, res) => {
   try {
@@ -189,8 +158,8 @@ app.get('/api/public-diagnostics', (req, res) => {
       database: {
         status: dbStatusText,
         readyState: dbStatus,
-        connectionError: 'DNS resolution failed for MongoDB Atlas cluster',
-        errorDetails: 'The MongoDB Atlas cluster (cluster0.aqbmxvz.mongodb.net) could not be found. The cluster may have been deleted, paused, or renamed.',
+        connectionError: mongoose.connection.readyState !== 1 ? 'DNS resolution failed for MongoDB Atlas cluster' : null,
+        errorDetails: mongoose.connection.readyState !== 1 ? 'The MongoDB Atlas cluster could not be found. The cluster may have been deleted, paused, or renamed.' : null,
         connectionString: process.env.NODE_ENV === 'production' ? 'hidden' : mongoose.connection._connectionString.replace(/:([^@]+)@/, ':***@')
       },
       serverInfo: {
@@ -211,13 +180,12 @@ app.get('/api/public-diagnostics', (req, res) => {
   }
 });
 
-// Serve static assets in production
+// Catch-all route handler for SPA - must come after API routes
 if (process.env.NODE_ENV === 'production') {
-  // Set static folder - look in current directory or one level up
+  // Find the build folder if it exists
   const clientPath = path.resolve(__dirname, 'client', 'build');
   const frontendPath = path.resolve(__dirname, '..', 'frontend', 'build');
   
-  // Try to find the build folder in either location
   let staticPath;
   if (fs.existsSync(clientPath)) {
     staticPath = clientPath;
@@ -226,14 +194,15 @@ if (process.env.NODE_ENV === 'production') {
   }
   
   if (staticPath) {
-    console.log(`Serving static files from: ${staticPath}`);
-    app.use(express.static(staticPath));
-    
     app.get('*', (req, res) => {
-      res.sendFile(path.join(staticPath, 'index.html'));
+      if (!req.url.startsWith('/api/')) {
+        console.log(`Serving index.html for route: ${req.url}`);
+        res.sendFile(path.join(staticPath, 'index.html'));
+      } else {
+        // Let API routes be handled by their respective handlers
+        res.status(404).json({ message: 'API endpoint not found' });
+      }
     });
-  } else {
-    console.warn('No static build folder found. API-only mode.');
   }
 }
 
