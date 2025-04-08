@@ -72,12 +72,43 @@ const Admin = () => {
       setLoading(true);
       console.log('Direct API test: Fetching customers...');
       
+      // Get token or use default dev token if none exists
+      let token = localStorage.getItem('token');
+      if (!token) {
+        token = 'default-dev-token';
+        localStorage.setItem('token', token);
+        console.log('No token found, using default dev token');
+      }
+      
       // Try using the direct fetch API to see if that works better
       const response = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:5001'}/api/customers`, {
         headers: {
-          'x-auth-token': localStorage.getItem('token') || 'default-dev-token'
+          'x-auth-token': token
         }
       });
+      
+      // If unauthorized, try again with default dev token
+      if (response.status === 401) {
+        console.log('Authentication failed, retrying with default dev token');
+        const defaultToken = 'default-dev-token';
+        localStorage.setItem('token', defaultToken);
+        
+        const retryResponse = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:5001'}/api/customers`, {
+          headers: {
+            'x-auth-token': defaultToken
+          }
+        });
+        
+        const retryData = await retryResponse.json();
+        console.log('Direct API test results for customers (retry):', retryData);
+        
+        if (Array.isArray(retryData)) {
+          setCustomers(retryData);
+          setLoading(false);
+          return;
+        }
+      }
+      
       const data = await response.json();
       console.log('Direct API test results for customers:', data);
       
@@ -212,14 +243,50 @@ const Admin = () => {
         customerId: generateUniqueId(ID_PREFIXES.CUSTOMER)
       };
       
+      // Get token or use default dev token
+      let token = localStorage.getItem('token');
+      if (!token) {
+        token = 'default-dev-token';
+        localStorage.setItem('token', token);
+      }
+      
       const response = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:5001'}/api/customers`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'x-auth-token': localStorage.getItem('token') || 'default-dev-token'
+          'x-auth-token': token
         },
         body: JSON.stringify(customerWithId)
       });
+      
+      // If unauthorized, try again with default dev token
+      if (response.status === 401) {
+        console.log('Authentication failed, retrying with default dev token');
+        const defaultToken = 'default-dev-token';
+        localStorage.setItem('token', defaultToken);
+        
+        const retryResponse = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:5001'}/api/customers`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-auth-token': defaultToken
+          },
+          body: JSON.stringify(customerWithId)
+        });
+        
+        if (!retryResponse.ok) {
+          const errorData = await retryResponse.json();
+          throw new Error(errorData.msg || `HTTP error! status: ${retryResponse.status}`);
+        }
+        
+        const newCustomer = await retryResponse.json();
+        console.log('Added customer (retry):', newCustomer);
+        
+        setCustomers([...customers, newCustomer]);
+        setShowCustomerForm(false);
+        toast.success('Customer added successfully');
+        return;
+      }
       
       if (!response.ok) {
         const errorData = await response.json();

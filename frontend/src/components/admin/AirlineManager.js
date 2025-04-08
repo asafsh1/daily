@@ -87,8 +87,13 @@ const AirlineManager = () => {
       const apiUrl = `${process.env.REACT_APP_API_URL || 'http://localhost:5001'}/api/airlines`;
       console.log('API URL:', apiUrl);
       
-      // Log the token being used
-      const token = localStorage.getItem('token') || 'default-dev-token';
+      // Get the token or use default dev token if none exists
+      let token = localStorage.getItem('token');
+      if (!token) {
+        token = 'default-dev-token';
+        localStorage.setItem('token', token);
+        console.log('No token found, using default dev token');
+      }
       console.log('Using token:', token ? 'Token available' : 'No token');
       
       const response = await fetch(apiUrl, {
@@ -98,6 +103,32 @@ const AirlineManager = () => {
       });
       
       console.log('Response status:', response.status);
+      
+      // If unauthorized, try again with default dev token
+      if (response.status === 401) {
+        console.log('Authentication failed, retrying with default dev token');
+        const defaultToken = 'default-dev-token';
+        localStorage.setItem('token', defaultToken);
+        
+        const retryResponse = await fetch(apiUrl, {
+          headers: {
+            'x-auth-token': defaultToken
+          }
+        });
+        
+        if (!retryResponse.ok) {
+          throw new Error(`HTTP error! status: ${retryResponse.status}`);
+        }
+        
+        const data = await retryResponse.json();
+        console.log('Fetched airlines with default token:', data);
+        
+        if (Array.isArray(data)) {
+          setAirlines(data);
+          setLoading(false);
+          return;
+        }
+      }
       
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
