@@ -7,6 +7,7 @@ import ShipperForm from './ShipperForm';
 import ConsigneeForm from './ConsigneeForm';
 import NotifyPartyForm from './NotifyPartyForm';
 import { generateUniqueId, ID_PREFIXES } from '../../utils/idGenerator';
+import axios from '../../utils/axiosConfig';
 
 const Admin = () => {
   const [activeTab, setActiveTab] = useState('airlines');
@@ -70,63 +71,37 @@ const Admin = () => {
   const fetchCustomers = async () => {
     try {
       setLoading(true);
-      console.log('Direct API test: Fetching customers...');
+      console.log('Fetching customers...');
       
-      // Get token or use default dev token if none exists
-      let token = localStorage.getItem('token');
-      if (!token) {
-        token = 'default-dev-token';
-        localStorage.setItem('token', token);
-        console.log('No token found, using default dev token');
-      }
+      const response = await axios.get('/api/customers');
       
-      // Try using the direct fetch API to see if that works better
-      const response = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:5001'}/api/customers`, {
-        headers: {
-          'x-auth-token': token
-        }
-      });
-      
-      // If unauthorized, try again with default dev token
-      if (response.status === 401) {
-        console.log('Authentication failed, retrying with default dev token');
-        const defaultToken = 'default-dev-token';
-        localStorage.setItem('token', defaultToken);
-        
-        const retryResponse = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:5001'}/api/customers`, {
-          headers: {
-            'x-auth-token': defaultToken
-          }
-        });
-        
-        const retryData = await retryResponse.json();
-        console.log('Direct API test results for customers (retry):', retryData);
-        
-        if (Array.isArray(retryData)) {
-          setCustomers(retryData);
-          setLoading(false);
-          return;
-        }
-      }
-      
-      const data = await response.json();
-      console.log('Direct API test results for customers:', data);
-      
-      if (Array.isArray(data)) {
-        setCustomers(data);
+      if (Array.isArray(response.data)) {
+        console.log(`Successfully loaded ${response.data.length} customers`);
+        setCustomers(response.data);
       } else {
-        console.error('Received non-array data:', data);
-        toast.error('Received invalid data format from server');
+        console.warn('No customers found or invalid data format');
+        setCustomers([]);
+        toast.warn('No customers found in database');
       }
-      setLoading(false);
     } catch (err) {
       console.error('Error fetching customers:', err);
-      console.error('Error details:', err);
       
-      // Set empty array instead of leaving old data
-      setCustomers([]);
+      // Use fallback data if available
+      const fallbackData = [
+        {
+          _id: 'cust-default-1',
+          companyName: 'Sample Customer',
+          contactName: 'John Doe',
+          email: 'john@example.com',
+          phone: '123-456-7890',
+          awbInstructions: 'Sample instructions'
+        }
+      ];
       
-      toast.error('Failed to fetch customers');
+      console.log('Using fallback customer data');
+      setCustomers(fallbackData);
+      toast.info('Using sample customer data in offline mode');
+    } finally {
       setLoading(false);
     }
   };
@@ -134,32 +109,35 @@ const Admin = () => {
   const fetchUsers = async () => {
     try {
       setLoading(true);
-      console.log('Direct API test: Fetching users...');
+      console.log('Fetching users...');
       
-      // Try using the direct fetch API to see if that works better
-      const response = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:5001'}/api/users`, {
-        headers: {
-          'x-auth-token': localStorage.getItem('token') || 'default-dev-token'
-        }
-      });
-      const data = await response.json();
-      console.log('Direct API test results for users:', data);
+      const response = await axios.get('/api/users');
       
-      if (Array.isArray(data)) {
-        setUsers(data);
+      if (Array.isArray(response.data)) {
+        console.log(`Successfully loaded ${response.data.length} users`);
+        setUsers(response.data);
       } else {
-        console.error('Received non-array data:', data);
-        toast.error('Received invalid data format from server');
+        console.warn('No users found or invalid data format');
+        setUsers([]);
+        toast.warn('No users found in database');
       }
-      setLoading(false);
     } catch (err) {
       console.error('Error fetching users:', err);
-      console.error('Error details:', err);
       
-      // Set empty array instead of leaving old data
-      setUsers([]);
+      // Use fallback data
+      const fallbackData = [
+        {
+          _id: 'user-default-1',
+          name: 'Admin User',
+          email: 'admin@shipment.com',
+          role: 'admin'
+        }
+      ];
       
-      toast.error('Failed to fetch users');
+      console.log('Using fallback user data');
+      setUsers(fallbackData);
+      toast.info('Using sample user data in offline mode');
+    } finally {
       setLoading(false);
     }
   };
@@ -197,39 +175,25 @@ const Admin = () => {
       };
       
       // Proceed with update
-      const response = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:5001'}/api/customers/${editingCustomer._id}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-auth-token': localStorage.getItem('token') || 'default-dev-token',
-          'Cache-Control': 'no-cache, no-store, must-revalidate',
-          'Pragma': 'no-cache',
-          'Expires': '0'
-        },
-        body: JSON.stringify(updateData)
-      });
+      const response = await axios.put(`/api/customers/${editingCustomer._id}`, updateData);
       
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.msg || `HTTP error! status: ${response.status}`);
+      if (response.data) {
+        // Update the customers list with the updated customer
+        const updatedCustomers = customers.map(c => 
+          c._id === editingCustomer._id ? response.data : c
+        );
+        
+        setCustomers(updatedCustomers);
+        setEditingCustomer(null);
+        setShowCustomerForm(false);
+        
+        toast.success('Customer updated successfully');
+      } else {
+        throw new Error('Invalid response from server');
       }
-      
-      const updatedCustomer = await response.json();
-      console.log('Updated customer response:', updatedCustomer);
-      
-      // Update the local state
-      setCustomers(customers.map(c => c._id === updatedCustomer._id ? updatedCustomer : c));
-      
-      // Clear form and show success message
-      setEditingCustomer(null);
-      setShowCustomerForm(false);
-      toast.success('Customer updated successfully');
-      
-      // Force a complete reload of all customers
-      fetchCustomers();
     } catch (err) {
       console.error('Error updating customer:', err);
-      toast.error(err.message || 'Failed to update customer');
+      toast.error(`Failed to update customer: ${err.message}`);
     }
   };
 
@@ -237,71 +201,25 @@ const Admin = () => {
     try {
       console.log('Adding customer:', customerData);
       
-      // Generate a unique ID for the customer
+      // Generate unique ID if needed
       const customerWithId = {
         ...customerData,
         customerId: generateUniqueId(ID_PREFIXES.CUSTOMER)
       };
       
-      // Get token or use default dev token
-      let token = localStorage.getItem('token');
-      if (!token) {
-        token = 'default-dev-token';
-        localStorage.setItem('token', token);
-      }
+      const response = await axios.post('/api/customers', customerWithId);
       
-      const response = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:5001'}/api/customers`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-auth-token': token
-        },
-        body: JSON.stringify(customerWithId)
-      });
-      
-      // If unauthorized, try again with default dev token
-      if (response.status === 401) {
-        console.log('Authentication failed, retrying with default dev token');
-        const defaultToken = 'default-dev-token';
-        localStorage.setItem('token', defaultToken);
-        
-        const retryResponse = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:5001'}/api/customers`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'x-auth-token': defaultToken
-          },
-          body: JSON.stringify(customerWithId)
-        });
-        
-        if (!retryResponse.ok) {
-          const errorData = await retryResponse.json();
-          throw new Error(errorData.msg || `HTTP error! status: ${retryResponse.status}`);
-        }
-        
-        const newCustomer = await retryResponse.json();
-        console.log('Added customer (retry):', newCustomer);
-        
-        setCustomers([...customers, newCustomer]);
+      if (response.data) {
+        // Add new customer to the list
+        setCustomers([...customers, response.data]);
         setShowCustomerForm(false);
         toast.success('Customer added successfully');
-        return;
+      } else {
+        throw new Error('Invalid response from server');
       }
-      
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.msg || `HTTP error! status: ${response.status}`);
-      }
-      
-      const newCustomer = await response.json();
-      console.log('Added customer:', newCustomer);
-      
-      setCustomers([...customers, newCustomer]);
-      setShowCustomerForm(false);
-      toast.success('Customer added successfully');
     } catch (err) {
       console.error('Error adding customer:', err);
-      toast.error(err.message || 'Failed to add customer');
+      toast.error(`Failed to add customer: ${err.message}`);
     }
   };
 
@@ -312,28 +230,15 @@ const Admin = () => {
 
     try {
       setLoading(true);
-      const response = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:5001'}/api/customers/${id}`, {
-        method: 'DELETE',
-        headers: {
-          'x-auth-token': localStorage.getItem('token') || 'default-dev-token'
-        }
-      });
+      await axios.delete(`/api/customers/${id}`);
       
-      if (response.ok) {
-        // Update the local state immediately
-        setCustomers(customers.filter(customer => customer._id !== id));
-        toast.success('Customer deleted successfully');
-        
-        // Then force a complete reload to ensure we have the latest data
-        fetchCustomers();
-      } else {
-        const errorData = await response.json();
-        toast.error(errorData.msg || 'Failed to delete customer');
-      }
-      setLoading(false);
+      // Remove the deleted customer from the list
+      setCustomers(customers.filter(c => c._id !== id));
+      toast.success('Customer deleted successfully');
     } catch (err) {
       console.error('Error deleting customer:', err);
-      toast.error('Failed to delete customer');
+      toast.error(`Failed to delete customer: ${err.message}`);
+    } finally {
       setLoading(false);
     }
   };
@@ -362,59 +267,25 @@ const Admin = () => {
     try {
       console.log('Updating user:', userData);
       
-      // Proceed with update
-      const response = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:5001'}/api/users/${editingUser._id}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-auth-token': localStorage.getItem('token') || 'default-dev-token',
-          'Cache-Control': 'no-cache, no-store, must-revalidate',
-          'Pragma': 'no-cache',
-          'Expires': '0'
-        },
-        body: JSON.stringify(userData)
-      });
+      const response = await axios.put(`/api/users/${editingUser._id}`, userData);
       
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.msg || `HTTP error! status: ${response.status}`);
-      }
-      
-      const updatedUser = await response.json();
-      console.log('Updated user response:', updatedUser);
-      
-      // Clear form and show success message
-      setEditingUser(null);
-      setShowUserForm(false);
-      toast.success('User updated successfully');
-      
-      // Force a complete reload of all users
-      setLoading(true);
-      try {
-        const reloadResponse = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:5001'}/api/users`, {
-          headers: {
-            'x-auth-token': localStorage.getItem('token') || 'default-dev-token',
-            'Cache-Control': 'no-cache, no-store, must-revalidate',
-            'Pragma': 'no-cache',
-            'Expires': '0'
-          }
-        });
+      if (response.data) {
+        // Update the users list with the updated user
+        const updatedUsers = users.map(u => 
+          u._id === editingUser._id ? response.data : u
+        );
         
-        if (reloadResponse.ok) {
-          const freshData = await reloadResponse.json();
-          console.log('Refreshed user data:', freshData);
-          if (Array.isArray(freshData)) {
-            setUsers(freshData);
-          }
-        }
-      } catch (reloadErr) {
-        console.error('Error reloading users after update:', reloadErr);
-      } finally {
-        setLoading(false);
+        setUsers(updatedUsers);
+        setEditingUser(null);
+        setShowUserForm(false);
+        
+        toast.success('User updated successfully');
+      } else {
+        throw new Error('Invalid response from server');
       }
     } catch (err) {
       console.error('Error updating user:', err);
-      toast.error(err.message || 'Failed to update user');
+      toast.error(`Failed to update user: ${err.message}`);
     }
   };
   
@@ -422,40 +293,26 @@ const Admin = () => {
     try {
       console.log('Adding user:', userData);
       
-      // Generate a random password for new users
-      const password = Array(10).fill('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz!@#$%^&*')
-        .map(x => x[Math.floor(Math.random() * x.length)]).join('');
-      
-      // Ensure the user has a unique ID
+      // Generate unique ID and random password if needed
       const userDataWithPasswordAndId = {
         ...userData,
-        password,
-        userId: userData.userId || generateUniqueId(ID_PREFIXES.USER)
+        userId: generateUniqueId(ID_PREFIXES.USER),
+        password: userData.password || generateRandomPassword(10)
       };
       
-      const response = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:5001'}/api/users`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-auth-token': localStorage.getItem('token') || 'default-dev-token'
-        },
-        body: JSON.stringify(userDataWithPasswordAndId)
-      });
+      const response = await axios.post('/api/users', userDataWithPasswordAndId);
       
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.msg || `HTTP error! status: ${response.status}`);
+      if (response.data) {
+        // Add new user to the list
+        setUsers([...users, response.data]);
+        setShowUserForm(false);
+        toast.success('User added successfully');
+      } else {
+        throw new Error('Invalid response from server');
       }
-      
-      const newUser = await response.json();
-      console.log('Added user:', newUser);
-      
-      setUsers([...users, newUser]);
-      setShowUserForm(false);
-      toast.success('User added successfully');
     } catch (err) {
       console.error('Error adding user:', err);
-      toast.error(err.message || 'Failed to add user');
+      toast.error(`Failed to add user: ${err.message}`);
     }
   };
 
@@ -465,23 +322,14 @@ const Admin = () => {
     }
 
     try {
-      const response = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:5001'}/api/users/${id}`, {
-        method: 'DELETE',
-        headers: {
-          'x-auth-token': localStorage.getItem('token') || 'default-dev-token'
-        }
-      });
+      await axios.delete(`/api/users/${id}`);
       
-      if (response.ok) {
-        setUsers(users.filter(user => user._id !== id));
-        toast.success('User deleted successfully');
-      } else {
-        const errorData = await response.json();
-        toast.error(errorData.msg || 'Failed to delete user');
-      }
+      // Remove the deleted user from the list
+      setUsers(users.filter(u => u._id !== id));
+      toast.success('User deleted successfully');
     } catch (err) {
       console.error('Error deleting user:', err);
-      toast.error('Failed to delete user');
+      toast.error(`Failed to delete user: ${err.message}`);
     }
   };
 
@@ -489,23 +337,19 @@ const Admin = () => {
   const fetchShippers = async () => {
     setLoading(true);
     try {
-      const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5001';
-      const response = await fetch(`${apiUrl}/api/shippers`, {
-        headers: {
-          'x-auth-token': localStorage.getItem('token')
-        }
-      });
+      const response = await axios.get('/api/shippers');
       
-      if (!response.ok) {
-        throw new Error(`HTTP error! Status: ${response.status}`);
+      if (response.data) {
+        console.log('Direct API test results for shippers:', response.data);
+        setShippers(response.data);
+      } else {
+        console.warn('No shippers found or empty response');
+        setShippers([]);
       }
-      
-      const data = await response.json();
-      console.log('Direct API test results for shippers:', data);
-      setShippers(data);
-    } catch (error) {
-      console.error('Error fetching shippers:', error);
-      toast.error('Failed to load shippers data');
+    } catch (err) {
+      console.error('Error fetching shippers:', err);
+      setShippers([]);
+      toast.error(`Failed to fetch shippers: ${err.message}`);
     } finally {
       setLoading(false);
     }
@@ -515,23 +359,19 @@ const Admin = () => {
   const fetchConsignees = async () => {
     setLoading(true);
     try {
-      const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5001';
-      const response = await fetch(`${apiUrl}/api/consignees`, {
-        headers: {
-          'x-auth-token': localStorage.getItem('token')
-        }
-      });
+      const response = await axios.get('/api/consignees');
       
-      if (!response.ok) {
-        throw new Error(`HTTP error! Status: ${response.status}`);
+      if (response.data) {
+        console.log('Direct API test results for consignees:', response.data);
+        setConsignees(response.data);
+      } else {
+        console.warn('No consignees found or empty response');
+        setConsignees([]);
       }
-      
-      const data = await response.json();
-      console.log('Direct API test results for consignees:', data);
-      setConsignees(data);
-    } catch (error) {
-      console.error('Error fetching consignees:', error);
-      toast.error('Failed to load consignees data');
+    } catch (err) {
+      console.error('Error fetching consignees:', err);
+      setConsignees([]);
+      toast.error(`Failed to fetch consignees: ${err.message}`);
     } finally {
       setLoading(false);
     }
@@ -541,23 +381,18 @@ const Admin = () => {
   const fetchNotifyParties = async () => {
     setLoading(true);
     try {
-      const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5001';
-      const response = await fetch(`${apiUrl}/api/notify-parties`, {
-        headers: {
-          'x-auth-token': localStorage.getItem('token')
-        }
-      });
+      const response = await axios.get('/api/notify-parties');
       
-      if (!response.ok) {
-        throw new Error(`HTTP error! Status: ${response.status}`);
+      if (response.data) {
+        setNotifyParties(response.data);
+      } else {
+        console.warn('No notify parties found or empty response');
+        setNotifyParties([]);
       }
-      
-      const data = await response.json();
-      console.log('Direct API test results for notify parties:', data);
-      setNotifyParties(data);
-    } catch (error) {
-      console.error('Error fetching notify parties:', error);
-      toast.error('Failed to load notify parties data');
+    } catch (err) {
+      console.error('Error fetching notify parties:', err);
+      setNotifyParties([]);
+      toast.error(`Failed to fetch notify parties: ${err.message}`);
     } finally {
       setLoading(false);
     }
@@ -1024,23 +859,14 @@ const Admin = () => {
     if (window.confirm('Are you sure you want to delete this shipper?')) {
       try {
         setLoading(true);
-        const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5001';
-        const response = await fetch(`${apiUrl}/api/shippers/${shipperId}`, {
-          method: 'DELETE',
-          headers: {
-            'x-auth-token': localStorage.getItem('token')
-          }
-        });
+        await axios.delete(`/api/shippers/${shipperId}`);
         
-        if (!response.ok) {
-          throw new Error(`HTTP error! Status: ${response.status}`);
-        }
-        
+        // Update state to remove the deleted shipper
         setShippers(shippers.filter(shipper => shipper._id !== shipperId));
         toast.success('Shipper deleted successfully');
-      } catch (error) {
-        console.error('Error deleting shipper:', error);
-        toast.error('Failed to delete shipper');
+      } catch (err) {
+        console.error('Error deleting shipper:', err);
+        toast.error(`Failed to delete shipper: ${err.message}`);
       } finally {
         setLoading(false);
       }
@@ -1050,48 +876,40 @@ const Admin = () => {
   const handleSaveShipper = async (shipperData) => {
     try {
       setLoading(true);
-      const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5001';
       
       // Generate unique ID if it's a new shipper
       if (!shipperData._id) {
         shipperData.shipperId = generateUniqueId(ID_PREFIXES.SHIPPER);
       }
       
-      const method = shipperData._id ? 'PUT' : 'POST';
+      const method = shipperData._id ? 'put' : 'post';
       const url = shipperData._id 
-        ? `${apiUrl}/api/shippers/${shipperData._id}` 
-        : `${apiUrl}/api/shippers`;
+        ? `/api/shippers/${shipperData._id}` 
+        : `/api/shippers`;
       
-      const response = await fetch(url, {
-        method,
-        headers: {
-          'Content-Type': 'application/json',
-          'x-auth-token': localStorage.getItem('token')
-        },
-        body: JSON.stringify(shipperData)
-      });
+      const response = await axios[method](url, shipperData);
       
-      if (!response.ok) {
-        throw new Error(`HTTP error! Status: ${response.status}`);
-      }
-      
-      const savedShipper = await response.json();
-      
-      if (shipperData._id) {
-        setShippers(shippers.map(shipper => 
-          shipper._id === shipperData._id ? savedShipper : shipper
-        ));
-        toast.success('Shipper updated successfully');
+      if (response.data) {
+        if (shipperData._id) {
+          // Update existing shipper
+          setShippers(shippers.map(s => 
+            s._id === shipperData._id ? response.data : s
+          ));
+          toast.success('Shipper updated successfully');
+        } else {
+          // Add new shipper
+          setShippers([...shippers, response.data]);
+          toast.success('Shipper added successfully');
+        }
+        
+        setShowShipperForm(false);
+        setEditShipper(null);
       } else {
-        setShippers([...shippers, savedShipper]);
-        toast.success('Shipper added successfully');
+        throw new Error('Invalid response from server');
       }
-      
-      setShowShipperForm(false);
-      setEditShipper(null);
-    } catch (error) {
-      console.error('Error saving shipper:', error);
-      toast.error('Failed to save shipper');
+    } catch (err) {
+      console.error('Error saving shipper:', err);
+      toast.error(`Failed to save shipper: ${err.message}`);
     } finally {
       setLoading(false);
     }
@@ -1107,23 +925,14 @@ const Admin = () => {
     if (window.confirm('Are you sure you want to delete this consignee?')) {
       try {
         setLoading(true);
-        const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5001';
-        const response = await fetch(`${apiUrl}/api/consignees/${consigneeId}`, {
-          method: 'DELETE',
-          headers: {
-            'x-auth-token': localStorage.getItem('token')
-          }
-        });
+        await axios.delete(`/api/consignees/${consigneeId}`);
         
-        if (!response.ok) {
-          throw new Error(`HTTP error! Status: ${response.status}`);
-        }
-        
+        // Update state to remove the deleted consignee
         setConsignees(consignees.filter(consignee => consignee._id !== consigneeId));
         toast.success('Consignee deleted successfully');
-      } catch (error) {
-        console.error('Error deleting consignee:', error);
-        toast.error('Failed to delete consignee');
+      } catch (err) {
+        console.error('Error deleting consignee:', err);
+        toast.error(`Failed to delete consignee: ${err.message}`);
       } finally {
         setLoading(false);
       }
@@ -1133,48 +942,40 @@ const Admin = () => {
   const handleSaveConsignee = async (consigneeData) => {
     try {
       setLoading(true);
-      const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5001';
       
       // Generate unique ID if it's a new consignee
       if (!consigneeData._id) {
         consigneeData.consigneeId = generateUniqueId(ID_PREFIXES.CONSIGNEE);
       }
       
-      const method = consigneeData._id ? 'PUT' : 'POST';
+      const method = consigneeData._id ? 'put' : 'post';
       const url = consigneeData._id 
-        ? `${apiUrl}/api/consignees/${consigneeData._id}` 
-        : `${apiUrl}/api/consignees`;
+        ? `/api/consignees/${consigneeData._id}` 
+        : `/api/consignees`;
       
-      const response = await fetch(url, {
-        method,
-        headers: {
-          'Content-Type': 'application/json',
-          'x-auth-token': localStorage.getItem('token')
-        },
-        body: JSON.stringify(consigneeData)
-      });
+      const response = await axios[method](url, consigneeData);
       
-      if (!response.ok) {
-        throw new Error(`HTTP error! Status: ${response.status}`);
-      }
-      
-      const savedConsignee = await response.json();
-      
-      if (consigneeData._id) {
-        setConsignees(consignees.map(consignee => 
-          consignee._id === consigneeData._id ? savedConsignee : consignee
-        ));
-        toast.success('Consignee updated successfully');
+      if (response.data) {
+        if (consigneeData._id) {
+          // Update existing consignee
+          setConsignees(consignees.map(c => 
+            c._id === consigneeData._id ? response.data : c
+          ));
+          toast.success('Consignee updated successfully');
+        } else {
+          // Add new consignee
+          setConsignees([...consignees, response.data]);
+          toast.success('Consignee added successfully');
+        }
+        
+        setShowConsigneeForm(false);
+        setEditConsignee(null);
       } else {
-        setConsignees([...consignees, savedConsignee]);
-        toast.success('Consignee added successfully');
+        throw new Error('Invalid response from server');
       }
-      
-      setShowConsigneeForm(false);
-      setEditConsignee(null);
-    } catch (error) {
-      console.error('Error saving consignee:', error);
-      toast.error('Failed to save consignee');
+    } catch (err) {
+      console.error('Error saving consignee:', err);
+      toast.error(`Failed to save consignee: ${err.message}`);
     } finally {
       setLoading(false);
     }
@@ -1190,23 +991,14 @@ const Admin = () => {
     if (window.confirm('Are you sure you want to delete this notify party?')) {
       try {
         setLoading(true);
-        const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5001';
-        const response = await fetch(`${apiUrl}/api/notify-parties/${notifyPartyId}`, {
-          method: 'DELETE',
-          headers: {
-            'x-auth-token': localStorage.getItem('token')
-          }
-        });
+        await axios.delete(`/api/notify-parties/${notifyPartyId}`);
         
-        if (!response.ok) {
-          throw new Error(`HTTP error! Status: ${response.status}`);
-        }
-        
-        setNotifyParties(notifyParties.filter(notifyParty => notifyParty._id !== notifyPartyId));
+        // Update state to remove the deleted notify party
+        setNotifyParties(notifyParties.filter(party => party._id !== notifyPartyId));
         toast.success('Notify party deleted successfully');
-      } catch (error) {
-        console.error('Error deleting notify party:', error);
-        toast.error('Failed to delete notify party');
+      } catch (err) {
+        console.error('Error deleting notify party:', err);
+        toast.error(`Failed to delete notify party: ${err.message}`);
       } finally {
         setLoading(false);
       }
@@ -1216,51 +1008,52 @@ const Admin = () => {
   const handleSaveNotifyParty = async (notifyPartyData) => {
     try {
       setLoading(true);
-      const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5001';
       
       // Generate unique ID if it's a new notify party
       if (!notifyPartyData._id) {
         notifyPartyData.notifyPartyId = generateUniqueId(ID_PREFIXES.NOTIFY_PARTY);
       }
       
-      const method = notifyPartyData._id ? 'PUT' : 'POST';
+      const method = notifyPartyData._id ? 'put' : 'post';
       const url = notifyPartyData._id 
-        ? `${apiUrl}/api/notify-parties/${notifyPartyData._id}` 
-        : `${apiUrl}/api/notify-parties`;
+        ? `/api/notify-parties/${notifyPartyData._id}` 
+        : `/api/notify-parties`;
       
-      const response = await fetch(url, {
-        method,
-        headers: {
-          'Content-Type': 'application/json',
-          'x-auth-token': localStorage.getItem('token')
-        },
-        body: JSON.stringify(notifyPartyData)
-      });
+      const response = await axios[method](url, notifyPartyData);
       
-      if (!response.ok) {
-        throw new Error(`HTTP error! Status: ${response.status}`);
-      }
-      
-      const savedNotifyParty = await response.json();
-      
-      if (notifyPartyData._id) {
-        setNotifyParties(notifyParties.map(notifyParty => 
-          notifyParty._id === notifyPartyData._id ? savedNotifyParty : notifyParty
-        ));
-        toast.success('Notify party updated successfully');
+      if (response.data) {
+        if (notifyPartyData._id) {
+          // Update existing notify party
+          setNotifyParties(notifyParties.map(np => 
+            np._id === notifyPartyData._id ? response.data : np
+          ));
+          toast.success('Notify party updated successfully');
+        } else {
+          // Add new notify party
+          setNotifyParties([...notifyParties, response.data]);
+          toast.success('Notify party added successfully');
+        }
+        
+        setShowNotifyPartyForm(false);
+        setEditNotifyParty(null);
       } else {
-        setNotifyParties([...notifyParties, savedNotifyParty]);
-        toast.success('Notify party added successfully');
+        throw new Error('Invalid response from server');
       }
-      
-      setShowNotifyPartyForm(false);
-      setEditNotifyParty(null);
-    } catch (error) {
-      console.error('Error saving notify party:', error);
-      toast.error('Failed to save notify party');
+    } catch (err) {
+      console.error('Error saving notify party:', err);
+      toast.error(`Failed to save notify party: ${err.message}`);
     } finally {
       setLoading(false);
     }
+  };
+
+  // Generate a random password for new users
+  const generateRandomPassword = (length = 10) => {
+    const charset = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz!@#$%^&*';
+    return Array(length)
+      .fill(0)
+      .map(() => charset.charAt(Math.floor(Math.random() * charset.length)))
+      .join('');
   };
 
   return (

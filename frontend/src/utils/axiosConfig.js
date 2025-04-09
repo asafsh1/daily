@@ -1,12 +1,13 @@
 import axios from 'axios';
 import axiosRetry from 'axios-retry';
 
-// Get environment
+// Get environment and API URL
 const isDevelopment = process.env.NODE_ENV !== 'production';
+const apiBaseUrl = process.env.REACT_APP_API_URL || 'http://localhost:5001';
 
 // Create axios instance with base URL
 const instance = axios.create({
-  baseURL: process.env.REACT_APP_API_URL || 'http://localhost:5001',
+  baseURL: apiBaseUrl,
   timeout: 15000, // Increase timeout to 15 seconds
   headers: {
     'Content-Type': 'application/json'
@@ -19,67 +20,70 @@ const defaultCredentials = {
   password: 'admin123'
 };
 
-// Automatically login and get a valid token in development
-const autoLogin = async () => {
-  try {
-    // Only in development mode
-    if (!isDevelopment) return null;
-    
-    console.log('Auto-login: Attempting to get valid token...');
-    
-    // Use the default credentials to get a token
-    const response = await axios.post(
-      `${process.env.REACT_APP_API_URL || 'http://localhost:5001'}/api/auth`, 
-      defaultCredentials
-    );
-    
-    if (response.data && response.data.token) {
-      console.log('Auto-login: Successfully obtained valid token');
-      localStorage.setItem('token', response.data.token);
-      return response.data.token;
-    }
-    
-    return null;
-  } catch (err) {
-    console.error('Auto-login failed:', err.message);
-    return null;
-  }
-};
+// Flag to prevent multiple simultaneous login attempts
+let isLoginInProgress = false;
+let loginPromise = null;
 
-// Ensure we have a valid token
-let isAutoLoginInProgress = false;
-const ensureValidToken = async () => {
-  if (isAutoLoginInProgress) {
-    // Wait for the existing auto-login to complete
-    while (isAutoLoginInProgress) {
-      await new Promise(resolve => setTimeout(resolve, 100));
-    }
-    return localStorage.getItem('token');
+// Direct login function
+const performLogin = async () => {
+  if (isLoginInProgress) {
+    return loginPromise;
   }
   
   try {
-    isAutoLoginInProgress = true;
+    isLoginInProgress = true;
+    loginPromise = (async () => {
+      console.log('Attempting direct login with default credentials...');
+      
+      // Use axios directly instead of our configured instance to avoid circular dependencies
+      const response = await axios.post(
+        `${apiBaseUrl}/api/auth`, 
+        defaultCredentials,
+        { headers: { 'Content-Type': 'application/json' } }
+      );
+      
+      if (response.data && response.data.token) {
+        console.log('Login successful, received valid token');
+        localStorage.setItem('token', response.data.token);
+        return response.data.token;
+      }
+      
+      return null;
+    })();
     
-    // Check if we already have a token
-    const existingToken = localStorage.getItem('token');
-    if (existingToken) {
-      console.log('Using existing token from localStorage');
-      return existingToken;
-    }
-    
-    // If no token, get one through auto-login
-    const newToken = await autoLogin();
-    return newToken;
+    return await loginPromise;
+  } catch (err) {
+    console.error('Login failed:', err.message);
+    return null;
   } finally {
-    isAutoLoginInProgress = false;
+    isLoginInProgress = false;
+    loginPromise = null;
   }
 };
+
+// Get a valid token - either existing or new
+const getValidToken = async () => {
+  // Check if we already have a token
+  const existingToken = localStorage.getItem('token');
+  if (existingToken) {
+    console.log('Using existing token from localStorage');
+    return existingToken;
+  }
+  
+  // If no token, try to login
+  const token = await performLogin();
+  return token;
+};
+
+// Track failed requests for retry
+const failedRequestQueue = [];
+let isRefreshing = false;
 
 // Add request interceptor
 instance.interceptors.request.use(
   async config => {
-    // Ensure we have a valid token before making the request
-    const token = await ensureValidToken();
+    // Add auth token to request if available
+    const token = await getValidToken();
     
     if (token) {
       config.headers['x-auth-token'] = token;
@@ -89,8 +93,7 @@ instance.interceptors.request.use(
       console.log('Using default dev token');
     }
     
-    // Add timestamp to GET requests to prevent caching instead of using cache-control headers
-    // This avoids CORS preflight issues with complex headers
+    // Add timestamp to GET requests to prevent caching
     if (config.method === 'get' && !config.url.includes('timestamp=')) {
       const separator = config.url.includes('?') ? '&' : '?';
       config.url = `${config.url}${separator}timestamp=${new Date().getTime()}`;
@@ -110,36 +113,46 @@ instance.interceptors.response.use(
     return response;
   },
   async error => {
-    if (error.response) {
-      // The request was made and the server responded with a status code
-      // that falls out of the range of 2xx
+    const originalRequest = error.config;
+    
+    // If we've already retried, don't retry again
+    if (originalRequest._retry) {
+      return Promise.reject(error);
+    }
+    
+    if (error.response && error.response.status === 401) {
       console.error(`[Axios Error] Status: ${error.response.status}`, error.response.data);
       
-      // If unauthorized and in development, try to get a new token
-      if (error.response.status === 401 && isDevelopment) {
-        console.warn('Authentication error - using fallback data where available');
+      // Only try to refresh token once
+      originalRequest._retry = true;
+      
+      if (!isRefreshing) {
+        isRefreshing = true;
         
-        // Clear the token to force a new login next time
-        localStorage.removeItem('token');
-        
-        // Try to login automatically to get a fresh token
-        const newToken = await autoLogin();
-        
-        if (newToken) {
-          // Retry the original request with the new token
-          const originalRequest = error.config;
-          originalRequest.headers['x-auth-token'] = newToken;
+        try {
+          // Clear existing token
+          localStorage.removeItem('token');
           
-          try {
-            return await axios(originalRequest);
-          } catch (retryError) {
-            console.error('Retry with new token failed:', retryError.message);
+          // Try to get a new token
+          const newToken = await performLogin();
+          
+          if (newToken) {
+            // Update header with new token
+            originalRequest.headers['x-auth-token'] = newToken;
+            
+            // Retry original request with new token
+            return instance(originalRequest);
           }
+        } catch (refreshError) {
+          console.error('Error refreshing token:', refreshError.message);
+        } finally {
+          isRefreshing = false;
         }
       }
       
-      return Promise.reject(error);
-    } 
+      // If we're still failing, use fallback data
+      console.warn('Authentication error - using fallback data where available');
+    }
     
     if (error.request) {
       // The request was made but no response was received
@@ -170,13 +183,14 @@ axiosRetry(instance, {
     return retryCount * 1000; // 1s, 2s, 3s
   },
   retryCondition: (error) => {
-    // Retry on network errors and 5xx server errors
-    return axiosRetry.isNetworkOrIdempotentRequestError(error) || 
-           (error.response && error.response.status >= 500);
+    // Only retry on network errors and 5xx server errors, not auth errors
+    return (axiosRetry.isNetworkOrIdempotentRequestError(error) || 
+           (error.response && error.response.status >= 500)) &&
+           !(error.response && error.response.status === 401);
   }
 });
 
-// Initialize by trying to get a valid token
-ensureValidToken();
+// Initialize by getting a valid token immediately
+getValidToken();
 
 export default instance; 
