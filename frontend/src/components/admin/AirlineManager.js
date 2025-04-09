@@ -20,24 +20,33 @@ const AirlineManager = () => {
     try {
       setLoading(true);
       setError(null);
+      console.log('Fetching airlines...');
       
-      console.log('Fetching airlines from database...');
       const response = await axios.get('/api/airlines');
       
-      if (Array.isArray(response.data) && response.data.length > 0) {
-        console.log(`Successfully loaded ${response.data.length} airlines from database`);
+      if (Array.isArray(response.data)) {
+        console.log(`Successfully loaded ${response.data.length} airlines`);
         setAirlines(response.data);
       } else {
-        console.warn('No airlines found in database or empty response');
-        setError('No airlines found. Please add airlines to continue.');
+        console.warn('No airlines found or invalid data format');
         setAirlines([]);
+        setError('No airlines found in database');
       }
-      
     } catch (err) {
       console.error('Error fetching airlines:', err);
-      setError(`Failed to load airlines: ${err.message || 'Unknown error'}`);
-      toast.error('Failed to load airlines from database');
       setAirlines([]);
+      
+      // Set appropriate error message based on error type
+      if (err.isDatabaseError) {
+        setError('Database connection is currently unavailable. Please try again later.');
+        toast.error('Database connection error. The data cannot be loaded at this time.');
+      } else if (err.isNetworkError) {
+        setError('Cannot connect to the server. Please check your internet connection.');
+        toast.error('Network connection error. Please check your connection and try again.');
+      } else {
+        setError(`Failed to fetch airlines: ${err.message}`);
+        toast.error(`Error: ${err.message}`);
+      }
     } finally {
       setLoading(false);
     }
@@ -57,7 +66,15 @@ const AirlineManager = () => {
       }
     } catch (err) {
       console.error('Error adding airline:', err);
-      toast.error(`Failed to add airline: ${err.response?.data?.msg || err.message || 'Unknown error'}`);
+      
+      // Handle specific error types
+      if (err.isDatabaseError) {
+        toast.error('Database connection error. Your airline cannot be saved at this time.');
+      } else if (err.isNetworkError) {
+        toast.error('Network connection error. Please check your connection and try again.');
+      } else {
+        toast.error(`Failed to add airline: ${err.response?.data?.msg || err.message || 'Unknown error'}`);
+      }
     }
   };
 

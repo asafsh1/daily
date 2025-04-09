@@ -30,33 +30,20 @@ const getSampleShipments = () => {
 // @access  Public
 router.get('/', async (req, res) => {
   try {
-    // Check database connection
+    // Verify database connection
     if (mongoose.connection.readyState !== 1) {
-      console.log('Database not connected, using sample data');
-      return res.json(getSampleShipments());
+      return res.status(503).json({ 
+        msg: 'Database connection unavailable', 
+        readyState: mongoose.connection.readyState 
+      });
     }
     
-    // Database connected, try to fetch real data
-    let shipments = await Shipment.find().sort({ date: -1 });
-    
-    // If no shipments in database, use sample data
-    if (shipments.length === 0) {
-      console.log('No shipments found in database, using sample data');
-      shipments = getSampleShipments();
-    }
-    
+    // Database connected, fetch real data
+    const shipments = await Shipment.find().sort({ date: -1 });
     res.json(shipments);
   } catch (err) {
-    console.error(err.message);
-    
-    // If error occurs, try to return sample data
-    const sampleData = getSampleShipments();
-    if (sampleData.length > 0) {
-      console.log('Error fetching shipments, falling back to sample data');
-      return res.json(sampleData);
-    }
-    
-    res.status(500).send('Server Error');
+    console.error('Error fetching shipments:', err.message);
+    res.status(500).json({ msg: 'Server Error', error: err.message });
   }
 });
 
@@ -74,7 +61,11 @@ router.post('/debug', async (req, res) => {
     res.json({
       message: 'Debug endpoint successful',
       receivedBody: req.body,
-      timestamp: new Date()
+      timestamp: new Date(),
+      dbStatus: {
+        connected: mongoose.connection.readyState === 1,
+        readyState: mongoose.connection.readyState
+      }
     });
   } catch (err) {
     console.error('Debug endpoint error:', err.message);
@@ -90,6 +81,15 @@ router.post('/debug', async (req, res) => {
 // @access  Public
 router.get('/repair-legs/:id', async (req, res) => {
   try {
+    // Verify database connection
+    if (mongoose.connection.readyState !== 1) {
+      return res.status(503).json({ 
+        success: false,
+        msg: 'Database connection unavailable', 
+        readyState: mongoose.connection.readyState 
+      });
+    }
+    
     const shipmentId = req.params.id;
     console.log(`[REPAIR] Repairing legs for shipment: ${shipmentId}`);
     
@@ -172,17 +172,12 @@ router.get('/repair-legs/:id', async (req, res) => {
 // @access  Public
 router.get('/:id', async (req, res) => {
   try {
-    // Check database connection
+    // Verify database connection
     if (mongoose.connection.readyState !== 1) {
-      console.log('Database not connected, using sample data');
-      const sampleData = getSampleShipments();
-      const shipment = sampleData.find(s => s._id === req.params.id);
-      
-      if (!shipment) {
-        return res.status(404).json({ msg: 'Shipment not found in sample data' });
-      }
-      
-      return res.json(shipment);
+      return res.status(503).json({ 
+        msg: 'Database connection unavailable', 
+        readyState: mongoose.connection.readyState 
+      });
     }
     
     // First check for valid ID format
@@ -194,14 +189,6 @@ router.get('/:id', async (req, res) => {
     const shipment = await Shipment.findById(req.params.id);
     
     if (!shipment) {
-      // If not found in database, check sample data
-      const sampleData = getSampleShipments();
-      const sampleShipment = sampleData.find(s => s._id === req.params.id);
-      
-      if (sampleShipment) {
-        return res.json(sampleShipment);
-      }
-      
       return res.status(404).json({ msg: 'Shipment not found' });
     }
     
@@ -213,48 +200,12 @@ router.get('/:id', async (req, res) => {
         
       return res.json(populatedShipment);
     }
-
-    // Add legs to the response if the shipment has them
-    if (shipment.legs && Array.isArray(shipment.legs) && shipment.legs.length > 0) {
-      try {
-        // Find all legs for this shipment
-        const shipmentLegs = await ShipmentLeg.find({ 
-          shipment: shipment._id 
-        }).sort({ legOrder: 1 });
-        
-        // If we have legs in both places, use the newer leg collection data
-        if (shipmentLegs && shipmentLegs.length > 0) {
-          // Return the shipment with leg data directly
-          const shipmentWithLegs = shipment.toObject();
-          shipmentWithLegs.legs = shipmentLegs;
-          return res.json(shipmentWithLegs);
-        }
-      } catch (err) {
-        console.error('Error fetching legs for shipment:', err);
-        // Continue with normal shipment return if leg fetch fails
-      }
-    }
-
-    // Return the standard shipment data
+    
     res.json(shipment);
   } catch (err) {
-    console.error(err.message);
-    
-    // If error occurs, try to return sample data
-    try {
-      const sampleData = getSampleShipments();
-      const shipment = sampleData.find(s => s._id === req.params.id);
-      
-      if (shipment) {
-        console.log('Error fetching shipment, falling back to sample data');
-        return res.json(shipment);
-      }
-    } catch (sampleErr) {
-      console.error('Error with sample data fallback:', sampleErr.message);
-      }
-      
-      res.status(500).send('Server Error');
-    }
+    console.error('Error fetching shipment:', err.message);
+    res.status(500).json({ msg: 'Server Error', error: err.message });
+  }
 });
 
 // @route   GET api/shipments/:id/legs

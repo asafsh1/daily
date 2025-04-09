@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const auth = require('../../middleware/auth');
 const { check, validationResult } = require('express-validator');
+const mongoose = require('mongoose');
 
 const Airline = require('../../models/Airline');
 
@@ -10,11 +11,19 @@ const Airline = require('../../models/Airline');
 // @access   Private
 router.get('/', auth, async (req, res) => {
   try {
+    // Verify database connection
+    if (mongoose.connection.readyState !== 1) {
+      return res.status(503).json({ 
+        msg: 'Database connection unavailable', 
+        readyState: mongoose.connection.readyState 
+      });
+    }
+    
     const airlines = await Airline.find().sort({ name: 1 });
     res.json(airlines);
   } catch (err) {
-    console.error(err.message);
-    res.status(500).send('Server Error');
+    console.error('Error fetching airlines:', err.message);
+    res.status(500).json({ msg: 'Server Error', error: err.message });
   }
 });
 
@@ -23,6 +32,14 @@ router.get('/', auth, async (req, res) => {
 // @access   Private
 router.get('/:id', auth, async (req, res) => {
   try {
+    // Verify database connection
+    if (mongoose.connection.readyState !== 1) {
+      return res.status(503).json({ 
+        msg: 'Database connection unavailable', 
+        readyState: mongoose.connection.readyState 
+      });
+    }
+    
     const airline = await Airline.findById(req.params.id);
     
     if (!airline) {
@@ -35,7 +52,7 @@ router.get('/:id', auth, async (req, res) => {
     if (err.kind === 'ObjectId') {
       return res.status(404).json({ msg: 'Airline not found' });
     }
-    res.status(500).send('Server Error');
+    res.status(500).json({ msg: 'Server Error', error: err.message });
   }
 });
 
@@ -44,6 +61,14 @@ router.get('/:id', auth, async (req, res) => {
 // @access   Private
 router.get('/code/:code', auth, async (req, res) => {
   try {
+    // Verify database connection
+    if (mongoose.connection.readyState !== 1) {
+      return res.status(503).json({ 
+        msg: 'Database connection unavailable', 
+        readyState: mongoose.connection.readyState 
+      });
+    }
+    
     const airline = await Airline.findOne({ code: req.params.code });
     
     if (!airline) {
@@ -53,7 +78,7 @@ router.get('/code/:code', auth, async (req, res) => {
     res.json(airline);
   } catch (err) {
     console.error(err.message);
-    res.status(500).send('Server Error');
+    res.status(500).json({ msg: 'Server Error', error: err.message });
   }
 });
 
@@ -74,6 +99,14 @@ router.post('/', [
   }
 
   try {
+    // Verify database connection
+    if (mongoose.connection.readyState !== 1) {
+      return res.status(503).json({ 
+        msg: 'Database connection unavailable', 
+        readyState: mongoose.connection.readyState 
+      });
+    }
+    
     const newAirline = new Airline({
       name: req.body.name,
       code: req.body.code,
@@ -88,7 +121,7 @@ router.post('/', [
     if (err.code === 11000) {
       return res.status(400).json({ msg: 'Airline code already exists' });
     }
-    res.status(500).send('Server Error');
+    res.status(500).json({ msg: 'Server Error', error: err.message });
   }
 });
 
@@ -97,6 +130,14 @@ router.post('/', [
 // @access   Private
 router.post('/bulk', auth, async (req, res) => {
   try {
+    // Verify database connection
+    if (mongoose.connection.readyState !== 1) {
+      return res.status(503).json({ 
+        msg: 'Database connection unavailable', 
+        readyState: mongoose.connection.readyState 
+      });
+    }
+    
     const airlines = await Airline.insertMany(req.body, { ordered: false });
     res.json(airlines);
   } catch (err) {
@@ -104,7 +145,7 @@ router.post('/bulk', auth, async (req, res) => {
     if (err.code === 11000) {
       return res.status(400).json({ msg: 'Some airline codes already exist' });
     }
-    res.status(500).send('Server Error');
+    res.status(500).json({ msg: 'Server Error', error: err.message });
   }
 });
 
@@ -113,6 +154,14 @@ router.post('/bulk', auth, async (req, res) => {
 // @access   Private
 router.put('/:id', auth, async (req, res) => {
   try {
+    // Verify database connection
+    if (mongoose.connection.readyState !== 1) {
+      return res.status(503).json({ 
+        msg: 'Database connection unavailable', 
+        readyState: mongoose.connection.readyState 
+      });
+    }
+    
     const airline = await Airline.findById(req.params.id);
     if (!airline) {
       return res.status(404).json({ msg: 'Airline not found' });
@@ -131,7 +180,7 @@ router.put('/:id', auth, async (req, res) => {
     if (err.code === 11000) {
       return res.status(400).json({ msg: 'Airline code already exists' });
     }
-    res.status(500).send('Server Error');
+    res.status(500).json({ msg: 'Server Error', error: err.message });
   }
 });
 
@@ -140,6 +189,14 @@ router.put('/:id', auth, async (req, res) => {
 // @access   Private
 router.delete('/:id', auth, async (req, res) => {
   try {
+    // Verify database connection
+    if (mongoose.connection.readyState !== 1) {
+      return res.status(503).json({ 
+        msg: 'Database connection unavailable', 
+        readyState: mongoose.connection.readyState 
+      });
+    }
+    
     const airline = await Airline.findById(req.params.id);
     if (!airline) {
       return res.status(404).json({ msg: 'Airline not found' });
@@ -149,7 +206,7 @@ router.delete('/:id', auth, async (req, res) => {
     res.json({ msg: 'Airline removed' });
   } catch (err) {
     console.error(err.message);
-    res.status(500).send('Server Error');
+    res.status(500).json({ msg: 'Server Error', error: err.message });
   }
 });
 
