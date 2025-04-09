@@ -17,16 +17,17 @@ const connectDB = async () => {
     // Remove credential details from log
     const redactedURI = mongoURI.replace(/\/\/([^:]+):([^@]+)@/, '//***:***@');
     console.log(`Connection URI: ${redactedURI}`);
+    console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
     
     // Set global mongoose options for better stability
     mongoose.set('strictQuery', false);
     
-    // Configure connection options
+    // Configure connection options with longer timeouts for cloud deployments
     const options = {
       useNewUrlParser: true,
       useUnifiedTopology: true,
-      serverSelectionTimeoutMS: 15000,
-      connectTimeoutMS: 15000,
+      serverSelectionTimeoutMS: 30000, // Increased from 15000
+      connectTimeoutMS: 30000, // Increased from 15000
       socketTimeoutMS: 45000,
       maxPoolSize: 50,
       minPoolSize: 10,
@@ -44,7 +45,15 @@ const connectDB = async () => {
     
   } catch (err) {
     console.error(`MongoDB connection error: ${err.message}`);
-    process.exit(1);
+    console.error('Connection failure details:', err);
+    
+    // Don't exit the process on connection failure in production
+    // This allows the API to still serve non-DB dependent routes
+    if (process.env.NODE_ENV !== 'production') {
+      process.exit(1);
+    }
+    
+    return false;
   }
 };
 

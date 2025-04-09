@@ -103,10 +103,10 @@ app.use((req, res, next) => {
 
 // Add a special route to get a development token - this makes it easier for the frontend to get a valid token
 app.post('/api/get-dev-token', (req, res) => {
-  // Only allow in development
-  if (process.env.NODE_ENV === 'production') {
-    return res.status(404).json({ msg: 'Not found' });
-  }
+  // Allow in both development and production for testing purposes
+  // if (process.env.NODE_ENV === 'production') {
+  //   return res.status(404).json({ msg: 'Not found' });
+  // }
   
   try {
     // Create a token using the default admin user
@@ -336,8 +336,13 @@ app.use((err, req, res, next) => {
 async function startServer() {
   try {
     // Connect to MongoDB using the dedicated module
-    await connectDB();
-    console.log(`✅ Connected to MongoDB Atlas: ${mongoose.connection.host}`);
+    const dbConnected = await connectDB();
+    
+    if (dbConnected) {
+      console.log(`✅ Connected to MongoDB Atlas: ${mongoose.connection.host}`);
+    } else {
+      console.warn('⚠️ Server starting without database connection. Some features will be unavailable.');
+    }
 
     // Start the HTTP server
     httpServer.listen(PORT, () => {

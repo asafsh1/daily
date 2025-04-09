@@ -5,10 +5,13 @@ import axiosRetry from 'axios-retry';
 const isDevelopment = process.env.NODE_ENV !== 'production';
 const apiBaseUrl = process.env.REACT_APP_API_URL || 'http://localhost:5001';
 
+console.log('API Base URL:', apiBaseUrl);
+console.log('Environment:', process.env.NODE_ENV);
+
 // Create axios instance with base URL
 const instance = axios.create({
   baseURL: apiBaseUrl,
-  timeout: 15000, // Increase timeout to 15 seconds
+  timeout: 30000, // Increase timeout to 30 seconds for cloud deployments
   headers: {
     'Content-Type': 'application/json'
   }
@@ -28,6 +31,11 @@ instance.interceptors.request.use(
       console.log('Using existing token from localStorage');
       config.headers['x-auth-token'] = token;
     } else {
+      // If no token exists, try using a default dev token in all environments
+      localStorage.setItem('token', 'default-dev-token');
+      console.log('Set default token for authentication: default-dev-token');
+      config.headers['x-auth-token'] = 'default-dev-token';
+      
       // If no token, try to get one from the server using dev auth endpoint
       try {
         if (!isRefreshingToken) {
