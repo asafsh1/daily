@@ -1,7 +1,7 @@
 require('dotenv').config();
 
-// The hardcoded MongoDB connection string has been removed to ensure the application
-// properly uses the connection string from environment variables or config files
+// Ensure proper MongoDB connection in all environments
+// NOTE: Make sure to configure the MONGODB_URI environment variable in Render dashboard
 
 const express = require('express');
 const cors = require('cors');

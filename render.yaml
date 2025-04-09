@@ -1,17 +1,13 @@
 services:
   - type: web
-    name: daily-shipment-api
+    name: daily-shipment-tracker
     env: node
     region: oregon
     plan: free
-    buildCommand: cd backend && npm install && npm run build
-    startCommand: cd backend && npm run deploy
+    buildCommand: cd backend && npm install
+    startCommand: cd backend && node server.js
     envVars:
       - key: NODE_ENV
         value: production
-      - key: MONGODB_URI
-        sync: false  # Configure via Render dashboard with correct connection string
       - key: PORT
-        value: 10000  # Render will automatically use this for routing
-    healthCheckPath: /health  # Use the health endpoint for health checks
-    autoDeploy: true 
+        value: 10000 
