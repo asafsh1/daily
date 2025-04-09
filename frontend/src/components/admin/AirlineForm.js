@@ -8,6 +8,7 @@ const AirlineForm = ({ onSubmit, onCancel, airline }) => {
     trackingUrlTemplate: '',
     status: 'active'
   });
+  const [errors, setErrors] = useState({});
 
   useEffect(() => {
     if (airline) {
@@ -26,11 +27,52 @@ const AirlineForm = ({ onSubmit, onCancel, airline }) => {
       ...prev,
       [name]: value
     }));
+    
+    // Clear the error for this field when it's changed
+    if (errors[name]) {
+      setErrors(prev => ({ ...prev, [name]: null }));
+    }
+  };
+
+  const validateForm = () => {
+    const newErrors = {};
+    
+    // Validate name
+    if (!formData.name.trim()) {
+      newErrors.name = 'Airline name is required';
+    }
+    
+    // Validate code
+    if (!formData.code.trim()) {
+      newErrors.code = 'Airline code is required';
+    } else if (!/^\d{3}$/.test(formData.code.trim())) {
+      newErrors.code = 'Airline code must be a 3-digit IATA code';
+    }
+    
+    // Validate tracking URL template
+    if (!formData.trackingUrlTemplate.trim()) {
+      newErrors.trackingUrlTemplate = 'Tracking URL template is required';
+    } else if (!formData.trackingUrlTemplate.includes('{awb}')) {
+      newErrors.trackingUrlTemplate = 'Tracking URL must include {awb} placeholder';
+    } else if (!formData.trackingUrlTemplate.startsWith('http')) {
+      newErrors.trackingUrlTemplate = 'Tracking URL must start with http:// or https://';
+    }
+    
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
   };
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    onSubmit(formData);
+    
+    if (validateForm()) {
+      // Ensure code is trimmed
+      const processedData = {
+        ...formData,
+        code: formData.code.trim()
+      };
+      onSubmit(processedData);
+    }
   };
 
   return (
@@ -49,8 +91,10 @@ const AirlineForm = ({ onSubmit, onCancel, airline }) => {
               name="name"
               value={formData.name}
               onChange={handleChange}
+              className={errors.name ? 'is-invalid' : ''}
               required
             />
+            {errors.name && <div className="form-text text-danger">{errors.name}</div>}
           </div>
 
           <div className="form-group">
@@ -61,12 +105,15 @@ const AirlineForm = ({ onSubmit, onCancel, airline }) => {
               name="code"
               value={formData.code}
               onChange={handleChange}
+              className={errors.code ? 'is-invalid' : ''}
               required
-              placeholder="Airline Code (e.g., 114, 176)"
+              placeholder="3-digit IATA code (e.g., 114, 176)"
+              maxLength="3"
             />
             <small className="form-text text-muted">
-              Standard 3-digit IATA airline code
+              Standard 3-digit IATA airline code (numeric only)
             </small>
+            {errors.code && <div className="form-text text-danger">{errors.code}</div>}
           </div>
 
           <div className="form-group">
@@ -77,12 +124,15 @@ const AirlineForm = ({ onSubmit, onCancel, airline }) => {
               name="trackingUrlTemplate"
               value={formData.trackingUrlTemplate}
               onChange={handleChange}
+              className={errors.trackingUrlTemplate ? 'is-invalid' : ''}
               required
-              placeholder={"https://example.com/track/{awb}"}
+              placeholder="https://example.com/track/{awb}"
             />
             <small className="form-text text-muted">
-              Use {'{'}'awb'{'}'} as a placeholder for the AWB number
+              Use exactly <code>{'{awb}'}</code> as a placeholder for the AWB number
             </small>
+            {errors.trackingUrlTemplate && 
+              <div className="form-text text-danger">{errors.trackingUrlTemplate}</div>}
           </div>
 
           <div className="form-group">
@@ -97,6 +147,9 @@ const AirlineForm = ({ onSubmit, onCancel, airline }) => {
               <option value="active">Active</option>
               <option value="inactive">Inactive</option>
             </select>
+            <small className="form-text text-muted">
+              Only active airlines will be available for selection in shipment forms
+            </small>
           </div>
 
           <div className="form-actions">
@@ -182,11 +235,26 @@ const AirlineForm = ({ onSubmit, onCancel, airline }) => {
             font-size: 14px;
           }
           
+          .is-invalid {
+            border-color: #dc3545 !important;
+          }
+          
           .form-text {
             display: block;
             margin-top: 5px;
             font-size: 12px;
             color: #6c757d;
+          }
+          
+          .text-danger {
+            color: #dc3545;
+          }
+          
+          code {
+            background-color: #f8f9fa;
+            padding: 2px 4px;
+            border-radius: 3px;
+            font-family: monospace;
           }
 
           .form-actions {

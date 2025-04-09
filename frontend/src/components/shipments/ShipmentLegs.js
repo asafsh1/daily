@@ -41,12 +41,58 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
   }, [shipmentId]);
 
   const loadAirlinesData = async () => {
+    console.log('Loading airlines data in ShipmentLegs component');
     try {
       const airlineData = await loadAirlines();
-      setAirlines(airlineData);
+      console.log(`Successfully loaded ${Object.keys(airlineData).length} airlines`);
+      
+      if (Object.keys(airlineData).length === 0) {
+        // Try direct API call if utility function returned empty data
+        const response = await axios.get('/api/airlines');
+        if (response.data && Array.isArray(response.data)) {
+          const formattedData = response.data
+            .filter(airline => airline.status === 'active')
+            .reduce((acc, airline) => {
+              acc[airline.code] = airline;
+              return acc;
+            }, {});
+            
+          console.log(`Loaded ${Object.keys(formattedData).length} airlines directly from API`);
+          setAirlines(formattedData);
+        } else {
+          throw new Error('No airlines found in API response');
+        }
+      } else {
+        setAirlines(airlineData);
+      }
     } catch (err) {
       console.error('Error loading airlines:', err);
-      toast.error('Failed to load airline data. Some features may be limited.');
+      toast.error(`Failed to load airline data: ${err.message}`);
+      
+      // Try to fetch directly as a last resort
+      try {
+        console.log('Attempting direct API call as fallback');
+        const response = await axios.get('/api/airlines');
+        if (response.data && Array.isArray(response.data)) {
+          const formattedData = response.data
+            .filter(airline => airline.status === 'active')
+            .reduce((acc, airline) => {
+              acc[airline.code] = airline;
+              return acc;
+            }, {});
+          
+          if (Object.keys(formattedData).length > 0) {
+            console.log(`Loaded ${Object.keys(formattedData).length} airlines via direct API`);
+            setAirlines(formattedData);
+            return;
+          }
+        }
+      } catch (fallbackErr) {
+        console.error('Fallback API call also failed:', fallbackErr);
+      }
+      
+      // Show empty state if all attempts fail
+      setAirlines({});
     }
   };
 
@@ -235,7 +281,22 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
     if (!leg.awb || !leg.airline) return null;
     
     try {
+      // First try to find the airline in our loaded airlines
+      const airlineCode = leg.airline;
+      const airline = airlines[airlineCode];
+      
+      if (airline && airline.trackingUrlTemplate) {
+        // Extract the number part without the prefix if needed
+        const awbNumber = leg.awb.includes('-') ? leg.awb.split('-')[1] : leg.awb;
+        return airline.trackingUrlTemplate.replace('{awb}', awbNumber);
+      }
+      
+      // Fall back to utility function if direct template not available
       const url = getTrackingUrlSync(leg.airline, leg.awb);
+      if (!url) {
+        console.log(`No tracking URL found for airline: ${leg.airline}, AWB: ${leg.awb}`);
+        return null;
+      }
       return url;
     } catch (err) {
       console.error('Error generating tracking URL:', err);
