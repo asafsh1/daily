@@ -78,10 +78,10 @@ const AirlineForm = ({ onSubmit, onCancel, airline }) => {
               value={formData.trackingUrlTemplate}
               onChange={handleChange}
               required
-              placeholder="https://example.com/track/{awb}"
+              placeholder={"https://example.com/track/{awb}"}
             />
             <small className="form-text text-muted">
-              Use {awb} as a placeholder for the AWB number
+              Use {'{'}'awb'{'}'} as a placeholder for the AWB number
             </small>
           </div>
 
