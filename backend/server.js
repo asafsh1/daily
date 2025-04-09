@@ -8,6 +8,8 @@ const cors = require('cors');
 const path = require('path');
 const mongoose = require('mongoose');
 const fs = require('fs');
+const jwt = require('jsonwebtoken');
+const config = require('config');
 const auth = require('./middleware/auth');
 const devAuth = require('./middleware/devAuth');
 const User = require('./models/User');
@@ -16,6 +18,7 @@ const Customer = require('./models/Customer');
 const { createServer } = require('http');
 const socketIo = require('socket.io');
 const connectDB = require('./config/db');
+const mockAuth = require('./utils/mockAuth');
 
 // Read port from environment variable first, then config, then default
 const PORT = process.env.PORT || 5001;
@@ -32,7 +35,9 @@ const httpServer = createServer(app);
 const allowedOrigins = [
   'https://veleka-shipments-daily-report.netlify.app',
   'https://daily-shipments.netlify.app',
-  'https://daily-tracking.netlify.app'
+  'https://daily-tracking.netlify.app',
+  // Add your Netlify domain here if different
+  'https://daily-admin.netlify.app'
 ];
 
 // Configure CORS
@@ -96,6 +101,45 @@ app.use((req, res, next) => {
   next();
 });
 
+// Add a special route to get a development token - this makes it easier for the frontend to get a valid token
+app.post('/api/get-dev-token', (req, res) => {
+  // Only allow in development
+  if (process.env.NODE_ENV === 'production') {
+    return res.status(404).json({ msg: 'Not found' });
+  }
+  
+  try {
+    // Create a token using the default admin user
+    const payload = {
+      user: {
+        id: mockAuth.DEFAULT_ADMIN.id,
+        role: mockAuth.DEFAULT_ADMIN.role
+      }
+    };
+    
+    jwt.sign(
+      payload,
+      config.get('jwtSecret'),
+      { expiresIn: '7 days' },  // Longer expiration for development
+      (err, token) => {
+        if (err) throw err;
+        res.json({ 
+          token,
+          user: {
+            id: mockAuth.DEFAULT_ADMIN.id,
+            name: mockAuth.DEFAULT_ADMIN.name,
+            role: mockAuth.DEFAULT_ADMIN.role,
+            email: mockAuth.DEFAULT_ADMIN.email
+          }
+        });
+      }
+    );
+  } catch (err) {
+    console.error('Error generating dev token:', err.message);
+    res.status(500).json({ msg: 'Server error' });
+  }
+});
+
 // Serve static assets in production
 if (process.env.NODE_ENV === 'production') {
   // Set static folder - look in current directory or one level up
@@ -132,6 +176,19 @@ app.use('/api/dashboard', require('./routes/api/dashboard'));
 app.use('/api/shippers', require('./routes/api/shippers'));
 app.use('/api/consignees', require('./routes/api/consignees'));
 app.use('/api/notify-parties', require('./routes/api/notify-parties'));
+
+// Add a test auth endpoint to verify token and see what user is being used
+app.get('/api/test-auth', authMiddleware, (req, res) => {
+  res.json({
+    message: 'Authentication successful',
+    user: req.user,
+    tokenInfo: {
+      provided: !!req.header('x-auth-token'),
+      isDefaultDevToken: req.header('x-auth-token') === 'default-dev-token'
+    },
+    authMode: process.env.NODE_ENV === 'production' ? 'production' : 'development'
+  });
+});
 
 // Health check endpoint
 app.get('/health', (req, res) => {
@@ -226,28 +283,24 @@ app.get('/api/public-diagnostics', (req, res) => {
 
 // Catch-all route handler for SPA - must come after API routes
 if (process.env.NODE_ENV === 'production') {
-  // Find the build folder if it exists
-  const clientPath = path.resolve(__dirname, 'client', 'build');
-  const frontendPath = path.resolve(__dirname, '..', 'frontend', 'build');
-  
-  let staticPath;
-  if (fs.existsSync(clientPath)) {
-    staticPath = clientPath;
-  } else if (fs.existsSync(frontendPath)) {
-    staticPath = frontendPath;
-  }
-  
-  if (staticPath) {
-    app.get('*', (req, res) => {
-      if (!req.url.startsWith('/api/')) {
-        console.log(`Serving index.html for route: ${req.url}`);
-        res.sendFile(path.join(staticPath, 'index.html'));
-      } else {
-        // Let API routes be handled by their respective handlers
-        res.status(404).json({ message: 'API endpoint not found' });
-      }
-    });
-  }
+  app.get('*', (req, res) => {
+    // First check if this is an API request
+    if (req.path.startsWith('/api/')) {
+      return res.status(404).json({ msg: 'API endpoint not found' });
+    }
+    
+    // Otherwise serve the index.html file
+    const clientPath = path.resolve(__dirname, 'client', 'build', 'index.html');
+    const frontendPath = path.resolve(__dirname, '..', 'frontend', 'build', 'index.html');
+    
+    if (fs.existsSync(clientPath)) {
+      return res.sendFile(clientPath);
+    } else if (fs.existsSync(frontendPath)) {
+      return res.sendFile(frontendPath);
+    } else {
+      return res.status(404).send('Application not found on server');
+    }
+  });
 }
 
 // Error handling middleware
