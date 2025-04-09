@@ -4,7 +4,8 @@ import {
   GET_SHIPMENTS_BY_DATE,
   GET_OVERDUE_NON_INVOICED,
   DASHBOARD_ERROR,
-  DASHBOARD_LOADING
+  DASHBOARD_LOADING,
+  GET_DASHBOARD_ERROR
 } from '../actions/types';
 
 const initialState = {
@@ -55,6 +56,7 @@ export default function(state = initialState, action) {
         error: null
       };
     case DASHBOARD_ERROR:
+    case GET_DASHBOARD_ERROR:
       console.error('Dashboard reducer error:', payload);
       return {
         ...state,
