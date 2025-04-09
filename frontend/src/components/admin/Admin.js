@@ -85,22 +85,8 @@ const Admin = () => {
       }
     } catch (err) {
       console.error('Error fetching customers:', err);
-      
-      // Use fallback data if available
-      const fallbackData = [
-        {
-          _id: 'cust-default-1',
-          companyName: 'Sample Customer',
-          contactName: 'John Doe',
-          email: 'john@example.com',
-          phone: '123-456-7890',
-          awbInstructions: 'Sample instructions'
-        }
-      ];
-      
-      console.log('Using fallback customer data');
-      setCustomers(fallbackData);
-      toast.info('Using sample customer data in offline mode');
+      setCustomers([]);
+      toast.error(`Failed to fetch customers: ${err.message}`);
     } finally {
       setLoading(false);
     }
@@ -123,20 +109,8 @@ const Admin = () => {
       }
     } catch (err) {
       console.error('Error fetching users:', err);
-      
-      // Use fallback data
-      const fallbackData = [
-        {
-          _id: 'user-default-1',
-          name: 'Admin User',
-          email: 'admin@shipment.com',
-          role: 'admin'
-        }
-      ];
-      
-      console.log('Using fallback user data');
-      setUsers(fallbackData);
-      toast.info('Using sample user data in offline mode');
+      setUsers([]);
+      toast.error(`Failed to fetch users: ${err.message}`);
     } finally {
       setLoading(false);
     }

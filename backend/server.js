@@ -1,7 +1,7 @@
 require('dotenv').config();
 
-// Force using MongoDB Atlas connection string
-process.env.MONGODB_URI = "mongodb+srv://asafasaf5347:asafasaf5347@cluster0.lyz67.mongodb.net/shipment-tracker?retryWrites=true&w=majority&appName=Cluster0";
+// The hardcoded MongoDB connection string has been removed to ensure the application
+// properly uses the connection string from environment variables or config files
 
 const express = require('express');
 const cors = require('cors');
