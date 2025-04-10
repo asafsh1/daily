@@ -212,53 +212,35 @@ const ShipmentForm = ({
   // Load entities data when component mounts
   useEffect(() => {
     const fetchEntities = async () => {
-      const token = localStorage.getItem('token');
-      const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5001';
-      
       try {
         // Fetch shippers
-        const shippersRes = await fetch(`${apiUrl}/api/shippers`, {
-          headers: {
-            'x-auth-token': token
-          }
-        });
-        
-        if (shippersRes.ok) {
-          const shippersData = await shippersRes.json();
-          setShippers(shippersData);
-        }
+        const shippersRes = await axios.get('/api/shippers');
+        setShippers(shippersRes.data);
         
         // Fetch consignees
-        const consigneesRes = await fetch(`${apiUrl}/api/consignees`, {
-          headers: {
-            'x-auth-token': token
-          }
-        });
-        
-        if (consigneesRes.ok) {
-          const consigneesData = await consigneesRes.json();
-          setConsignees(consigneesData);
-        }
+        const consigneesRes = await axios.get('/api/consignees');
+        setConsignees(consigneesRes.data);
         
         // Fetch notify parties
-        const notifyPartiesRes = await fetch(`${apiUrl}/api/notify-parties`, {
-          headers: {
-            'x-auth-token': token
-          }
-        });
+        const notifyPartiesRes = await axios.get('/api/notify-parties');
+        setNotifyParties(notifyPartiesRes.data);
         
-        if (notifyPartiesRes.ok) {
-          const notifyPartiesData = await notifyPartiesRes.json();
-          setNotifyParties(notifyPartiesData);
-        }
+        // Fetch users
+        const usersRes = await axios.get('/api/users');
+        setUsers(usersRes.data);
       } catch (error) {
         console.error('Error fetching entities:', error);
-        toast.error('Failed to load entities data');
+        if (error.response?.status === 401) {
+          console.log('Session expired, redirecting to login...');
+          navigate('/login');
+        } else {
+          toast.error('Failed to load entities data');
+        }
       }
     };
     
     fetchEntities();
-  }, []);
+  }, [navigate]);
   
   // Update the selected entities when editing an existing shipment
   useEffect(() => {
@@ -406,88 +388,19 @@ const ShipmentForm = ({
     });
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!validateForm()) return;
-
-    // Create a deep clone of the current legs (if any)
-    const currentLegs = formData.legs && Array.isArray(formData.legs) 
-      ? formData.legs.map(leg => {
-          // Exclude the tempId used for tracking during editing
-          if (leg.tempId) {
-            const { tempId, ...legData } = leg;
-            return legData;
-          }
-          return { ...leg };
-        })
-      : [];
-
-    // Log what legs we're submitting
-    console.log("Submitting shipment with legs:", currentLegs);
-
-    // Format data for submission to API
-    const formattedData = {
-      // Basic fields
-      dateAdded: formData.dateAdded || new Date().toISOString().split('T')[0],
-      orderStatus: formData.orderStatus,
-      customer: formData.customer,
-      
-      // Use our consistent ID generator instead of timestamp-based references
-      reference: formData.reference || generateUniqueId(ID_PREFIXES.SHIPMENT),
-      
-      // Origin and Destination
-      origin: formData.origin,
-      destination: formData.destination,
-      carrier: formData.carrier,
-      departureDate: formData.departureDate || new Date().toISOString().split('T')[0],
-      arrivalDate: formData.arrivalDate || new Date(Date.now() + 86400000).toISOString().split('T')[0],
-      // Entity references
-      shipper: selectedShipper ? selectedShipper._id : null,
-      consignee: selectedConsignee ? selectedConsignee._id : null,
-      notifyParty: selectedNotifyParty ? selectedNotifyParty._id : null,
-      // Changelog
-      changeLog: isEditMode && shipment.changeLog ? 
-        [...(shipment.changeLog || []), {
-          timestamp: new Date(),
-          user: users.find(u => u._id === formData.createdBy) ? users.find(u => u._id === formData.createdBy).name : 'Unknown user',
-          action: isEditMode ? 'updated' : 'created',
-          details: `Shipment ${isEditMode ? 'updated' : 'created'} by ${users.find(u => u._id === formData.createdBy) ? users.find(u => u._id === formData.createdBy).name : 'Unknown user'}`
-        }] : 
-        [{
-          timestamp: new Date(),
-          user: users.find(u => u._id === formData.createdBy) ? users.find(u => u._id === formData.createdBy).name : 'Unknown user',
-          action: 'created',
-          details: `Shipment created by ${users.find(u => u._id === formData.createdBy) ? users.find(u => u._id === formData.createdBy).name : 'Unknown user'}`
-        }]
-    };
-
+    setSubmitting(true);
+    
     try {
-      console.log('Submitting shipment with data:', formattedData);
-      
-      // Add debug log to catch any errors
-      const result = isEditMode 
-        ? updateShipment(id, formattedData, navigate)
-        : addShipment(formattedData, navigate);
-      
-      result.catch(error => {
-        console.error('Error in shipment submission:', error);
-        toast.error('Failed to save shipment. Please check console for details.');
-      });
-      
-      // Reset form only if not editing
-      if (!isEditMode) {
-        setFormData(initialState);
-        setErrors({});
-        setSelectedShipper(null);
-        setSelectedConsignee(null);
-        setSelectedNotifyParty(null);
-      }
-      
-      // Show feedback
-      toast.success(`Shipment ${isEditMode ? 'updated' : 'created'} successfully`);
+      const response = await axios.post('/api/shipments', formData);
+      toast.success('Shipment created successfully!');
+      navigate('/dashboard');
     } catch (error) {
-      console.error('Error submitting shipment:', error);
-      toast.error('Failed to save shipment. Please try again.');
+      console.error('Error creating shipment:', error);
+      toast.error(error.response?.data?.msg || 'Failed to create shipment');
+    } finally {
+      setSubmitting(false);
     }
   };
 

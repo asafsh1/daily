@@ -1,9 +1,17 @@
 {
   "mongoURI": "mongodb+srv://daily_admin:1ArUfF8oH5N97Ggy@ops.hm6y7nw.mongodb.net/daily?retryWrites=true&w=majority&appName=OPS",
-  "jwtSecret": "your-production-secret",
-  "jwtExpiration": "1d",
+  "jwtSecret": "mysecrettoken-production-7d6f8a9b5c4e3d2f1a0b9c8d7e6f5a4b",
+  "jwtExpiration": "7d",
   "mailServerSettings": {
     "apiKey": "your-production-api-key"
   },
-  "enableSwagger": false
+  "enableSwagger": false,
+  "cors": {
+    "origins": [
+      "https://veleka-shipments-daily-report.netlify.app",
+      "https://daily-shipments.netlify.app",
+      "https://daily-tracking.netlify.app",
+      "https://daily-admin.netlify.app"
+    ]
+  }
 } 

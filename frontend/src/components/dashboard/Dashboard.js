@@ -51,6 +51,9 @@ const Dashboard = ({
   const [activeTab, setActiveTab] = useState('all');
   const [detailedShipments, setDetailedShipments] = useState([]);
   const [connectionIssue, setConnectionIssue] = useState(false);
+  const [dashboardData, setDashboardData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   // Add a fallback to public-diagnostics when the authenticated endpoint fails
   useEffect(() => {
@@ -90,9 +93,24 @@ const Dashboard = ({
   }, []);
 
   useEffect(() => {
+    const fetchData = async () => {
+      try {
+        setLoading(true);
+        const response = await axios.get('/api/dashboard/data');
+        setDashboardData(response.data);
+      } catch (error) {
+        console.error('Error fetching dashboard data:', error);
+        setError('Failed to load dashboard data');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
+  }, []);
+
+  useEffect(() => {
     console.log('Dashboard component mounted, fetching summary...');
-    const token = localStorage.getItem('token');
-    console.log('Auth token exists:', !!token);
     
     const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5000';
     console.log('Current API URL:', apiUrl);
@@ -125,7 +143,12 @@ const Dashboard = ({
         
       } catch (err) {
         console.error('Error fetching dashboard data:', err.message, err);
-        toast.error('Error loading dashboard data. Please try refreshing the page.');
+        if (err.response?.status === 401) {
+          console.log('Session expired, redirecting to login...');
+          window.location.href = '/login';
+        } else {
+          toast.error('Error loading dashboard data. Please try refreshing the page.');
+        }
       }
     };
     

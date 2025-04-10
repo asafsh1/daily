@@ -6,6 +6,10 @@ import { Provider } from 'react-redux';
 import store from './store';
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
+import axios from 'axios';
+import { useDispatch } from 'react-redux';
+import { setUser, logout } from './actions/authActions';
+import LoadingSpinner from './components/layout/LoadingSpinner';
 
 // Components
 import Navbar from './components/layout/Navbar';
@@ -17,23 +21,28 @@ import ShipmentDetail from './components/shipments/ShipmentDetail';
 import Admin from './components/admin/Admin';
 import NotFound from './components/layout/NotFound';
 
-// Set up authentication token
-const initializeAuth = () => {
-  // Only set a default token if none exists already
-  if (!localStorage.getItem('token')) {
-    const defaultToken = 'default-dev-token';
-    localStorage.setItem('token', defaultToken);
-    console.log('Set default token for authentication:', defaultToken);
-  } else {
-    console.log('Using existing token from localStorage');
-  }
-};
-
 const App = () => {
+  const dispatch = useDispatch();
+
   useEffect(() => {
-    // Initialize authentication when the app loads
-    initializeAuth();
-  }, []);
+    const checkAuth = async () => {
+      try {
+        // Try to verify session with the backend
+        const response = await axios.get('/api/auth/verify');
+        dispatch(setUser(response.data));
+      } catch (error) {
+        console.log('Session not found or invalid');
+        dispatch(logout());
+      }
+    };
+
+    checkAuth();
+  }, [dispatch]);
+
+  // Show loading state while checking authentication
+  if (loading) {
+    return <LoadingSpinner />;
+  }
 
   return (
     <Provider store={store}>
