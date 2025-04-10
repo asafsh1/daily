@@ -73,10 +73,12 @@ const corsOptions = {
       return callback(null, true);
     }
 
+    // Allow all origins in development
     if (process.env.NODE_ENV !== 'production') {
       return callback(null, true);
     }
 
+    // Check if origin is allowed
     if (allowedOrigins.includes(origin) || origin.endsWith('.netlify.app')) {
       callback(null, true);
     } else {
