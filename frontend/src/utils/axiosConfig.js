@@ -10,50 +10,16 @@ console.log('Environment:', process.env.NODE_ENV);
 const instance = axios.create({
   baseURL: apiBaseUrl,
   timeout: 30000,
-  withCredentials: true,
   headers: {
     'Content-Type': 'application/json'
   }
 });
 
-// Add request interceptor
-instance.interceptors.request.use(
-  async config => {
-    // Get token from localStorage
-    const token = localStorage.getItem('token');
-    if (token) {
-      config.headers['x-auth-token'] = token;
-    }
-
-    return config;
-  },
-  error => {
-    console.error('[Axios Request Error]', error);
-    return Promise.reject(error);
-  }
-);
-
 // Add response interceptor
 instance.interceptors.response.use(
-  response => {
-    // If response includes a token, save it
-    if (response.data && response.data.token) {
-      localStorage.setItem('token', response.data.token);
-    }
-    return response;
-  },
+  response => response,
   async error => {
     if (error.response) {
-      // Handle 401 Unauthorized
-      if (error.response.status === 401) {
-        // Clear token and redirect to login
-        localStorage.removeItem('token');
-        if (window.location.pathname !== '/login') {
-          window.location.href = '/login';
-        }
-        return Promise.reject(new Error('Session expired'));
-      }
-
       // Handle 500 Server Error
       if (error.response.status === 500) {
         console.error('[Server Error]', error.response.data);
