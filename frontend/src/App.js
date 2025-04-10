@@ -1,3 +1,5 @@
+// App.js - Updated for database connectivity fix - forcing a new build
+
 import React, { useEffect } from 'react';
 import { BrowserRouter as Router, Route, Routes, Navigate } from 'react-router-dom';
 import { Provider } from 'react-redux';
