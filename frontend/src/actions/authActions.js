@@ -19,23 +19,22 @@ export const setUser = (userData) => ({
 
 // Load User
 export const loadUser = () => async dispatch => {
-  if (authCheckInProgress) return;
-  
   try {
-    authCheckInProgress = true;
+    const token = localStorage.getItem('token');
+    if (!token) {
+      dispatch({ type: AUTH_ERROR });
+      return;
+    }
+
     const res = await axios.get('/api/auth/verify');
-    
     dispatch({
       type: USER_LOADED,
       payload: res.data
     });
   } catch (err) {
-    console.log('Auth check failed:', err.message);
-    dispatch({
-      type: AUTH_ERROR
-    });
-  } finally {
-    authCheckInProgress = false;
+    console.error('Auth check failed:', err.message);
+    localStorage.removeItem('token');
+    dispatch({ type: AUTH_ERROR });
   }
 };
 
@@ -43,23 +42,28 @@ export const loadUser = () => async dispatch => {
 export const login = (email, password) => async dispatch => {
   try {
     const res = await axios.post('/api/auth/login', { email, password });
+    
+    if (res.data.token) {
+      localStorage.setItem('token', res.data.token);
+    }
 
     dispatch({
       type: LOGIN_SUCCESS,
       payload: res.data
     });
-  } catch (err) {
-    const errors = err.response?.data?.errors;
 
+    dispatch(loadUser());
+  } catch (err) {
+    localStorage.removeItem('token');
+    
+    const errors = err.response?.data?.errors;
     if (errors) {
       errors.forEach(error => dispatch(setAlert(error.msg, 'danger')));
     } else {
       dispatch(setAlert('Login failed. Please try again.', 'danger'));
     }
 
-    dispatch({
-      type: LOGIN_FAIL
-    });
+    dispatch({ type: LOGIN_FAIL });
   }
 };
 
@@ -67,10 +71,11 @@ export const login = (email, password) => async dispatch => {
 export const logout = () => async dispatch => {
   try {
     await axios.post('/api/auth/logout');
-    dispatch({ type: CLEAR_PROFILE });
-    dispatch({ type: LOGOUT });
   } catch (err) {
     console.error('Logout error:', err);
-    dispatch(setAlert('Logout failed. Please try again.', 'danger'));
   }
+  
+  localStorage.removeItem('token');
+  dispatch({ type: CLEAR_PROFILE });
+  dispatch({ type: LOGOUT });
 }; 
