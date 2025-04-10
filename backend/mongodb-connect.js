@@ -443,12 +443,16 @@ const checkConnectionState = (req, res, next) => {
   }
 };
 
-// Export the connect method
+// Export the connect function that uses the singleton
+async function connect() {
+  return await connector.connect();
+}
+
+// Export the module
 module.exports = {
-  connect: () => connector.connect(),
-  retryConnection: () => connector.retryConnection(),
-  connector, // Export the connector instance for advanced use
+  connect,
   getConnectionDetails: () => connector.connectionDetails,
   getConnectionState: () => connector.getConnectionState(),
-  checkConnectionState // Middleware for routes to check connection state
+  checkConnectionState, // Middleware for routes to check connection state
+  MongoDBConnector // Export the MongoDBConnector class
 }; 

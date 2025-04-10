@@ -1,9 +1,28 @@
 require('dotenv').config();
+const { testMongoDBConnection } = require('./dns-resolution-debug');
 
 // Make sure we're using the correct MongoDB connection string
 console.log('Starting server with MongoDB connection...');
 console.log('MongoDB URI exists in env:', !!process.env.MONGODB_URI);
 console.log('Using Node.js version:', process.version);
+
+// Extract MongoDB host from URI for DNS testing
+const mongoUri = process.env.MONGODB_URI;
+const mongoHost = mongoUri ? mongoUri.match(/@([^/]+)/)[1] : null;
+
+// Test MongoDB DNS resolution before attempting connection
+if (mongoHost) {
+    console.log(`Testing DNS resolution for MongoDB host: ${mongoHost}`);
+    testMongoDBConnection(mongoHost)
+        .then(success => {
+            if (!success) {
+                console.warn('DNS resolution test failed - attempting connection with IP fallback');
+            }
+        })
+        .catch(err => {
+            console.error('DNS test error:', err.message);
+        });
+}
 
 // Ensure proper MongoDB connection in all environments
 // NOTE: Make sure to configure the MONGODB_URI environment variable in Render dashboard
@@ -22,7 +41,7 @@ const Shipment = require('./models/Shipment');
 const Customer = require('./models/Customer');
 const { createServer } = require('http');
 const socketIo = require('socket.io');
-const { connect: connectDB, MongoDBConnector, getConnectionDetails } = require('./mongodb-connect');
+const { connect: connectDB, getConnectionDetails } = require('./mongodb-connect');
 const mockAuth = require('./utils/mockAuth');
 
 // Read port from environment variable first, then config, then default
@@ -388,20 +407,26 @@ async function startServer() {
   try {
     // Connect to MongoDB using the dedicated module with fallback strategies
     console.log('Connecting to MongoDB with robust connection handler...');
-    const mongoConnector = new MongoDBConnector();
-    const connection = await mongoConnector.connect();
     
-    if (connection) {
-      console.log(`✅ Connected to MongoDB Atlas: ${mongoose.connection.host}`);
-      dbConnected = true;
-    } else {
+    // Try to connect using the connectDB function
+    try {
+      const connection = await connectDB();
+      if (connection) {
+        console.log(`✅ Connected to MongoDB Atlas: ${mongoose.connection.host}`);
+        dbConnected = true;
+      }
+    } catch (dbError) {
+      console.error('Initial MongoDB connection failed:', dbError.message);
+    }
+
+    if (!dbConnected) {
       console.warn('⚠️ Server starting without database connection. Fallback data will be used.');
       
       // Set up automatic reconnection attempt every 30 seconds
       const reconnectInterval = setInterval(async () => {
         console.log('Attempting scheduled database reconnection...');
         try {
-          const result = await mongoConnector.retryConnection();
+          const result = await connectDB();
           if (result && mongoose.connection.readyState === 1) {
             console.log('✅ Successfully reconnected to MongoDB Atlas');
             dbConnected = true;

@@ -7,8 +7,8 @@
     "node": "18.x"
   },
   "scripts": {
-    "start": "node server.js",
-    "dev": "nodemon server.js",
+    "start": "node -r ./dns-resolution-debug.js server.js",
+    "dev": "nodemon -r ./dns-resolution-debug.js server.js",
     "seed:airlines": "node scripts/seedAirlines.js",
     "build": "echo 'Backend build completed'",
     "deploy": "NODE_ENV=production node server.js"
