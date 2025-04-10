@@ -9,6 +9,12 @@ import {
   CLEAR_PROFILE
 } from './types';
 
+// Set user data
+export const setUser = (userData) => ({
+  type: USER_LOADED,
+  payload: userData
+});
+
 // Load User
 export const loadUser = () => async dispatch => {
   try {
