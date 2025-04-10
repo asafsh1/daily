@@ -1,5 +1,5 @@
 {
-  "mongoURI": "mongodb+srv://asafasaf5347:asafasaf5347@cluster0.lyz67.mongodb.net/shipment-tracker?retryWrites=true&w=majority&appName=Cluster0",
+  "mongoURI": "mongodb+srv://asafsh1:Aa123456@cluster0.lyz67.mongodb.net/shipment-tracker?retryWrites=true&w=majority&appName=Cluster0",
   "jwtSecret": "dev_secret_token",
   "jwtExpiration": "7d",
   "mailServerSettings": {

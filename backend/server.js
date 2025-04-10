@@ -1,5 +1,8 @@
 require('dotenv').config();
 
+// Make sure we're using the correct MongoDB connection string
+console.log('Starting server with MongoDB connection...');
+
 // Ensure proper MongoDB connection in all environments
 // NOTE: Make sure to configure the MONGODB_URI environment variable in Render dashboard
 
