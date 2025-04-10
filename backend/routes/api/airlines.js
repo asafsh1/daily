@@ -9,6 +9,13 @@ const path = require('path');
 
 const Airline = require('../../models/Airline');
 
+// In-memory cache for airlines
+let airlinesCache = {
+  data: null,
+  lastUpdated: null,
+  ttl: 5 * 60 * 1000 // 5 minutes TTL
+};
+
 // Function to load sample data if database is not available
 const getSampleAirlines = () => {
   try {
@@ -24,10 +31,51 @@ const getSampleAirlines = () => {
   return [];
 };
 
+// Function to get airlines with retries
+const getAirlinesWithRetry = async (maxRetries = 3) => {
+  let lastError;
+  
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      // Check cache first
+      if (airlinesCache.data && airlinesCache.lastUpdated && 
+          (Date.now() - airlinesCache.lastUpdated) < airlinesCache.ttl) {
+        console.log('Returning airlines from cache');
+        return airlinesCache.data;
+      }
+
+      // If not in cache or cache expired, fetch from DB
+      const airlines = await Airline.find().sort({ name: 1 });
+      
+      // Update cache
+      airlinesCache.data = airlines;
+      airlinesCache.lastUpdated = Date.now();
+      
+      return airlines;
+    } catch (err) {
+      lastError = err;
+      console.error(`Attempt ${attempt} failed:`, err.message);
+      
+      if (attempt < maxRetries) {
+        const delay = Math.min(1000 * attempt, 3000);
+        await new Promise(resolve => setTimeout(resolve, delay));
+      }
+    }
+  }
+  
+  throw lastError;
+};
+
 // @route    GET api/airlines
 // @desc     Get all airlines
 // @access   Private
 router.get('/', auth, checkConnectionState, async (req, res) => {
+  // Add CORS headers explicitly for this route
+  res.header('Access-Control-Allow-Origin', req.headers.origin);
+  res.header('Access-Control-Allow-Methods', 'GET, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, x-auth-token');
+  res.header('Access-Control-Allow-Credentials', 'true');
+  
   // Check if database is connected, if not serve fallback data immediately
   if (!req.dbConnected) {
     console.log('Database not connected, using fallback data immediately');
@@ -51,14 +99,20 @@ router.get('/', auth, checkConnectionState, async (req, res) => {
     }
   }
   
-  // Database is connected, continue with normal operation
+  // Database is connected, try to get airlines with retry logic
   try {
-    const airlines = await Airline.find().sort({ name: 1 });
+    const airlines = await getAirlinesWithRetry();
     res.json(airlines);
   } catch (err) {
-    console.error('Error fetching airlines:', err.message);
+    console.error('Error fetching airlines after all retries:', err.message);
     
-    // If there's an error, try to use sample data as a fallback
+    // If there's an error, try to use cache if available
+    if (airlinesCache.data) {
+      console.log('Returning airlines from cache after DB error');
+      return res.json(airlinesCache.data);
+    }
+    
+    // If no cache, try sample data as a fallback
     try {
       const sampleData = getSampleAirlines();
       if (sampleData && sampleData.length > 0) {
@@ -69,7 +123,12 @@ router.get('/', auth, checkConnectionState, async (req, res) => {
       console.error('Also failed to load sample data:', sampleErr.message);
     }
     
-    res.status(500).json({ msg: 'Server Error', error: err.message });
+    res.status(500).json({ 
+      msg: 'Server Error', 
+      error: err.message,
+      retryAfter: 5,
+      cached: false
+    });
   }
 });
 
