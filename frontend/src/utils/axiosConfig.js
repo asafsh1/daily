@@ -3,7 +3,9 @@ import axiosRetry from 'axios-retry';
 
 // Get environment and API URL
 const isDevelopment = process.env.NODE_ENV !== 'production';
-const apiBaseUrl = process.env.REACT_APP_API_URL || 'http://localhost:5001';
+const apiBaseUrl = isDevelopment 
+  ? (process.env.REACT_APP_API_URL || 'http://localhost:5001')
+  : 'https://daily-shipment-tracker.onrender.com';
 
 console.log('API Base URL:', apiBaseUrl);
 console.log('Environment:', process.env.NODE_ENV || 'development');
@@ -30,8 +32,8 @@ instance.interceptors.request.use(
     if (token) {
       console.log('Using existing token from localStorage');
       config.headers['x-auth-token'] = token;
-    } else {
-      // If no token exists, try using a default dev token in all environments
+    } else if (isDevelopment) {
+      // Only use dev token in development
       localStorage.setItem('token', 'default-dev-token');
       console.log('Set default token for authentication: default-dev-token');
       config.headers['x-auth-token'] = 'default-dev-token';
