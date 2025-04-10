@@ -5,6 +5,7 @@ const mongoose = require('mongoose');
 const auth = require('../../middleware/auth');
 const fs = require('fs');
 const path = require('path');
+const { checkConnectionState } = require('../../mongodb-connect');
 
 const Shipment = require('../../models/Shipment');
 const ShipmentLeg = require('../../models/ShipmentLeg');
@@ -28,21 +29,25 @@ const getSampleShipments = () => {
 // @route   GET api/shipments
 // @desc    Get all shipments
 // @access  Public
-router.get('/', async (req, res) => {
+router.get('/', checkConnectionState, async (req, res) => {
   try {
-    // Verify database connection
-    if (mongoose.connection.readyState !== 1) {
-      return res.status(503).json({ 
-        msg: 'Database connection unavailable', 
-        readyState: mongoose.connection.readyState 
-      });
-    }
-    
-    // Database connected, fetch real data
+    // Database connected (ensured by middleware), fetch real data
     const shipments = await Shipment.find().sort({ date: -1 });
     res.json(shipments);
   } catch (err) {
     console.error('Error fetching shipments:', err.message);
+    
+    // If there's an error, try to use sample data as a fallback
+    try {
+      const sampleData = getSampleShipments();
+      if (sampleData && sampleData.length > 0) {
+        console.log(`Returning ${sampleData.length} sample shipments due to DB error`);
+        return res.json(sampleData);
+      }
+    } catch (sampleErr) {
+      console.error('Also failed to load sample data:', sampleErr.message);
+    }
+    
     res.status(500).json({ msg: 'Server Error', error: err.message });
   }
 });
@@ -50,7 +55,7 @@ router.get('/', async (req, res) => {
 // @route   POST api/shipments/debug
 // @desc    Debug endpoint to test request handling
 // @access  Public
-router.post('/debug', async (req, res) => {
+router.post('/debug', checkConnectionState, async (req, res) => {
   try {
     // Log the request details
     console.log('Debug endpoint called');
@@ -79,17 +84,8 @@ router.post('/debug', async (req, res) => {
 // @route   GET api/shipments/repair-legs/:id
 // @desc    Special endpoint to fix legs for a shipment
 // @access  Public
-router.get('/repair-legs/:id', async (req, res) => {
+router.get('/repair-legs/:id', checkConnectionState, async (req, res) => {
   try {
-    // Verify database connection
-    if (mongoose.connection.readyState !== 1) {
-      return res.status(503).json({ 
-        success: false,
-        msg: 'Database connection unavailable', 
-        readyState: mongoose.connection.readyState 
-      });
-    }
-    
     const shipmentId = req.params.id;
     console.log(`[REPAIR] Repairing legs for shipment: ${shipmentId}`);
     
@@ -170,16 +166,8 @@ router.get('/repair-legs/:id', async (req, res) => {
 // @route   GET api/shipments/:id
 // @desc    Get shipment by ID
 // @access  Public
-router.get('/:id', async (req, res) => {
+router.get('/:id', checkConnectionState, async (req, res) => {
   try {
-    // Verify database connection
-    if (mongoose.connection.readyState !== 1) {
-      return res.status(503).json({ 
-        msg: 'Database connection unavailable', 
-        readyState: mongoose.connection.readyState 
-      });
-    }
-    
     // First check for valid ID format
     if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
       return res.status(400).json({ msg: 'Invalid shipment ID format' });
@@ -203,7 +191,7 @@ router.get('/:id', async (req, res) => {
     
     res.json(shipment);
   } catch (err) {
-    console.error('Error fetching shipment:', err.message);
+    console.error('Error getting shipment by ID:', err.message);
     res.status(500).json({ msg: 'Server Error', error: err.message });
   }
 });
@@ -211,7 +199,7 @@ router.get('/:id', async (req, res) => {
 // @route   GET api/shipments/:id/legs
 // @desc    Get legs for a specific shipment
 // @access  Public
-router.get('/:id/legs', async (req, res) => {
+router.get('/:id/legs', checkConnectionState, async (req, res) => {
   try {
     console.log(`Fetching legs for shipment ID: ${req.params.id}`);
     
@@ -257,6 +245,7 @@ router.get('/:id/legs', async (req, res) => {
 // @desc    Create a new leg for a shipment
 // @access  Public (temporarily for testing)
 router.post('/:id/legs', [
+  checkConnectionState,
   check('from', 'Origin is required').not().isEmpty(),
   check('to', 'Destination is required').not().isEmpty(),
   check('carrier', 'Carrier is required').not().isEmpty(),
@@ -335,6 +324,7 @@ router.post('/:id/legs', [
 // @desc    Create a new shipment
 // @access  Public (temporarily for testing)
 router.post('/', [
+  checkConnectionState,
   check('reference', 'Reference is required').not().isEmpty(),
   check('origin', 'Origin is required').not().isEmpty(),
   check('destination', 'Destination is required').not().isEmpty(),

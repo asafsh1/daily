@@ -22,7 +22,7 @@ const Shipment = require('./models/Shipment');
 const Customer = require('./models/Customer');
 const { createServer } = require('http');
 const socketIo = require('socket.io');
-const connectDB = require('./config/db');
+const { connect: connectDB, MongoDBConnector, getConnectionDetails } = require('./mongodb-connect');
 const mockAuth = require('./utils/mockAuth');
 
 // Read port from environment variable first, then config, then default
@@ -53,14 +53,14 @@ const corsOptions = {
       return callback(null, true);
     }
     
-    // In production, check against the allowed list
-    if (allowedOrigins.indexOf(origin) !== -1) {
+    // In production, check against the allowed list or match hostname patterns
+    if (allowedOrigins.indexOf(origin) !== -1 || origin.endsWith('.netlify.app')) {
       return callback(null, true);
     } else {
-      console.log('CORS blocked request from:', origin);
-      // Allow all origins in case our list is incomplete
+      console.log('CORS blocked request from unknown origin:', origin);
+      // In production mode we'll still allow it while debugging CORS issues
       return callback(null, true);
-      // To restrict: return callback(new Error('Not allowed by CORS'));
+      // Strict mode (enable later): return callback(new Error('Not allowed by CORS'));
     }
   },
   credentials: true,
@@ -70,7 +70,26 @@ const corsOptions = {
 
 // Initialize socket.io with CORS settings
 const io = socketIo(httpServer, {
-  cors: corsOptions
+  cors: {
+    origin: function(origin, callback) {
+      // Allow any origin that's in our allowed list or has netlify.app domain
+      if (!origin || allowedOrigins.indexOf(origin) !== -1 || origin.endsWith('.netlify.app')) {
+        callback(null, true);
+      } else {
+        console.log(`Socket.IO - CORS allowing unknown origin: ${origin}`);
+        // We'll allow it in debugging mode
+        callback(null, true);
+      }
+    },
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    credentials: true,
+    allowedHeaders: ["Content-Type", "Authorization", "x-auth-token", "Origin", "Accept"]
+  },
+  transports: ['polling', 'websocket'],
+  allowEIO3: true,
+  // Additional options to ensure timely client reconnections
+  pingTimeout: 60000,
+  pingInterval: 25000
 });
 
 // Initialize Middleware
@@ -85,7 +104,23 @@ app.use((req, res, next) => {
   // Add CORS headers for all requests - ensure they're set properly
   const origin = req.headers.origin;
   
-  if (corsOptions.origin === '*' || (origin && allowedOrigins.includes(origin))) {
+  // Special handling for Socket.IO requests to ensure CORS works
+  if (req.url.includes('/socket.io/')) {
+    if (origin) {
+      res.header('Access-Control-Allow-Origin', origin);
+      res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+      res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, x-auth-token, Origin, Accept');
+      res.header('Access-Control-Allow-Credentials', 'true');
+    }
+    
+    // Handle preflight for Socket.IO
+    if (req.method === 'OPTIONS') {
+      res.status(200).end();
+      return;
+    }
+  }
+  // Standard CORS for other requests
+  else if (corsOptions.origin === '*' || (origin && allowedOrigins.includes(origin))) {
     res.header('Access-Control-Allow-Origin', origin);
     res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
     res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, x-auth-token, Origin, Accept');
@@ -197,43 +232,52 @@ app.get('/api/test-auth', authMiddleware, (req, res) => {
 
 // Health check endpoint
 app.get('/health', (req, res) => {
-  const dbStatus = mongoose.connection.readyState;
-  let dbStatusText;
+  const mongoDetails = getConnectionDetails();
   
-  switch(dbStatus) {
-    case 0:
-      dbStatusText = 'disconnected';
-      break;
-    case 1:
-      dbStatusText = 'connected';
-      break;
-    case 2:
-      dbStatusText = 'connecting';
-      break;
-    case 3:
-      dbStatusText = 'disconnecting';
-      break;
-    default:
-      dbStatusText = 'unknown';
+  // Add CORS headers explicitly for the health endpoint
+  const origin = req.headers.origin;
+  if (origin && allowedOrigins.includes(origin)) {
+    res.header('Access-Control-Allow-Origin', origin);
+    res.header('Access-Control-Allow-Methods', 'GET, OPTIONS');
+    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, x-auth-token');
+    res.header('Access-Control-Allow-Credentials', 'true');
   }
   
-  res.json({
-    status: 'ok',
-    timestamp: new Date(),
-    database: {
-      status: dbStatusText,
-      readyState: dbStatus,
-      host: mongoose.connection.host || 'N/A'
-    },
-    environment: process.env.NODE_ENV || 'development',
-    port: PORT,
-    serverInfo: {
+  const status = {
+    server: {
+      time: new Date(),
       uptime: process.uptime(),
       memory: process.memoryUsage(),
-      version: process.version
+      pid: process.pid,
+      env: process.env.NODE_ENV || 'development',
+      nodeVersion: process.version
+    },
+    database: {
+      connected: mongoose.connection.readyState === 1,
+      state: getMongooseState(mongoose.connection.readyState),
+      host: mongoDetails.host || 'Not connected',
+      name: mongoDetails.database || 'Not connected',
+      connectionStrategy: mongoDetails.strategy || 'Not recorded',
+      lastReconnectAttempt: mongoDetails.lastReconnectAttempt || null,
+      reconnectAttempts: mongoDetails.reconnectAttempts || 0,
+      fallbacksUsed: mongoDetails.fallbacksUsed || []
     }
-  });
+  };
+  
+  res.json(status);
 });
+
+// Helper to get readable MongoDB connection state
+function getMongooseState(state) {
+  const states = {
+    0: 'disconnected',
+    1: 'connected',
+    2: 'connecting',
+    3: 'disconnecting',
+    99: 'uninitialized'
+  };
+  return states[state] || `unknown (${state})`;
+}
 
 // Add a public diagnostics endpoint that works without authentication
 app.get('/api/public-diagnostics', (req, res) => {
@@ -340,19 +384,36 @@ app.use((err, req, res, next) => {
 // Connect to MongoDB Atlas and start server
 async function startServer() {
   try {
-    // Connect to MongoDB using the dedicated module
-    const dbConnected = await connectDB();
+    // Connect to MongoDB using the dedicated module with fallback strategies
+    console.log('Connecting to MongoDB with robust connection handler...');
+    const mongoConnector = new MongoDBConnector();
+    const connection = await mongoConnector.connect();
     
-    if (dbConnected) {
+    if (connection) {
       console.log(`✅ Connected to MongoDB Atlas: ${mongoose.connection.host}`);
     } else {
       console.warn('⚠️ Server starting without database connection. Some features will be unavailable.');
     }
 
+    // Set up Socket.IO connection handlers
+    io.on('connection', (socket) => {
+      console.log(`Socket ${socket.id} connected`);
+      
+      // Add heartbeat to keep connection alive
+      socket.on('ping', () => {
+        socket.emit('pong');
+      });
+      
+      socket.on('disconnect', () => {
+        console.log(`Socket ${socket.id} disconnected`);
+      });
+    });
+
     // Start the HTTP server
     httpServer.listen(PORT, () => {
       console.log(`✅ Server is running on port ${PORT}`);
       console.log(`✅ Environment: ${process.env.NODE_ENV || 'development'}`);
+      console.log(`✅ CORS origins: ${allowedOrigins.join(', ')}`);
     });
 
     // Handle server shutdown
@@ -360,7 +421,17 @@ async function startServer() {
     process.on('SIGINT', gracefulShutdown);
   } catch (err) {
     console.error('Failed to start server:', err);
-    process.exit(1);
+    
+    // In production, still start the server even if the DB connection fails
+    if (process.env.NODE_ENV === 'production') {
+      console.warn('⚠️ Starting server in production despite database connection failure');
+      httpServer.listen(PORT, () => {
+        console.log(`✅ Server is running on port ${PORT} (without database)`);
+        console.log(`✅ Environment: ${process.env.NODE_ENV || 'development'}`);
+      });
+    } else {
+      process.exit(1);
+    }
   }
 }
 

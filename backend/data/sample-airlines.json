@@ -1,0 +1,47 @@
+[
+  {
+    "_id": "fallback-id-1",
+    "name": "Turkish Airlines",
+    "code": "TK",
+    "status": "active",
+    "trackingUrlTemplate": "https://www.turkishairlines.com/en-int/any-questions/cargo-tracking/?tracking_number={{trackingNumber}}",
+    "createdAt": "2023-01-01T00:00:00.000Z",
+    "updatedAt": "2023-01-01T00:00:00.000Z"
+  },
+  {
+    "_id": "fallback-id-2",
+    "name": "Lufthansa",
+    "code": "LH",
+    "status": "active",
+    "trackingUrlTemplate": "https://www.lufthansa-cargo.com/track-and-trace?awb={{trackingNumber}}",
+    "createdAt": "2023-01-01T00:00:00.000Z",
+    "updatedAt": "2023-01-01T00:00:00.000Z"
+  },
+  {
+    "_id": "fallback-id-3",
+    "name": "Emirates",
+    "code": "EK",
+    "status": "active",
+    "trackingUrlTemplate": "https://www.skycargo.com/track-shipment/?trackingNumber={{trackingNumber}}",
+    "createdAt": "2023-01-01T00:00:00.000Z",
+    "updatedAt": "2023-01-01T00:00:00.000Z"
+  },
+  {
+    "_id": "fallback-id-4",
+    "name": "Qatar Airways",
+    "code": "QR",
+    "status": "active",
+    "trackingUrlTemplate": "https://www.qrcargo.com/trackshipments?trackingNumber={{trackingNumber}}",
+    "createdAt": "2023-01-01T00:00:00.000Z",
+    "updatedAt": "2023-01-01T00:00:00.000Z"
+  },
+  {
+    "_id": "fallback-id-5",
+    "name": "Cathay Pacific",
+    "code": "CX",
+    "status": "active",
+    "trackingUrlTemplate": "https://www.cathaypacificcargo.com/ManageYourShipment/TrackYourShipment?awb={{trackingNumber}}",
+    "createdAt": "2023-01-01T00:00:00.000Z",
+    "updatedAt": "2023-01-01T00:00:00.000Z"
+  }
+] 

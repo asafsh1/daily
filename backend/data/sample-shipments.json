@@ -1,86 +1,92 @@
 [
   {
-    "_id": "67e9189672c2d5c62df16c86",
-    "shipmentName": "Test Shipment 1",
-    "customer": "ACME Inc.",
-    "shipmentStatus": "In Progress",
-    "origin": "New York",
-    "destination": "Los Angeles",
-    "departureDate": "2023-12-01T00:00:00.000Z",
-    "arrivalDate": "2023-12-05T00:00:00.000Z",
-    "legs": [
-      {
-        "_id": "67e9189672c2d5c62df16c87",
-        "legOrder": 1,
-        "from": "New York",
-        "to": "Chicago",
-        "carrier": "American Airlines",
-        "departureDate": "2023-12-01T00:00:00.000Z",
-        "arrivalDate": "2023-12-02T00:00:00.000Z",
-        "status": "Completed",
-        "awbNumber": "AA123456",
-        "shipment": "67e9189672c2d5c62df16c86"
-      },
-      {
-        "_id": "67e9189672c2d5c62df16c88",
-        "legOrder": 2,
-        "from": "Chicago",
-        "to": "Denver",
-        "carrier": "United Airlines",
-        "departureDate": "2023-12-02T12:00:00.000Z",
-        "arrivalDate": "2023-12-03T14:00:00.000Z",
-        "status": "In Transit",
-        "awbNumber": "UA789012",
-        "shipment": "67e9189672c2d5c62df16c86"
-      },
-      {
-        "_id": "67e9189672c2d5c62df16c89",
-        "legOrder": 3,
-        "from": "Denver",
-        "to": "Los Angeles",
-        "carrier": "Delta Airlines",
-        "departureDate": "2023-12-04T09:00:00.000Z",
-        "arrivalDate": "2023-12-05T11:00:00.000Z",
-        "status": "Not Started",
-        "awbNumber": "DL345678",
-        "shipment": "67e9189672c2d5c62df16c86"
-      }
-    ]
+    "_id": "sample-1",
+    "serialNumber": "SAMPLE-001",
+    "status": "in-transit",
+    "origin": "Istanbul",
+    "destination": "London",
+    "currentLocation": "Frankfurt",
+    "estimatedDelivery": "2023-06-15T14:00:00.000Z",
+    "customer": {
+      "_id": "sample-customer-1",
+      "name": "Sample Customer 1",
+      "email": "customer1@example.com"
+    },
+    "trackingNumbers": ["TK123456789"],
+    "airline": "TK",
+    "date": "2023-06-10T10:00:00.000Z",
+    "legs": []
   },
   {
-    "_id": "67e9189672c2d5c62df16c8a",
-    "shipmentName": "Test Shipment 2",
-    "customer": "Global Logistics Ltd",
-    "shipmentStatus": "Booked",
+    "_id": "sample-2",
+    "serialNumber": "SAMPLE-002",
+    "status": "delivered",
     "origin": "London",
+    "destination": "New York",
+    "currentLocation": "New York",
+    "estimatedDelivery": "2023-06-12T09:00:00.000Z",
+    "customer": {
+      "_id": "sample-customer-2",
+      "name": "Sample Customer 2",
+      "email": "customer2@example.com"
+    },
+    "trackingNumbers": ["LH987654321"],
+    "airline": "LH",
+    "date": "2023-06-08T08:00:00.000Z",
+    "legs": []
+  },
+  {
+    "_id": "sample-3",
+    "serialNumber": "SAMPLE-003",
+    "status": "pending",
+    "origin": "Dubai",
+    "destination": "Sydney",
+    "currentLocation": "Dubai",
+    "estimatedDelivery": "2023-06-20T16:00:00.000Z",
+    "customer": {
+      "_id": "sample-customer-3",
+      "name": "Sample Customer 3",
+      "email": "customer3@example.com"
+    },
+    "trackingNumbers": ["EK567891234"],
+    "airline": "EK",
+    "date": "2023-06-12T11:00:00.000Z",
+    "legs": []
+  },
+  {
+    "_id": "sample-4",
+    "serialNumber": "SAMPLE-004",
+    "status": "in-transit",
+    "origin": "Doha",
     "destination": "Tokyo",
-    "departureDate": "2023-12-10T00:00:00.000Z",
-    "arrivalDate": "2023-12-15T00:00:00.000Z",
-    "legs": [
-      {
-        "_id": "67e9189672c2d5c62df16c8b",
-        "legOrder": 1,
-        "from": "London",
-        "to": "Dubai",
-        "carrier": "Emirates",
-        "departureDate": "2023-12-10T08:00:00.000Z",
-        "arrivalDate": "2023-12-10T19:00:00.000Z",
-        "status": "Booked",
-        "awbNumber": "EK987654",
-        "shipment": "67e9189672c2d5c62df16c8a"
-      },
-      {
-        "_id": "67e9189672c2d5c62df16c8c",
-        "legOrder": 2,
-        "from": "Dubai",
-        "to": "Tokyo",
-        "carrier": "Japan Airlines",
-        "departureDate": "2023-12-12T01:00:00.000Z",
-        "arrivalDate": "2023-12-12T15:00:00.000Z",
-        "status": "Booked",
-        "awbNumber": "JL654321",
-        "shipment": "67e9189672c2d5c62df16c8a"
-      }
-    ]
+    "currentLocation": "Singapore",
+    "estimatedDelivery": "2023-06-18T18:00:00.000Z",
+    "customer": {
+      "_id": "sample-customer-4",
+      "name": "Sample Customer 4",
+      "email": "customer4@example.com"
+    },
+    "trackingNumbers": ["QR135792468"],
+    "airline": "QR",
+    "date": "2023-06-11T13:00:00.000Z",
+    "legs": []
+  },
+  {
+    "_id": "sample-5",
+    "serialNumber": "SAMPLE-005",
+    "status": "delivered",
+    "origin": "Hong Kong",
+    "destination": "Los Angeles",
+    "currentLocation": "Los Angeles",
+    "estimatedDelivery": "2023-06-14T12:00:00.000Z",
+    "customer": {
+      "_id": "sample-customer-5",
+      "name": "Sample Customer 5",
+      "email": "customer5@example.com"
+    },
+    "trackingNumbers": ["CX246813579"],
+    "airline": "CX",
+    "date": "2023-06-09T15:00:00.000Z",
+    "legs": []
   }
 ] 
