@@ -342,6 +342,29 @@ app.use((err, req, res, next) => {
   console.error(`[${new Date().toISOString()}] Server error:`, err.message);
   console.error(err.stack);
   
+  // Check if headers have already been sent
+  if (res.headersSent) {
+    return next(err);
+  }
+
+  // Handle specific types of errors
+  if (err.name === 'MongooseError' || err.name === 'MongoError') {
+    // Log database errors with more detail
+    console.error('Database error details:', {
+      name: err.name,
+      code: err.code,
+      message: err.message,
+      state: mongoose.connection.readyState
+    });
+    
+    // Attempt to reconnect if the database connection is lost
+    if (mongoose.connection.readyState !== 1) {
+      connectDB().catch(connErr => {
+        console.error('Reconnection attempt failed:', connErr.message);
+      });
+    }
+  }
+  
   // Create a structured error response
   const errorResponse = {
     message: 'Server Error',
@@ -350,8 +373,9 @@ app.use((err, req, res, next) => {
     method: req.method,
     error: process.env.NODE_ENV === 'production' ? 'An unexpected error occurred' : err.message,
     code: err.code || 'INTERNAL_SERVER_ERROR',
+    retryable: err.name === 'MongooseError' || err.name === 'MongoError' || err.code === 'ECONNRESET',
     details: process.env.NODE_ENV !== 'production' ? {
-      stack: err.stack?.split('\n').slice(0, 3).join('\n'), // Only include first 3 lines of stack
+      stack: err.stack?.split('\n').slice(0, 3).join('\n'),
       name: err.name,
       original: err.original || null
     } : undefined
@@ -361,46 +385,75 @@ app.use((err, req, res, next) => {
   if (err.errors) {
     errorResponse.validationErrors = err.errors;
   }
+
+  // Set appropriate status code
+  const statusCode = err.status || (err.name === 'ValidationError' ? 400 : 500);
   
-  res.status(err.status || 500).json(errorResponse);
+  // Add retry-after header for certain errors
+  if (errorResponse.retryable) {
+    res.set('Retry-After', '5');
+  }
+  
+  res.status(statusCode).json(errorResponse);
+});
+
+// Middleware to handle timeouts
+const timeout = require('connect-timeout');
+app.use(timeout('30s'));
+app.use((req, res, next) => {
+  if (!req.timedout) next();
 });
 
 // Connect to MongoDB Atlas and start server
 async function startServer() {
   let dbConnected = false;
+  let reconnectAttempts = 0;
+  const MAX_RECONNECT_ATTEMPTS = 5;
   
   try {
     // Connect to MongoDB using the dedicated module with fallback strategies
     console.log('Connecting to MongoDB with robust connection handler...');
     
-    // Try to connect using the connectDB function
-    try {
-      const connection = await connectDB();
-      if (connection) {
-        console.log(`✅ Connected to MongoDB Atlas: ${mongoose.connection.host}`);
-        dbConnected = true;
+    // Try to connect using the connectDB function with retries
+    while (!dbConnected && reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
+      try {
+        const connection = await connectDB();
+        if (connection) {
+          console.log(`✅ Connected to MongoDB Atlas: ${mongoose.connection.host}`);
+          dbConnected = true;
+          break;
+        }
+      } catch (dbError) {
+        reconnectAttempts++;
+        console.error(`MongoDB connection attempt ${reconnectAttempts} failed:`, dbError.message);
+        if (reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
+          console.log(`Waiting ${reconnectAttempts * 5} seconds before next attempt...`);
+          await new Promise(resolve => setTimeout(resolve, reconnectAttempts * 5000));
+        }
       }
-    } catch (dbError) {
-      console.error('Initial MongoDB connection failed:', dbError.message);
     }
 
     if (!dbConnected) {
       console.warn('⚠️ Server starting without database connection. Fallback data will be used.');
       
-      // Set up automatic reconnection attempt every 30 seconds
+      // Set up automatic reconnection attempt with exponential backoff
+      let backoffDelay = 5000; // Start with 5 seconds
       const reconnectInterval = setInterval(async () => {
-        console.log('Attempting scheduled database reconnection...');
+        console.log(`Attempting scheduled database reconnection after ${backoffDelay/1000} seconds...`);
         try {
           const result = await connectDB();
           if (result && mongoose.connection.readyState === 1) {
             console.log('✅ Successfully reconnected to MongoDB Atlas');
             dbConnected = true;
             clearInterval(reconnectInterval);
+          } else {
+            backoffDelay = Math.min(backoffDelay * 2, 300000); // Max 5 minutes
           }
         } catch (reconnectErr) {
           console.error('Scheduled reconnection attempt failed:', reconnectErr.message);
+          backoffDelay = Math.min(backoffDelay * 2, 300000); // Max 5 minutes
         }
-      }, 30000); // Try to reconnect every 30 seconds
+      }, backoffDelay);
     }
 
     // Set up Socket.IO connection handlers
