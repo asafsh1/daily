@@ -220,18 +220,9 @@ app.get('/api/test-auth', authMiddleware, (req, res) => {
   });
 });
 
-// Health check endpoint
+// Health check endpoint - must be defined BEFORE auth middleware
 app.get('/health', (req, res) => {
   const mongoDetails = getConnectionDetails();
-  
-  // Add CORS headers explicitly for the health endpoint
-  const origin = req.headers.origin;
-  if (origin && allowedOrigins.includes(origin)) {
-    res.header('Access-Control-Allow-Origin', origin);
-    res.header('Access-Control-Allow-Methods', 'GET, OPTIONS');
-    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, x-auth-token');
-    res.header('Access-Control-Allow-Credentials', 'true');
-  }
   
   const status = {
     server: {
