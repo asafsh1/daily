@@ -5,6 +5,7 @@ const { check, validationResult } = require('express-validator');
 const mongoose = require('mongoose');
 const fs = require('fs');
 const path = require('path');
+const { checkConnectionState } = require('../../mongodb-connect');
 
 const ShipmentLeg = require('../../models/ShipmentLeg');
 const Shipment = require('../../models/Shipment');
@@ -29,9 +30,25 @@ const getSampleLegsForShipment = (shipmentId) => {
   const sampleShipments = getSampleShipments();
   const shipment = sampleShipments.find(s => s._id === shipmentId);
   
-  if (shipment && shipment.legs && Array.isArray(shipment.legs)) {
-    console.log(`Found ${shipment.legs.length} sample legs for shipment ${shipmentId}`);
-    return shipment.legs;
+  if (shipment) {
+    // Create some sample legs for this shipment
+    return [
+      {
+        "_id": `${shipmentId}-leg-1`,
+        "legId": "LEG001",
+        "legOrder": 1,
+        "from": shipment.origin,
+        "to": shipment.destination,
+        "carrier": shipment.airline || "Sample Carrier",
+        "departureDate": shipment.date,
+        "arrivalDate": shipment.estimatedDelivery,
+        "trackingNumber": shipment.trackingNumbers ? shipment.trackingNumbers[0] : "SAMPLE-TRACK",
+        "status": "In Transit",
+        "shipment": shipmentId,
+        "createdAt": "2023-01-01T00:00:00.000Z",
+        "updatedAt": "2023-01-01T00:00:00.000Z"
+      }
+    ];
   }
   
   console.log(`No sample legs found for shipment ${shipmentId}`);
@@ -41,23 +58,71 @@ const getSampleLegsForShipment = (shipmentId) => {
 // @route   GET api/shipment-legs
 // @desc    Get all shipment legs
 // @access  Public
-router.get('/', async (req, res) => {
+router.get('/', checkConnectionState, async (req, res) => {
+  // Check if database is connected
+  if (!req.dbConnected) {
+    // In fallback mode, return some legs from all sample shipments
+    try {
+      const sampleShipments = getSampleShipments();
+      const allSampleLegs = [];
+      
+      sampleShipments.forEach(shipment => {
+        const legs = [
+          {
+            "_id": `${shipment._id}-leg-1`,
+            "legId": "LEG001",
+            "legOrder": 1,
+            "from": shipment.origin,
+            "to": shipment.destination,
+            "carrier": shipment.airline || "Sample Carrier",
+            "departureDate": shipment.date,
+            "arrivalDate": shipment.estimatedDelivery,
+            "trackingNumber": shipment.trackingNumbers ? shipment.trackingNumbers[0] : "SAMPLE-TRACK",
+            "status": "In Transit",
+            "shipment": shipment._id,
+            "createdAt": "2023-01-01T00:00:00.000Z",
+            "updatedAt": "2023-01-01T00:00:00.000Z"
+          }
+        ];
+        allSampleLegs.push(...legs);
+      });
+      
+      console.log(`Returning ${allSampleLegs.length} sample legs`);
+      return res.json(allSampleLegs);
+    } catch (err) {
+      console.error('Error generating sample legs:', err.message);
+      return res.status(503).json({
+        msg: 'Database connection is unavailable and sample data could not be generated',
+        error: err.message
+      });
+    }
+  }
+  
+  // Database is connected, proceed with normal operation
   try {
     const legs = await ShipmentLeg.find().sort({ createdAt: -1 });
     res.json(legs);
   } catch (err) {
-    console.error(err.message);
-    res.status(500).send('Server Error');
+    console.error('Error fetching all legs:', err.message);
+    res.status(500).json({ msg: 'Server Error', error: err.message });
   }
 });
 
 // @route   GET api/shipment-legs/shipment/:shipment_id
 // @desc    Get all legs for a specific shipment
 // @access  Public
-router.get('/shipment/:shipment_id', async (req, res) => {
+router.get('/shipment/:shipment_id', checkConnectionState, async (req, res) => {
+  const shipmentId = req.params.shipment_id;
+  
+  // Check if database is connected
+  if (!req.dbConnected) {
+    // In fallback mode, return sample legs for this shipment
+    console.log(`Using fallback to get legs for shipment ${shipmentId}`);
+    const sampleLegs = getSampleLegsForShipment(shipmentId);
+    return res.json(sampleLegs);
+  }
+  
   try {
-    const shipmentId = req.params.shipment_id;
-    
     // Check if valid MongoDB ObjectId
     if (!mongoose.Types.ObjectId.isValid(shipmentId)) {
       return res.status(400).json({ msg: 'Invalid shipment ID format' });
@@ -84,14 +149,29 @@ router.get('/shipment/:shipment_id', async (req, res) => {
     res.json(legs);
   } catch (err) {
     console.error('Error fetching legs by shipment:', err.message);
-    res.status(500).send('Server Error');
+    
+    // Try to return sample legs on error
+    const sampleLegs = getSampleLegsForShipment(shipmentId);
+    if (sampleLegs.length > 0) {
+      console.log(`Returning sample legs for shipment ${shipmentId} due to error`);
+      return res.json(sampleLegs);
+    }
+    
+    res.status(500).json({ msg: 'Server Error', error: err.message });
   }
 });
 
 // @route   GET api/shipment-legs/reference/:reference
 // @desc    Get all legs for a shipment by reference
 // @access  Public
-router.get('/reference/:reference', async (req, res) => {
+router.get('/reference/:reference', checkConnectionState, async (req, res) => {
+  // Check if database is connected
+  if (!req.dbConnected) {
+    return res.status(503).json({ 
+      msg: 'Cannot look up legs by reference: Database connection is unavailable.'
+    });
+  }
+  
   try {
     const reference = req.params.reference;
     
@@ -122,14 +202,21 @@ router.get('/reference/:reference', async (req, res) => {
     res.json(legs);
   } catch (err) {
     console.error('Error fetching legs by reference:', err.message);
-    res.status(500).send('Server Error');
+    res.status(500).json({ msg: 'Server Error', error: err.message });
   }
 });
 
 // @route   GET api/shipment-legs/:id
 // @desc    Get a specific leg by ID
 // @access  Public
-router.get('/:id', async (req, res) => {
+router.get('/:id', checkConnectionState, async (req, res) => {
+  // Check if database is connected
+  if (!req.dbConnected) {
+    return res.status(503).json({ 
+      msg: 'Cannot look up leg by ID: Database connection is unavailable.'
+    });
+  }
+  
   try {
     // Check if looking for legs of a shipment
     if (req.params.id.length === 24) {
@@ -161,8 +248,8 @@ router.get('/:id', async (req, res) => {
       return res.status(400).json({ msg: 'Invalid ID format' });
     }
   } catch (err) {
-    console.error(err.message);
-    res.status(500).send('Server Error');
+    console.error('Error fetching leg by ID:', err.message);
+    res.status(500).json({ msg: 'Server Error', error: err.message });
   }
 });
 
@@ -170,6 +257,7 @@ router.get('/:id', async (req, res) => {
 // @desc    Create a new shipment leg
 // @access  Public
 router.post('/', [
+  checkConnectionState,
   check('from', 'Origin is required').not().isEmpty(),
   check('to', 'Destination is required').not().isEmpty(),
   check('shipment', 'Shipment ID is required').not().isEmpty()
@@ -177,6 +265,14 @@ router.post('/', [
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
     return res.status(400).json({ errors: errors.array() });
+  }
+
+  // Check if database is connected
+  if (!req.dbConnected) {
+    return res.status(503).json({ 
+      msg: 'Cannot create leg: Database connection is unavailable.',
+      errors: [{ msg: 'Database is offline. Please try again later.' }]
+    });
   }
 
   try {
@@ -199,55 +295,40 @@ router.post('/', [
       // Add compatibility fields
       origin: req.body.from,
       destination: req.body.to,
-      flightNumber: req.body.flightNumber,
-      mawbNumber: req.body.trackingNumber,
-      departureTime: req.body.departureDate,
-      arrivalTime: req.body.arrivalDate,
-      shipmentId: req.body.shipment, // Add this for compatibility
-      // Set the legId manually
-      legId: legId,
-      // Initialize the status history
-      statusHistory: [{
-        status: req.body.status || 'Pending',
-        timestamp: new Date()
-      }]
+      legId: legId
     });
 
+    // Save the leg
+    const leg = await newLeg.save();
+    
+    // Update the parent shipment to add this leg's reference
     try {
-      console.log('Saving leg with data:', newLeg);
-      const leg = await newLeg.save();
-      console.log('Successfully saved leg:', leg._id);
-      
-      // Update the shipment to include this leg ID in its legs array
-      if (mongoose.Types.ObjectId.isValid(req.body.shipment)) {
-        try {
-          const shipment = await Shipment.findById(req.body.shipment);
-          if (shipment) {
-            if (!shipment.legs) {
-              shipment.legs = [];
-            }
-            // Add this leg to the shipment's legs array
-            shipment.legs.push(leg._id);
-            await shipment.save();
-            console.log('Added leg to shipment:', shipment._id);
-          } else {
-            console.log('Shipment not found:', req.body.shipment);
-          }
-        } catch (err) {
-          console.error('Error updating shipment with leg:', err);
+      // Find the parent shipment
+      const shipment = await Shipment.findById(req.body.shipment);
+      if (shipment) {
+        // Initialize legs array if it doesn't exist
+        if (!shipment.legs) shipment.legs = [];
+        
+        // Add the new leg to the shipment's legs array if not already there
+        if (!shipment.legs.includes(leg._id)) {
+          shipment.legs.push(leg._id);
+          await shipment.save();
+          console.log(`Added leg ${leg._id} to shipment ${shipment._id}`);
         }
-      } else {
-        console.log('Invalid shipment ID format:', req.body.shipment);
       }
-      
-      res.json(leg);
-    } catch (err) {
-      console.error('Error saving leg:', err);
-      res.status(500).json({ msg: 'Server error saving leg', error: err.message });
+    } catch (shipmentErr) {
+      console.error('Error updating parent shipment with new leg:', shipmentErr.message);
+      // Continue - we still want to return the created leg even if updating the shipment fails
     }
+
+    res.json(leg);
   } catch (err) {
-    console.error(err.message);
-    res.status(500).send('Server Error');
+    console.error('Error creating shipment leg:', err.message);
+    res.status(500).json({ 
+      msg: 'Server Error', 
+      error: err.message,
+      errors: [{ msg: err.message }]
+    });
   }
 });
 
