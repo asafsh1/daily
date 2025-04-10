@@ -1,7 +1,7 @@
 import axios from '../utils/axiosConfig';
 import {
   GET_DASHBOARD_SUMMARY,
-  GET_DASHBOARD_ERROR,
+  DASHBOARD_ERROR,
   GET_SHIPMENTS_BY_CUSTOMER,
   GET_SHIPMENTS_BY_DATE,
   GET_OVERDUE_NON_INVOICED
@@ -23,7 +23,7 @@ export const getDashboardSummary = () => async dispatch => {
     console.error('Error fetching dashboard data:', err.message);
     
     dispatch({
-      type: GET_DASHBOARD_ERROR,
+      type: DASHBOARD_ERROR,
       payload: { msg: err.response?.data?.msg || err.message }
     });
     
@@ -46,7 +46,7 @@ export const getShipmentsByCustomer = () => async dispatch => {
     console.error('Error fetching shipments by customer:', err.message);
     
     dispatch({
-      type: GET_DASHBOARD_ERROR,
+      type: DASHBOARD_ERROR,
       payload: { msg: err.response?.data?.msg || err.message }
     });
     
@@ -69,7 +69,7 @@ export const getShipmentsByDate = () => async dispatch => {
     console.error('Error fetching shipments by date:', err.message);
     
     dispatch({
-      type: GET_DASHBOARD_ERROR,
+      type: DASHBOARD_ERROR,
       payload: { msg: err.response?.data?.msg || err.message }
     });
     
@@ -92,7 +92,7 @@ export const getOverdueNonInvoiced = () => async dispatch => {
     console.error('Error fetching overdue non-invoiced shipments:', err.message);
     
     dispatch({
-      type: GET_DASHBOARD_ERROR,
+      type: DASHBOARD_ERROR,
       payload: { msg: err.response?.data?.msg || err.message }
     });
     

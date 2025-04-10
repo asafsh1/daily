@@ -47,6 +47,7 @@ const ShipmentForm = ({
   clearShipment, 
   shipment: { shipment, loading } 
 }) => {
+  const [submitting, setSubmitting] = useState(false);
   const [formData, setFormData] = useState(initialState);
   const [errors, setErrors] = useState({});
   const [customers, setCustomers] = useState([]);

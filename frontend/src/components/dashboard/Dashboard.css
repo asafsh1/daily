@@ -1,0 +1,141 @@
+.dashboard {
+  padding: 2rem;
+}
+
+.dashboard-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 2rem;
+}
+
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 2rem;
+}
+
+.dashboard-section {
+  background: #fff;
+  border-radius: 8px;
+  padding: 1.5rem;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.dashboard-section h2 {
+  margin-bottom: 1.5rem;
+  color: #333;
+  font-size: 1.25rem;
+}
+
+.loading-placeholder {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 200px;
+  background: #f8f9fa;
+  border-radius: 4px;
+}
+
+.data-unavailable {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 200px;
+  background: #f8f9fa;
+  border-radius: 4px;
+  color: #6c757d;
+}
+
+.data-unavailable i {
+  font-size: 2rem;
+  margin-bottom: 1rem;
+}
+
+.summary-fallback {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1rem;
+}
+
+.stat-card {
+  background: #f8f9fa;
+  padding: 1.5rem;
+  border-radius: 4px;
+  text-align: center;
+}
+
+.stat-card h3 {
+  color: #6c757d;
+  font-size: 1rem;
+  margin-bottom: 0.5rem;
+}
+
+.stat-card p {
+  color: #adb5bd;
+  font-size: 1.5rem;
+  font-weight: bold;
+  margin: 0;
+}
+
+.chart-fallback {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 300px;
+  background: #f8f9fa;
+  border-radius: 4px;
+  color: #6c757d;
+}
+
+.table-fallback {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 200px;
+  background: #f8f9fa;
+  border-radius: 4px;
+  color: #6c757d;
+}
+
+.charts-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 1.5rem;
+}
+
+.alert {
+  margin-bottom: 2rem;
+  padding: 1rem;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+}
+
+.alert i {
+  margin-right: 0.5rem;
+}
+
+.alert-warning {
+  background-color: #fff3cd;
+  color: #856404;
+  border: 1px solid #ffeeba;
+}
+
+.alert-danger {
+  background-color: #f8d7da;
+  color: #721c24;
+  border: 1px solid #f5c6cb;
+}
+
+.btn-outline-warning {
+  color: #856404;
+  border-color: #856404;
+  margin-left: 1rem;
+}
+
+.btn-outline-warning:hover {
+  background-color: #856404;
+  color: #fff;
+} 

@@ -8,7 +8,6 @@ import {
   UPDATE_SHIPMENT,
   DELETE_SHIPMENT,
   CLEAR_SHIPMENT,
-  SHIPMENT_LOADING,
   SHIPMENTS_LOADING
 } from './types';
 import io from 'socket.io-client';

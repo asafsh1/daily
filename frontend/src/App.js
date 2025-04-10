@@ -1,7 +1,7 @@
 // App.js - Updated for database connectivity fix - forcing a new build
 
-import React, { useEffect } from 'react';
-import { BrowserRouter as Router, Route, Routes, Navigate } from 'react-router-dom';
+import React, { useEffect, useState } from 'react';
+import { BrowserRouter as Router, Route, Routes } from 'react-router-dom';
 import { Provider } from 'react-redux';
 import store from './store';
 import { ToastContainer } from 'react-toastify';
@@ -23,6 +23,7 @@ import NotFound from './components/layout/NotFound';
 
 const App = () => {
   const dispatch = useDispatch();
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     const checkAuth = async () => {
@@ -30,9 +31,11 @@ const App = () => {
         // Try to verify session with the backend
         const response = await axios.get('/api/auth/verify');
         dispatch(setUser(response.data));
+        setIsLoading(false);
       } catch (error) {
         console.log('Session not found or invalid');
         dispatch(logout());
+        setIsLoading(false);
       }
     };
 
@@ -40,7 +43,7 @@ const App = () => {
   }, [dispatch]);
 
   // Show loading state while checking authentication
-  if (loading) {
+  if (isLoading) {
     return <LoadingSpinner />;
   }
 
