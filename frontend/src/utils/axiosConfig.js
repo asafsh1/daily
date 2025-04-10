@@ -16,66 +16,21 @@ const instance = axios.create({
   timeout: 30000, // 30 seconds timeout for cloud deployments
   headers: {
     'Content-Type': 'application/json'
-  }
+  },
+  withCredentials: true // Enable sending cookies
 });
 
 // Track if we're currently trying to refresh the token
 let isRefreshingToken = false;
 let refreshPromise = null;
+let currentToken = null;
 
 // Add request interceptor
 instance.interceptors.request.use(
   async config => {
-    // Get token from localStorage
-    const token = localStorage.getItem('token');
-    
-    if (token) {
-      console.log('Using existing token from localStorage');
-      config.headers['x-auth-token'] = token;
-    } else if (isDevelopment) {
-      // Only use dev token in development
-      localStorage.setItem('token', 'default-dev-token');
-      console.log('Set default token for authentication: default-dev-token');
-      config.headers['x-auth-token'] = 'default-dev-token';
-      
-      // If no token, try to get one from the server using dev auth endpoint
-      try {
-        if (!isRefreshingToken) {
-          isRefreshingToken = true;
-          refreshPromise = (async () => {
-            try {
-              // Use the special dev token endpoint
-              const response = await axios.post(`${apiBaseUrl}/api/get-dev-token`, {}, {
-                timeout: 10000 // Shorter timeout just for token requests
-              });
-              
-              if (response.data && response.data.token) {
-                console.log('Obtained developer token from server');
-                localStorage.setItem('token', response.data.token);
-                return response.data.token;
-              }
-              return null;
-            } catch (err) {
-              console.error('Failed to get developer token:', err.message);
-              // Still use the default token even if the server is unavailable
-              return 'default-dev-token';
-            } finally {
-              isRefreshingToken = false;
-            }
-          })();
-        }
-        
-        const newToken = await refreshPromise;
-        refreshPromise = null;
-        
-        if (newToken) {
-          config.headers['x-auth-token'] = newToken;
-        }
-      } catch (err) {
-        console.error('Error getting token:', err.message);
-        // Use default token as fallback
-        config.headers['x-auth-token'] = 'default-dev-token';
-      }
+    // If we have a current token, use it
+    if (currentToken) {
+      config.headers['x-auth-token'] = currentToken;
     }
     
     // Add timestamp to GET requests to prevent caching
@@ -95,6 +50,11 @@ instance.interceptors.request.use(
 // Add response interceptor
 instance.interceptors.response.use(
   response => {
+    // Check if we got a new token in the response
+    const newToken = response.headers['x-auth-token'];
+    if (newToken) {
+      currentToken = newToken;
+    }
     return response;
   },
   async error => {
@@ -109,26 +69,22 @@ instance.interceptors.response.use(
       console.error('[Axios Error] Authentication failed:', error.response.data);
       
       // Try to refresh token
-      if (!originalRequest._retry) {
+      if (!originalRequest._retry && error.response.data.shouldRefresh) {
         originalRequest._retry = true;
         
-        // Clear existing token
-        localStorage.removeItem('token');
-        
-        // Try to get a new token from dev token endpoint
         try {
           if (!isRefreshingToken) {
             isRefreshingToken = true;
             
-            const response = await axios.post(`${apiBaseUrl}/api/get-dev-token`);
+            // Try to get a new token
+            const response = await axios.post(`${apiBaseUrl}/api/auth/refresh`);
             
             if (response.data && response.data.token) {
               // Save the new token
-              const newToken = response.data.token;
-              localStorage.setItem('token', newToken);
+              currentToken = response.data.token;
               
               // Retry the original request with the new token
-              originalRequest.headers['x-auth-token'] = newToken;
+              originalRequest.headers['x-auth-token'] = currentToken;
               isRefreshingToken = false;
               
               return instance(originalRequest);
@@ -139,6 +95,8 @@ instance.interceptors.response.use(
         } catch (refreshError) {
           console.error('Error refreshing token:', refreshError.message);
           isRefreshingToken = false;
+          // Clear the current token if refresh failed
+          currentToken = null;
         }
       }
     }
@@ -146,22 +104,13 @@ instance.interceptors.response.use(
     // Handle database connection unavailable (503)
     if (error.response && error.response.status === 503) {
       console.error('[Axios Error] Database connection unavailable:', error.response.data);
-      
-      // Create a user-friendly error message for database connection issues
-      const customError = new Error('Database connection is currently unavailable. Please try again later.');
-      customError.isDatabaseError = true;
-      customError.originalError = error.response.data;
-      return Promise.reject(customError);
+      return Promise.reject(new Error('Database connection is currently unavailable. Please try again later.'));
     }
     
     if (error.request && !error.response) {
       // The request was made but no response was received
       console.error('[Axios Error] No response received', error.request);
-      
-      // Create a more user-friendly error message
-      const customError = new Error('No response from server. Please check your connection.');
-      customError.isNetworkError = true;
-      return Promise.reject(customError);
+      return Promise.reject(new Error('No response from server. Please try again later.'));
     }
     
     // Something happened in setting up the request that triggered an Error
@@ -171,9 +120,9 @@ instance.interceptors.response.use(
 
 // Configure retry behavior
 axiosRetry(instance, {
-  retries: 2,
+  retries: 3,
   retryDelay: (retryCount) => {
-    return retryCount * 1000; // 1s, 2s
+    return retryCount * 1000; // 1s, 2s, 3s
   },
   retryCondition: (error) => {
     // Only retry on network errors and 5xx server errors, not auth errors
@@ -182,27 +131,5 @@ axiosRetry(instance, {
            !(error.response && error.response.status === 401);
   }
 });
-
-// Try to initialize token on load
-const initToken = async () => {
-  const token = localStorage.getItem('token');
-  
-  if (!token) {
-    try {
-      // Try to get a token using the dev endpoint
-      const response = await axios.post(`${apiBaseUrl}/api/get-dev-token`);
-      
-      if (response.data && response.data.token) {
-        localStorage.setItem('token', response.data.token);
-        console.log('Initialized token on load');
-      }
-    } catch (err) {
-      console.error('Failed to initialize token:', err.message);
-    }
-  }
-};
-
-// Initialize token
-initToken();
 
 export default instance; 
