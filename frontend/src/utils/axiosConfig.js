@@ -6,12 +6,12 @@ const isDevelopment = process.env.NODE_ENV !== 'production';
 const apiBaseUrl = process.env.REACT_APP_API_URL || 'http://localhost:5001';
 
 console.log('API Base URL:', apiBaseUrl);
-console.log('Environment:', process.env.NODE_ENV);
+console.log('Environment:', process.env.NODE_ENV || 'development');
 
 // Create axios instance with base URL
 const instance = axios.create({
   baseURL: apiBaseUrl,
-  timeout: 30000, // Increase timeout to 30 seconds for cloud deployments
+  timeout: 30000, // 30 seconds timeout for cloud deployments
   headers: {
     'Content-Type': 'application/json'
   }
@@ -43,7 +43,9 @@ instance.interceptors.request.use(
           refreshPromise = (async () => {
             try {
               // Use the special dev token endpoint
-              const response = await axios.post(`${apiBaseUrl}/api/get-dev-token`);
+              const response = await axios.post(`${apiBaseUrl}/api/get-dev-token`, {}, {
+                timeout: 10000 // Shorter timeout just for token requests
+              });
               
               if (response.data && response.data.token) {
                 console.log('Obtained developer token from server');
@@ -53,7 +55,8 @@ instance.interceptors.request.use(
               return null;
             } catch (err) {
               console.error('Failed to get developer token:', err.message);
-              return null;
+              // Still use the default token even if the server is unavailable
+              return 'default-dev-token';
             } finally {
               isRefreshingToken = false;
             }
@@ -68,6 +71,8 @@ instance.interceptors.request.use(
         }
       } catch (err) {
         console.error('Error getting token:', err.message);
+        // Use default token as fallback
+        config.headers['x-auth-token'] = 'default-dev-token';
       }
     }
     
