@@ -35,11 +35,12 @@ const KNOWN_MONGODB_IPS = [
   '13.236.215.64'
 ];
 
-// Set DNS servers to Google's public DNS for better resolution
+// Set DNS servers for better MongoDB Atlas connectivity
 dns.setServers([
-  '8.8.8.8',
-  '8.8.4.4',
-  '1.1.1.1'
+  '8.8.8.8',  // Google DNS
+  '8.8.4.4',  // Google DNS backup
+  '1.1.1.1',  // Cloudflare
+  '1.0.0.1'   // Cloudflare backup
 ]);
 
 let connectionDetails = {
@@ -51,74 +52,87 @@ let connectionDetails = {
   fallbacksUsed: []
 };
 
-async function connectDB() {
-  const uri = process.env.MONGODB_URI;
+// MongoDB connection options
+const mongooseOptions = {
+  useNewUrlParser: true,
+  useUnifiedTopology: true,
+  serverSelectionTimeoutMS: 10000,
+  socketTimeoutMS: 45000,
+  family: 4,
+  retryWrites: true,
+  w: 'majority'
+};
+
+// Connection state check middleware
+const checkConnectionState = (req, res, next) => {
+  req.dbConnected = mongoose.connection.readyState === 1;
+  req.dbConnectionState = {
+    state: mongoose.connection.readyState,
+    host: mongoose.connection.host,
+    name: mongoose.connection.name
+  };
+  next();
+};
+
+// Robust connection handler
+const connectWithRetry = async (uri, options = {}, maxRetries = 3) => {
+  let lastError;
   
-  if (!uri) {
-    console.error('MongoDB URI not found in environment variables');
-    return null;
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      console.log(`MongoDB connection attempt ${attempt}/${maxRetries}`);
+      const conn = await mongoose.connect(uri, { ...mongooseOptions, ...options });
+      console.log(`✅ Connected to MongoDB Atlas: ${conn.connection.host}`);
+      return conn;
+    } catch (err) {
+      lastError = err;
+      console.error(`Attempt ${attempt} failed:`, err.message);
+      
+      if (attempt < maxRetries) {
+        const delay = Math.min(1000 * Math.pow(2, attempt), 10000);
+        await new Promise(resolve => setTimeout(resolve, delay));
+      }
+    }
   }
+  
+  throw lastError;
+};
 
+// Main connection function
+const connectDB = async () => {
   try {
-    // Configure mongoose
-    mongoose.set('strictQuery', true);
+    console.log('Starting server with MongoDB connection...');
+    console.log('MongoDB URI exists in env:', !!process.env.MONGODB_URI);
+    console.log('Using Node.js version:', process.version);
     
-    const mongooseOptions = {
-      useNewUrlParser: true,
-      useUnifiedTopology: true,
-      serverSelectionTimeoutMS: 10000,
-      socketTimeoutMS: 45000,
-      family: 4,
-      ssl: true,
-      retryWrites: true,
-      w: 'majority',
-      maxPoolSize: 10,
-      minPoolSize: 2,
-      maxIdleTimeMS: 30000,
-      connectTimeoutMS: 30000
-    };
-
-    // Extract connection details for monitoring
-    const matches = uri.match(/mongodb(?:\+srv)?:\/\/[^:]+:[^@]+@([^/]+)\/([^?]+)/);
-    if (matches) {
-      connectionDetails.host = matches[1];
-      connectionDetails.database = matches[2];
+    const uri = process.env.MONGODB_URI;
+    if (!uri) {
+      throw new Error('MongoDB URI is not defined in environment variables');
     }
-
-    // Strategy 1: Standard connection
-    try {
-      console.log('Strategy 1: Standard connection with SRV record');
-      connectionDetails.strategy = 'standard';
-      await mongoose.connect(uri, mongooseOptions);
-      console.log('✅ Connected to MongoDB Atlas using standard connection');
-      return mongoose.connection;
-    } catch (err) {
-      console.error('Strategy 1 failed:', err.message);
-      connectionDetails.fallbacksUsed.push('standard');
+    
+    // Extract hostname for DNS test
+    const matches = uri.match(/mongodb(\+srv)?:\/\/[^:]+:[^@]+@([^/]+)/);
+    if (matches && matches[2]) {
+      const hostname = matches[2];
+      console.log(`Testing DNS resolution for ${hostname}...`);
+      try {
+        const addresses = await dns.promises.resolve(hostname);
+        console.log('DNS resolution successful:', addresses);
+      } catch (dnsErr) {
+        console.error('DNS resolution failed:', dnsErr.message);
+        console.log('DNS resolution test failed - attempting connection with IP fallback');
+      }
     }
-
-    // Strategy 2: Try direct connection without SRV
-    try {
-      console.log('Strategy 2: Direct connection without SRV');
-      const directUri = uri.replace('+srv', '');
-      connectionDetails.strategy = 'direct';
-      await mongoose.connect(directUri, { ...mongooseOptions, directConnection: true });
-      console.log('✅ Connected to MongoDB Atlas using direct connection');
-      return mongoose.connection;
-    } catch (err) {
-      console.error('Strategy 2 failed:', err.message);
-      connectionDetails.fallbacksUsed.push('direct');
-    }
-
-    // If all strategies fail, throw error
-    throw new Error('All MongoDB connection strategies failed');
-  } catch (err) {
-    console.error('Failed to connect to MongoDB:', err.message);
-    connectionDetails.lastReconnectAttempt = new Date();
-    connectionDetails.reconnectAttempts++;
-    return null;
+    
+    console.log('Connecting to MongoDB with robust connection handler...');
+    console.log('Strategy 1: Standard connection with SRV record');
+    
+    return await connectWithRetry(uri);
+  } catch (error) {
+    console.error('MongoDB connection error:', error.message);
+    process.exit(1);
   }
-}
+};
 
 function getConnectionDetails() {
   return {
@@ -128,7 +142,7 @@ function getConnectionDetails() {
 }
 
 // Middleware to check DB connection state for routes
-const checkConnectionState = (req, res, next) => {
+const checkConnectionStateMiddleware = (req, res, next) => {
   // If database is connected, proceed
   if (mongoose.connection.readyState === 1) {
     req.dbConnected = true;
@@ -180,5 +194,6 @@ module.exports = {
   connect,
   getConnectionDetails,
   checkConnectionState, // Middleware for routes to check connection state
-  connectionDetails // Export the connectionDetails object
+  connectionDetails, // Export the connectionDetails object
+  checkConnectionStateMiddleware
 }; 

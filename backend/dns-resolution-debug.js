@@ -1,43 +1,41 @@
 const dns = require('dns');
-const { promisify } = require('util');
 
-// Set DNS servers to include Google and Cloudflare DNS
-dns.setServers([
-    '8.8.8.8',    // Google DNS
-    '8.8.4.4',    // Google DNS backup
-    '1.1.1.1',    // Cloudflare DNS
-    '1.0.0.1'     // Cloudflare DNS backup
-]);
+// Set DNS servers for better MongoDB Atlas connectivity
+const DNS_SERVERS = [
+  '8.8.8.8',  // Google DNS
+  '8.8.4.4',  // Google DNS backup
+  '1.1.1.1',  // Cloudflare
+  '1.0.0.1'   // Cloudflare backup
+];
 
-// Promisify DNS functions for easier use
-const lookup = promisify(dns.lookup);
-const resolve = promisify(dns.resolve);
+dns.setServers(DNS_SERVERS);
+console.log('DNS Servers:', DNS_SERVERS);
 
-// Log DNS servers being used
-console.log('DNS Servers:', dns.getServers());
+// Test DNS resolution for MongoDB host
+const testDNSResolution = async (hostname) => {
+  try {
+    console.log(`Testing DNS resolution for ${hostname}...`);
+    const addresses = await dns.promises.resolve(hostname);
+    console.log(`✅ DNS resolution successful for ${hostname}:`, addresses);
+    return true;
+  } catch (error) {
+    console.error(`DNS Resolution failed: ${error.message}`);
+    return false;
+  }
+};
 
-// Function to test MongoDB Atlas DNS resolution
-async function testMongoDBConnection(host) {
-    try {
-        console.log(`Testing DNS resolution for ${host}...`);
-        
-        // Try DNS lookup
-        const address = await lookup(host);
-        console.log('DNS Lookup result:', address);
-        
-        // Try DNS resolve
-        const addresses = await resolve(host);
-        console.log('DNS Resolve results:', addresses);
-        
-        return true;
-    } catch (error) {
-        console.error('DNS Resolution failed:', error.message);
-        return false;
-    }
+// Extract MongoDB hostname for testing
+if (process.env.MONGODB_URI) {
+  const matches = process.env.MONGODB_URI.match(/mongodb(\+srv)?:\/\/[^:]+:[^@]+@([^/]+)/);
+  if (matches && matches[2]) {
+    const hostname = matches[2];
+    console.log(`Testing DNS resolution for MongoDB host: ${hostname}`);
+    testDNSResolution(hostname);
+  }
 }
 
 // Export functions for use in server.js
 module.exports = {
-    testMongoDBConnection,
-    dnsServers: dns.getServers()
+    testMongoDBConnection: testDNSResolution,
+    dnsServers: DNS_SERVERS
 }; 
