@@ -60,53 +60,41 @@ const allowedOrigins = [
   'https://veleka-shipments-daily-report.netlify.app',
   'https://daily-shipments.netlify.app',
   'https://daily-tracking.netlify.app',
-  // Add your Netlify domain here if different
-  'https://daily-admin.netlify.app'
+  'https://daily-admin.netlify.app',
+  // Allow localhost in development
+  'http://localhost:3000'
 ];
 
 // Configure CORS
 const corsOptions = {
   origin: function (origin, callback) {
-    // In development, allow all origins
-    if (process.env.NODE_ENV !== 'production' || !origin) {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) {
       return callback(null, true);
     }
-    
-    // In production, check against the allowed list or match hostname patterns
-    if (allowedOrigins.indexOf(origin) !== -1 || origin.endsWith('.netlify.app')) {
+
+    if (process.env.NODE_ENV !== 'production') {
       return callback(null, true);
+    }
+
+    if (allowedOrigins.includes(origin) || origin.endsWith('.netlify.app')) {
+      callback(null, true);
     } else {
-      console.log('CORS blocked request from unknown origin:', origin);
-      // In production mode we'll still allow it while debugging CORS issues
-      return callback(null, true);
-      // Strict mode (enable later): return callback(new Error('Not allowed by CORS'));
+      console.warn(`CORS blocked request from origin: ${origin}`);
+      callback(new Error('Not allowed by CORS'));
     }
   },
-  credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'x-auth-token', 'Origin', 'Accept']
+  allowedHeaders: ['Content-Type', 'Authorization', 'x-auth-token', 'Origin', 'Accept'],
+  credentials: true,
+  maxAge: 86400 // 24 hours
 };
 
 // Initialize socket.io with CORS settings
 const io = socketIo(httpServer, {
-  cors: {
-    origin: function(origin, callback) {
-      // Allow any origin that's in our allowed list or has netlify.app domain
-      if (!origin || allowedOrigins.indexOf(origin) !== -1 || origin.endsWith('.netlify.app')) {
-        callback(null, true);
-      } else {
-        console.log(`Socket.IO - CORS allowing unknown origin: ${origin}`);
-        // We'll allow it in debugging mode
-        callback(null, true);
-      }
-    },
-    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    credentials: true,
-    allowedHeaders: ["Content-Type", "Authorization", "x-auth-token", "Origin", "Accept"]
-  },
+  cors: corsOptions,
   transports: ['polling', 'websocket'],
   allowEIO3: true,
-  // Additional options to ensure timely client reconnections
   pingTimeout: 60000,
   pingInterval: 25000
 });
@@ -120,35 +108,18 @@ app.use((req, res, next) => {
   const startTime = Date.now();
   console.log(`[${new Date().toISOString()}] ${req.method} ${req.url} started`);
   
-  // Add CORS headers for all requests - ensure they're set properly
-  const origin = req.headers.origin;
-  
-  // Special handling for Socket.IO requests to ensure CORS works
-  if (req.url.includes('/socket.io/')) {
-    if (origin) {
+  // Handle preflight requests
+  if (req.method === 'OPTIONS') {
+    const origin = req.headers.origin;
+    if (allowedOrigins.includes(origin) || origin?.endsWith('.netlify.app') || process.env.NODE_ENV !== 'production') {
       res.header('Access-Control-Allow-Origin', origin);
       res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
       res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, x-auth-token, Origin, Accept');
       res.header('Access-Control-Allow-Credentials', 'true');
+      res.header('Access-Control-Max-Age', '86400');
+      return res.status(204).end();
     }
-    
-    // Handle preflight for Socket.IO
-    if (req.method === 'OPTIONS') {
-      res.status(200).end();
-      return;
-    }
-  }
-  // Standard CORS for other requests
-  else if (corsOptions.origin === '*' || (origin && allowedOrigins.includes(origin))) {
-    res.header('Access-Control-Allow-Origin', origin);
-    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, x-auth-token, Origin, Accept');
-    res.header('Access-Control-Allow-Credentials', 'true');
-  }
-  
-  // Handle preflight requests
-  if (req.method === 'OPTIONS') {
-    return res.status(200).end();
+    return res.status(403).end();
   }
   
   // Once the request is processed, log the completion and response time
