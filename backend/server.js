@@ -87,7 +87,9 @@ const corsOptions = {
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'x-auth-token', 'Origin', 'Accept'],
   credentials: true,
-  maxAge: 86400 // 24 hours
+  maxAge: 86400, // 24 hours
+  preflightContinue: false,
+  optionsSuccessStatus: 204
 };
 
 // Initialize socket.io with CORS settings
@@ -101,26 +103,27 @@ const io = socketIo(httpServer, {
 
 // Initialize Middleware
 app.use(express.json({ extended: false }));
+
+// Apply CORS middleware before any routes
 app.use(cors(corsOptions));
+
+// Add CORS headers to all responses
+app.use((req, res, next) => {
+  const origin = req.headers.origin;
+  if (origin && (allowedOrigins.includes(origin) || origin.endsWith('.netlify.app') || process.env.NODE_ENV !== 'production')) {
+    res.header('Access-Control-Allow-Origin', origin);
+    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, x-auth-token, Origin, Accept');
+    res.header('Access-Control-Allow-Credentials', 'true');
+    res.header('Access-Control-Max-Age', '86400');
+  }
+  next();
+});
 
 // Debug logging for all API requests
 app.use((req, res, next) => {
   const startTime = Date.now();
   console.log(`[${new Date().toISOString()}] ${req.method} ${req.url} started`);
-  
-  // Handle preflight requests
-  if (req.method === 'OPTIONS') {
-    const origin = req.headers.origin;
-    if (allowedOrigins.includes(origin) || origin?.endsWith('.netlify.app') || process.env.NODE_ENV !== 'production') {
-      res.header('Access-Control-Allow-Origin', origin);
-      res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-      res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, x-auth-token, Origin, Accept');
-      res.header('Access-Control-Allow-Credentials', 'true');
-      res.header('Access-Control-Max-Age', '86400');
-      return res.status(204).end();
-    }
-    return res.status(403).end();
-  }
   
   // Once the request is processed, log the completion and response time
   res.on('finish', () => {
