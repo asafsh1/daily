@@ -42,61 +42,24 @@ module.exports = async function (req, res, next) {
     return res.status(204).end();
   }
   
-  // Check for session token in cookies
+  // Get token from cookie
   const token = req.cookies?.token;
   
   console.log('Session token:', token ? 'Present' : 'Not present');
   
   // Check if no token
   if (!token) {
-    // In development, create a default token
-    if (process.env.NODE_ENV !== 'production') {
-      console.log('Development mode: Creating default admin session');
-      const payload = {
-        user: {
-          id: 'admin-id-123456',
-          role: 'admin'
-        }
-      };
-      
-      const devToken = jwt.sign(payload, config.get('jwtSecret'), { expiresIn: '7d' });
-      req.user = payload.user;
-      
-      // Set session cookie
-      res.cookie('token', devToken, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'lax',
-        maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
-      });
-      
-      return next();
-    }
-    
-    console.log('No session token found, authorization denied');
-    return res.status(401).json({ 
-      msg: 'Session expired or invalid',
-      shouldRefresh: true
-    });
+    return res.status(401).json({ msg: 'No token, authorization denied' });
   }
 
-  // Verify token
-  const { isValid, user, error } = await verifyToken(token);
-  
-  if (!isValid) {
-    console.error('Session verification failed:', error);
-    
-    // Clear invalid session cookie
+  try {
+    // Verify token
+    const decoded = jwt.verify(token, config.get('jwtSecret'));
+    req.user = decoded.user;
+    next();
+  } catch (err) {
+    // Clear invalid cookie
     res.clearCookie('token');
-    
-    return res.status(401).json({ 
-      msg: 'Session expired or invalid',
-      error,
-      shouldRefresh: true
-    });
+    res.status(401).json({ msg: 'Token is not valid' });
   }
-  
-  console.log('Session verification successful, user ID:', user.id);
-  req.user = user;
-  next();
 }; 
