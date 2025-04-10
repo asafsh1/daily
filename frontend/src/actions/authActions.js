@@ -9,6 +9,8 @@ import {
   CLEAR_PROFILE
 } from './types';
 
+let authCheckInProgress = false;
+
 // Set user data
 export const setUser = (userData) => ({
   type: USER_LOADED,
@@ -17,7 +19,10 @@ export const setUser = (userData) => ({
 
 // Load User
 export const loadUser = () => async dispatch => {
+  if (authCheckInProgress) return;
+  
   try {
+    authCheckInProgress = true;
     const res = await axios.get('/api/auth/verify');
     
     dispatch({
@@ -25,9 +30,12 @@ export const loadUser = () => async dispatch => {
       payload: res.data
     });
   } catch (err) {
+    console.log('Auth check failed:', err.message);
     dispatch({
       type: AUTH_ERROR
     });
+  } finally {
+    authCheckInProgress = false;
   }
 };
 
@@ -40,13 +48,13 @@ export const login = (email, password) => async dispatch => {
       type: LOGIN_SUCCESS,
       payload: res.data
     });
-
-    dispatch(loadUser());
   } catch (err) {
     const errors = err.response?.data?.errors;
 
     if (errors) {
       errors.forEach(error => dispatch(setAlert(error.msg, 'danger')));
+    } else {
+      dispatch(setAlert('Login failed. Please try again.', 'danger'));
     }
 
     dispatch({
@@ -59,10 +67,10 @@ export const login = (email, password) => async dispatch => {
 export const logout = () => async dispatch => {
   try {
     await axios.post('/api/auth/logout');
+    dispatch({ type: CLEAR_PROFILE });
+    dispatch({ type: LOGOUT });
   } catch (err) {
     console.error('Logout error:', err);
+    dispatch(setAlert('Logout failed. Please try again.', 'danger'));
   }
-  
-  dispatch({ type: CLEAR_PROFILE });
-  dispatch({ type: LOGOUT });
 }; 

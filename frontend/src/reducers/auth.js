@@ -9,7 +9,8 @@ import {
 const initialState = {
   isAuthenticated: false,
   loading: true,
-  user: null
+  user: null,
+  error: null
 };
 
 export default function(state = initialState, action) {
@@ -21,23 +22,33 @@ export default function(state = initialState, action) {
         ...state,
         isAuthenticated: true,
         loading: false,
-        user: payload
+        user: payload,
+        error: null
       };
     case LOGIN_SUCCESS:
       return {
         ...state,
         isAuthenticated: true,
         loading: false,
-        user: payload
+        user: payload,
+        error: null
       };
     case AUTH_ERROR:
     case LOGIN_FAIL:
+      return {
+        ...state,
+        isAuthenticated: false,
+        loading: false,
+        user: null,
+        error: payload
+      };
     case LOGOUT:
       return {
         ...state,
         isAuthenticated: false,
         loading: false,
-        user: null
+        user: null,
+        error: null
       };
     default:
       return state;
