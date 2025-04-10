@@ -15,7 +15,7 @@ const addCorsHeaders = (req, res) => {
   if (process.env.NODE_ENV !== 'production' || !origin || allowedOrigins.includes(origin) || origin.endsWith('.netlify.app')) {
     res.header('Access-Control-Allow-Origin', origin || '*');
     res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, x-auth-token, Origin, Accept');
+    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, Origin, Accept');
     res.header('Access-Control-Allow-Credentials', 'true');
     res.header('Access-Control-Max-Age', '86400');
   }
@@ -42,19 +42,16 @@ module.exports = async function (req, res, next) {
     return res.status(204).end();
   }
   
-  // Get token from various sources
-  const token = 
-    req.header('x-auth-token') || 
-    (req.headers.authorization || '').replace('Bearer ', '') ||
-    (req.cookies && req.cookies.token);
+  // Check for session token in cookies
+  const token = req.cookies?.token;
   
-  console.log('Token received:', token ? 'Yes (token present)' : 'No token');
+  console.log('Session token:', token ? 'Present' : 'Not present');
   
   // Check if no token
   if (!token) {
     // In development, create a default token
     if (process.env.NODE_ENV !== 'production') {
-      console.log('Development mode: Creating default admin token');
+      console.log('Development mode: Creating default admin session');
       const payload = {
         user: {
           id: 'admin-id-123456',
@@ -65,15 +62,20 @@ module.exports = async function (req, res, next) {
       const devToken = jwt.sign(payload, config.get('jwtSecret'), { expiresIn: '7d' });
       req.user = payload.user;
       
-      // Set token in response headers
-      res.header('x-auth-token', devToken);
+      // Set session cookie
+      res.cookie('token', devToken, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
+      });
       
       return next();
     }
     
-    console.log('No token provided, authorization denied');
+    console.log('No session token found, authorization denied');
     return res.status(401).json({ 
-      msg: 'No token, authorization denied',
+      msg: 'Session expired or invalid',
       shouldRefresh: true
     });
   }
@@ -82,15 +84,19 @@ module.exports = async function (req, res, next) {
   const { isValid, user, error } = await verifyToken(token);
   
   if (!isValid) {
-    console.error('Token verification failed:', error);
+    console.error('Session verification failed:', error);
+    
+    // Clear invalid session cookie
+    res.clearCookie('token');
+    
     return res.status(401).json({ 
-      msg: 'Token is not valid',
+      msg: 'Session expired or invalid',
       error,
       shouldRefresh: true
     });
   }
   
-  console.log('Token verification successful, user ID:', user.id);
+  console.log('Session verification successful, user ID:', user.id);
   req.user = user;
   next();
 }; 
