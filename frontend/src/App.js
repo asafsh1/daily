@@ -1,15 +1,13 @@
 // App.js - Updated for database connectivity fix - forcing a new build
 
-import React, { useEffect, useState } from 'react';
-import { BrowserRouter as Router, Route, Routes } from 'react-router-dom';
+import React, { useEffect } from 'react';
+import { BrowserRouter as Router, Route, Routes, Navigate } from 'react-router-dom';
 import { Provider } from 'react-redux';
+import { useSelector } from 'react-redux';
 import store from './store';
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
-import axios from 'axios';
-import { useDispatch } from 'react-redux';
-import { setUser, logout } from './actions/authActions';
-import LoadingSpinner from './components/layout/LoadingSpinner';
+import { loadUser } from './actions/authActions';
 
 // Components
 import Navbar from './components/layout/Navbar';
@@ -20,32 +18,28 @@ import Shipments from './components/shipments/Shipments';
 import ShipmentDetail from './components/shipments/ShipmentDetail';
 import Admin from './components/admin/Admin';
 import NotFound from './components/layout/NotFound';
+import Login from './components/auth/Login';
+import LoadingSpinner from './components/layout/LoadingSpinner';
 
-const App = () => {
-  const dispatch = useDispatch();
-  const [isLoading, setIsLoading] = useState(true);
-
-  useEffect(() => {
-    const checkAuth = async () => {
-      try {
-        // Try to verify session with the backend
-        const response = await axios.get('/api/auth/verify');
-        dispatch(setUser(response.data));
-        setIsLoading(false);
-      } catch (error) {
-        console.log('Session not found or invalid');
-        dispatch(logout());
-        setIsLoading(false);
-      }
-    };
-
-    checkAuth();
-  }, [dispatch]);
-
-  // Show loading state while checking authentication
-  if (isLoading) {
+// Protected Route Component
+const ProtectedRoute = ({ children }) => {
+  const { isAuthenticated, loading } = useSelector(state => state.auth);
+  
+  if (loading) {
     return <LoadingSpinner />;
   }
+  
+  if (!isAuthenticated) {
+    return <Navigate to="/login" />;
+  }
+  
+  return children;
+};
+
+const App = () => {
+  useEffect(() => {
+    store.dispatch(loadUser());
+  }, []);
 
   return (
     <Provider store={store}>
@@ -62,12 +56,60 @@ const App = () => {
           />
           <Alert />
           <Routes>
-            <Route path="/" element={<Dashboard />} />
-            <Route path="/shipments" element={<Shipments />} />
-            <Route path="/shipment/:id" element={<ShipmentDetail />} />
-            <Route path="/add-shipment" element={<ShipmentForm />} />
-            <Route path="/edit-shipment/:id" element={<ShipmentForm />} />
-            <Route path="/admin" element={<Admin />} />
+            <Route 
+              path="/login" 
+              element={
+                <Login />
+              } 
+            />
+            <Route 
+              path="/" 
+              element={
+                <ProtectedRoute>
+                  <Dashboard />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/shipments" 
+              element={
+                <ProtectedRoute>
+                  <Shipments />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/shipment/:id" 
+              element={
+                <ProtectedRoute>
+                  <ShipmentDetail />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/add-shipment" 
+              element={
+                <ProtectedRoute>
+                  <ShipmentForm />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/edit-shipment/:id" 
+              element={
+                <ProtectedRoute>
+                  <ShipmentForm />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/admin" 
+              element={
+                <ProtectedRoute>
+                  <Admin />
+                </ProtectedRoute>
+              } 
+            />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </div>

@@ -1,0 +1,67 @@
+.login-container {
+  max-width: 500px;
+  margin: 2rem auto;
+  padding: 2rem;
+  background: #fff;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.login-container h1 {
+  text-align: center;
+  margin-bottom: 1rem;
+}
+
+.login-container .lead {
+  text-align: center;
+  margin-bottom: 2rem;
+  color: #666;
+}
+
+.login-container .form-group {
+  margin-bottom: 1.5rem;
+}
+
+.login-container input[type='email'],
+.login-container input[type='password'] {
+  width: 100%;
+  padding: 0.8rem;
+  font-size: 1rem;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  transition: border-color 0.3s ease;
+}
+
+.login-container input[type='email']:focus,
+.login-container input[type='password']:focus {
+  outline: none;
+  border-color: #17a2b8;
+}
+
+.login-container .btn-primary {
+  width: 100%;
+  padding: 0.8rem;
+  font-size: 1rem;
+  background: #17a2b8;
+  border: none;
+  border-radius: 4px;
+  color: #fff;
+  cursor: pointer;
+  transition: background-color 0.3s ease;
+}
+
+.login-container .btn-primary:hover {
+  background: #138496;
+}
+
+.login-container .alert {
+  margin-bottom: 1rem;
+  padding: 0.75rem 1.25rem;
+  border-radius: 4px;
+}
+
+.login-container .alert-danger {
+  background-color: #f8d7da;
+  border-color: #f5c6cb;
+  color: #721c24;
+} 
