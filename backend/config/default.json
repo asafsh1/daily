@@ -1,4 +1,5 @@
 {
+  "mongoURI": "mongodb+srv://daily_admin:1ArUfF8oH5N97Ggy@ops.hm6y7nw.mongodb.net/daily?retryWrites=true&w=majority&appName=OPS",
   "jwtSecret": "mysecrettoken",
   "jwtExpiration": "1d",
   "mailServerSettings": {

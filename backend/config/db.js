@@ -36,80 +36,47 @@ const testDNSResolution = async (host) => {
 // Connect to MongoDB
 const connectDB = async () => {
   try {
-    console.log('Attempting to connect to MongoDB Atlas...');
+    console.log('Attempting to connect to MongoDB...');
+    console.log('MongoDB URI:', config.get('mongoURI').replace(/:[^:@]+@/, ':****@')); // Hide password in logs
     
-    // Get the connection string from environment variables or config
-    const mongoURI = process.env.MONGODB_URI || config.get('mongoURI');
-    
-    if (!mongoURI) {
-      throw new Error('MongoDB URI is not defined in environment variables or config');
-    }
-    
-    // Validate URI format
-    if (!validateMongoURI(mongoURI)) {
-      console.error('MongoDB URI format appears invalid');
-      console.warn('Attempting to connect anyway but this may fail.');
-    }
-    
-    // Test DNS resolution for the MongoDB host
-    const hostPart = mongoURI.split('@')[1].split('/')[0];
-    const dnsResolved = await testDNSResolution(hostPart);
-    
-    if (!dnsResolved) {
-      console.warn('DNS resolution failed, but attempting connection anyway...');
-    }
-    
-    // Configure connection options
-    const options = {
+    const conn = await mongoose.connect(config.get('mongoURI'), {
       useNewUrlParser: true,
       useUnifiedTopology: true,
-      serverSelectionTimeoutMS: 30000,
-      connectTimeoutMS: 30000,
-      socketTimeoutMS: 60000,
-      family: 4,
-      maxPoolSize: 50,
-      minPoolSize: 10,
-      retryWrites: true,
-      retryReads: true,
-      w: 'majority',
-      heartbeatFrequencyMS: 10000,
-      autoIndex: true,
-      // Add DNS seedlist options for better resolution
-      dnsServer: '8.8.8.8',
-      // Add connection pool options
-      maxIdleTimeMS: 45000,
-      maxConnecting: 2,
-    };
+      serverSelectionTimeoutMS: 5000, // Timeout after 5s instead of 30s
+      socketTimeoutMS: 45000, // Close sockets after 45s
+    });
 
-    // Connect to MongoDB Atlas
-    console.log('Initiating MongoDB connection...');
-    const conn = await mongoose.connect(mongoURI, options);
-    console.log(`✅ MongoDB Atlas connected: ${conn.connection.host}`);
-    return true;
+    console.log(`MongoDB Connected: ${conn.connection.host}`);
     
+    // Handle connection events
+    mongoose.connection.on('error', err => {
+      console.error('MongoDB connection error:', err);
+    });
+
+    mongoose.connection.on('disconnected', () => {
+      console.log('MongoDB disconnected. Attempting to reconnect...');
+    });
+
+    mongoose.connection.on('reconnected', () => {
+      console.log('MongoDB reconnected');
+    });
+
+    return conn;
   } catch (err) {
-    console.error(`❌ MongoDB connection error: ${err.message}`);
+    console.error('MongoDB connection error:', err.message);
     
-    if (err.name === 'MongoServerSelectionError') {
-      console.error('Server selection timed out. Possible causes:');
-      console.error('1. DNS resolution failure - check network/firewall settings');
-      console.error('2. MongoDB Atlas cluster is paused or unavailable');
-      console.error('3. Invalid credentials or database name');
-      
-      // Try to get more diagnostic information
-      const hostPart = process.env.MONGODB_URI?.split('@')[1]?.split('/')[0];
-      if (hostPart) {
-        console.log('Attempting DNS resolution test...');
-        await testDNSResolution(hostPart);
-      }
+    // Log detailed error information
+    if (err.name === 'MongooseServerSelectionError') {
+      console.error('Could not connect to any MongoDB servers.');
+      console.error('Please check:');
+      console.error('1. Network connectivity');
+      console.error('2. MongoDB Atlas status');
+      console.error('3. IP whitelist settings');
+      console.error('4. Database user credentials');
     }
     
-    // Don't exit in production, allow API to serve non-DB routes
-    if (process.env.NODE_ENV !== 'production') {
-      process.exit(1);
-    }
-    
-    return false;
+    // Exit with failure
+    process.exit(1);
   }
 };
 

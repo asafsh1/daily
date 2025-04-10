@@ -1,9 +1,9 @@
 {
-  "mongoURI": "mongodb+srv://asafasaf5347:asafasaf5347@cluster0.lyz67.mongodb.net/shipment-tracker?retryWrites=true&w=majority&appName=Cluster0",
-  "jwtSecret": "mysecrettoken",
+  "mongoURI": "mongodb+srv://daily_admin:1ArUfF8oH5N97Ggy@ops.hm6y7nw.mongodb.net/daily?retryWrites=true&w=majority&appName=OPS",
+  "jwtSecret": "your-production-secret",
   "jwtExpiration": "1d",
   "mailServerSettings": {
-    "apiKey": "your-api-key"
+    "apiKey": "your-production-api-key"
   },
   "enableSwagger": false
 } 
