@@ -37,18 +37,33 @@ const testDNSResolution = async (host) => {
 const connectDB = async () => {
   try {
     console.log('Attempting to connect to MongoDB...');
-    console.log('MongoDB URI:', config.get('mongoURI').replace(/:[^:@]+@/, ':****@')); // Hide password in logs
     
-    const conn = await mongoose.connect(config.get('mongoURI'), {
+    // Get MongoDB URI from config or environment variable
+    const mongoURI = process.env.MONGODB_URI || config.get('mongoURI');
+    
+    // Log sanitized URI (hide credentials)
+    const sanitizedURI = mongoURI.replace(/(mongodb\+srv:\/\/)([^:]+):([^@]+)@/, '$1$2:****@');
+    console.log('Using MongoDB URI:', sanitizedURI);
+
+    const options = {
       useNewUrlParser: true,
       useUnifiedTopology: true,
-      serverSelectionTimeoutMS: 5000, // Timeout after 5s instead of 30s
-      socketTimeoutMS: 45000, // Close sockets after 45s
-    });
+      serverSelectionTimeoutMS: 10000, // 10 seconds
+      socketTimeoutMS: 45000, // 45 seconds
+      family: 4, // Use IPv4, skip trying IPv6
+      retryWrites: true,
+      w: 'majority',
+      ssl: true,
+      authSource: 'admin',
+      maxPoolSize: 50,
+      minPoolSize: 10
+    };
 
+    const conn = await mongoose.connect(mongoURI, options);
+    
     console.log(`MongoDB Connected: ${conn.connection.host}`);
     
-    // Handle connection events
+    // Add connection event handlers
     mongoose.connection.on('error', err => {
       console.error('MongoDB connection error:', err);
     });
@@ -58,24 +73,29 @@ const connectDB = async () => {
     });
 
     mongoose.connection.on('reconnected', () => {
-      console.log('MongoDB reconnected');
+      console.log('MongoDB reconnected successfully');
     });
 
     return conn;
   } catch (err) {
     console.error('MongoDB connection error:', err.message);
     
-    // Log detailed error information
     if (err.name === 'MongooseServerSelectionError') {
-      console.error('Could not connect to any MongoDB servers.');
+      console.error('Could not connect to MongoDB servers.');
       console.error('Please check:');
       console.error('1. Network connectivity');
       console.error('2. MongoDB Atlas status');
       console.error('3. IP whitelist settings');
       console.error('4. Database user credentials');
+      console.error('5. SSL certificate validation');
     }
-    
-    // Exit with failure
+
+    // In production, don't exit the process
+    if (process.env.NODE_ENV === 'production') {
+      console.error('Running in production mode without database connection');
+      return null;
+    }
+
     process.exit(1);
   }
 };
