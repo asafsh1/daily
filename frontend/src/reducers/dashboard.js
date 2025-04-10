@@ -4,8 +4,7 @@ import {
   GET_SHIPMENTS_BY_DATE,
   GET_OVERDUE_NON_INVOICED,
   DASHBOARD_ERROR,
-  DASHBOARD_LOADING,
-  GET_DASHBOARD_ERROR
+  DASHBOARD_LOADING
 } from '../actions/types';
 
 const initialState = {
@@ -13,7 +12,7 @@ const initialState = {
   shipmentsByCustomer: [],
   shipmentsByDate: [],
   overdueNonInvoiced: [],
-  loading: false,
+  isLoading: true,
   error: null
 };
 
@@ -24,44 +23,41 @@ export default function(state = initialState, action) {
     case DASHBOARD_LOADING:
       return {
         ...state,
-        loading: true
+        isLoading: true
       };
     case GET_DASHBOARD_SUMMARY:
-      console.log('Dashboard reducer: GET_DASHBOARD_SUMMARY with payload:', payload);
       return {
         ...state,
         summary: payload,
-        loading: false,
+        isLoading: false,
         error: null
       };
     case GET_SHIPMENTS_BY_CUSTOMER:
       return {
         ...state,
         shipmentsByCustomer: payload,
-        loading: false,
+        isLoading: false,
         error: null
       };
     case GET_SHIPMENTS_BY_DATE:
       return {
         ...state,
         shipmentsByDate: payload,
-        loading: false,
+        isLoading: false,
         error: null
       };
     case GET_OVERDUE_NON_INVOICED:
       return {
         ...state,
         overdueNonInvoiced: payload,
-        loading: false,
+        isLoading: false,
         error: null
       };
     case DASHBOARD_ERROR:
-    case GET_DASHBOARD_ERROR:
-      console.error('Dashboard reducer error:', payload);
       return {
         ...state,
         error: payload,
-        loading: false
+        isLoading: false
       };
     default:
       return state;

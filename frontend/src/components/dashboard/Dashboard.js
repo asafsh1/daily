@@ -52,8 +52,6 @@ const Dashboard = ({
   const [detailedShipments, setDetailedShipments] = useState([]);
   const [connectionIssue, setConnectionIssue] = useState(false);
   const [dashboardData, setDashboardData] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
 
   // Add a fallback to public-diagnostics when the authenticated endpoint fails
   useEffect(() => {
