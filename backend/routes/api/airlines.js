@@ -28,6 +28,30 @@ const getSampleAirlines = () => {
 // @desc     Get all airlines
 // @access   Private
 router.get('/', auth, checkConnectionState, async (req, res) => {
+  // Check if database is connected, if not serve fallback data immediately
+  if (!req.dbConnected) {
+    console.log('Database not connected, using fallback data immediately');
+    try {
+      const sampleData = getSampleAirlines();
+      if (sampleData && sampleData.length > 0) {
+        console.log(`Returning ${sampleData.length} sample airlines as fallback`);
+        return res.json(sampleData);
+      } else {
+        return res.status(503).json({ 
+          msg: 'Database connection is currently unavailable and no fallback data could be loaded.',
+          connectionState: req.dbConnectionState ? req.dbConnectionState.state : 'unknown'
+        });
+      }
+    } catch (sampleErr) {
+      console.error('Failed to load sample data:', sampleErr.message);
+      return res.status(503).json({ 
+        msg: 'Database connection is currently unavailable and fallback data failed to load.',
+        error: sampleErr.message 
+      });
+    }
+  }
+  
+  // Database is connected, continue with normal operation
   try {
     const airlines = await Airline.find().sort({ name: 1 });
     res.json(airlines);

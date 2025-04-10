@@ -383,6 +383,8 @@ app.use((err, req, res, next) => {
 
 // Connect to MongoDB Atlas and start server
 async function startServer() {
+  let dbConnected = false;
+  
   try {
     // Connect to MongoDB using the dedicated module with fallback strategies
     console.log('Connecting to MongoDB with robust connection handler...');
@@ -391,8 +393,24 @@ async function startServer() {
     
     if (connection) {
       console.log(`✅ Connected to MongoDB Atlas: ${mongoose.connection.host}`);
+      dbConnected = true;
     } else {
-      console.warn('⚠️ Server starting without database connection. Some features will be unavailable.');
+      console.warn('⚠️ Server starting without database connection. Fallback data will be used.');
+      
+      // Set up automatic reconnection attempt every 30 seconds
+      const reconnectInterval = setInterval(async () => {
+        console.log('Attempting scheduled database reconnection...');
+        try {
+          const result = await mongoConnector.retryConnection();
+          if (result && mongoose.connection.readyState === 1) {
+            console.log('✅ Successfully reconnected to MongoDB Atlas');
+            dbConnected = true;
+            clearInterval(reconnectInterval);
+          }
+        } catch (reconnectErr) {
+          console.error('Scheduled reconnection attempt failed:', reconnectErr.message);
+        }
+      }, 30000); // Try to reconnect every 30 seconds
     }
 
     // Set up Socket.IO connection handlers
@@ -404,6 +422,13 @@ async function startServer() {
         socket.emit('pong');
       });
       
+      // Tell the client about the DB status
+      socket.emit('server-status', { 
+        dbConnected,
+        timestamp: new Date(),
+        version: '1.0.1'
+      });
+      
       socket.on('disconnect', () => {
         console.log(`Socket ${socket.id} disconnected`);
       });
@@ -413,6 +438,7 @@ async function startServer() {
     httpServer.listen(PORT, () => {
       console.log(`✅ Server is running on port ${PORT}`);
       console.log(`✅ Environment: ${process.env.NODE_ENV || 'development'}`);
+      console.log(`✅ Database connected: ${dbConnected ? 'Yes' : 'No - using fallback data'}`);
       console.log(`✅ CORS origins: ${allowedOrigins.join(', ')}`);
     });
 
@@ -426,7 +452,7 @@ async function startServer() {
     if (process.env.NODE_ENV === 'production') {
       console.warn('⚠️ Starting server in production despite database connection failure');
       httpServer.listen(PORT, () => {
-        console.log(`✅ Server is running on port ${PORT} (without database)`);
+        console.log(`✅ Server is running on port ${PORT} (without database, using fallback data)`);
         console.log(`✅ Environment: ${process.env.NODE_ENV || 'development'}`);
       });
     } else {

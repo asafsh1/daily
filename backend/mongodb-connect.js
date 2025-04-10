@@ -404,12 +404,17 @@ const connector = new MongoDBConnector();
 const checkConnectionState = (req, res, next) => {
   // If database is connected, proceed
   if (mongoose.connection.readyState === 1) {
+    req.dbConnected = true;
     return next();
   }
   
   // Database not connected - try to reconnect
   const connectionState = connector.getConnectionState();
   console.log(`Database not connected (state: ${connectionState.state}). Attempting reconnection...`);
+  
+  // Set a flag to indicate database is not available - routes can use this to serve fallback data
+  req.dbConnected = false;
+  req.dbConnectionState = connectionState;
   
   // Only attempt reconnection if we're not already trying to connect
   if (mongoose.connection.readyState !== 2) {
@@ -418,29 +423,23 @@ const checkConnectionState = (req, res, next) => {
         // If reconnected successfully, proceed
         if (connection && mongoose.connection.readyState === 1) {
           console.log('Successfully reconnected to database');
+          req.dbConnected = true;
           next();
         } else {
-          // Still failed to connect
-          console.log('Failed to reconnect to database');
-          return res.status(503).json({
-            msg: 'Database connection is currently unavailable. Please try again later.',
-            connectionState: connectionState.state
-          });
+          // Still failed to connect, but proceed to route handler to allow fallback data
+          console.log('Failed to reconnect to database, allowing route handler to use fallback data');
+          next();
         }
       })
       .catch(error => {
         console.error('Error during reconnection attempt:', error.message);
-        return res.status(503).json({
-          msg: 'Database connection is currently unavailable. Please try again later.',
-          error: error.message
-        });
+        // Let the route handler use fallback data
+        next();
       });
   } else {
-    // Currently in the process of connecting
-    return res.status(503).json({
-      msg: 'Database connection is initializing. Please try again shortly.',
-      connectionState: connectionState.state
-    });
+    // Currently in the process of connecting, but allow the route handler to proceed with fallback
+    console.log('Database connection in progress, allowing route to use fallback data');
+    next();
   }
 };
 

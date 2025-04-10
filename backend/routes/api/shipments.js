@@ -30,8 +30,31 @@ const getSampleShipments = () => {
 // @desc    Get all shipments
 // @access  Public
 router.get('/', checkConnectionState, async (req, res) => {
+  // Check if database is connected, if not serve fallback data immediately
+  if (!req.dbConnected) {
+    console.log('Database not connected, using fallback data immediately');
+    try {
+      const sampleData = getSampleShipments();
+      if (sampleData && sampleData.length > 0) {
+        console.log(`Returning ${sampleData.length} sample shipments as fallback`);
+        return res.json(sampleData);
+      } else {
+        return res.status(503).json({ 
+          msg: 'Database connection is currently unavailable and no fallback data could be loaded.',
+          connectionState: req.dbConnectionState ? req.dbConnectionState.state : 'unknown'
+        });
+      }
+    } catch (sampleErr) {
+      console.error('Failed to load sample data:', sampleErr.message);
+      return res.status(503).json({ 
+        msg: 'Database connection is currently unavailable and fallback data failed to load.',
+        error: sampleErr.message 
+      });
+    }
+  }
+  
+  // Database is connected, continue with normal operation
   try {
-    // Database connected (ensured by middleware), fetch real data
     const shipments = await Shipment.find().sort({ date: -1 });
     res.json(shipments);
   } catch (err) {
