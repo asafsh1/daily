@@ -18,8 +18,20 @@ const instance = axios.create({
 
 // Add request interceptor to add auth token
 instance.interceptors.request.use(
-  config => {
-    const token = localStorage.getItem('token');
+  async config => {
+    let token = localStorage.getItem('token');
+    
+    // If no token exists, try to get a dev token
+    if (!token) {
+      try {
+        const response = await axios.post(`${apiBaseUrl}/api/get-dev-token`);
+        token = response.data.token;
+        localStorage.setItem('token', token);
+      } catch (err) {
+        console.error('Failed to get dev token:', err);
+      }
+    }
+
     if (token) {
       config.headers['x-auth-token'] = token;
     }
@@ -40,11 +52,19 @@ instance.interceptors.response.use(
         console.error('[Auth Error]', error.response.data);
         // Clear token if it's invalid
         localStorage.removeItem('token');
-        // Redirect to login if needed
-        if (window.location.pathname !== '/login') {
-          window.location.href = '/login';
+        // Try to get a new dev token
+        try {
+          const response = await axios.post(`${apiBaseUrl}/api/get-dev-token`);
+          const newToken = response.data.token;
+          localStorage.setItem('token', newToken);
+          // Retry the original request with the new token
+          const originalRequest = error.config;
+          originalRequest.headers['x-auth-token'] = newToken;
+          return axios(originalRequest);
+        } catch (err) {
+          console.error('Failed to refresh token:', err);
+          return Promise.reject(new Error('Authentication failed'));
         }
-        return Promise.reject(new Error('Authentication failed'));
       }
 
       // Handle 500 Server Error
