@@ -12,6 +12,7 @@ import Shipments from './components/shipments/Shipments';
 import ShipmentDetail from './components/shipments/ShipmentDetail';
 import Admin from './components/admin/Admin';
 import NotFound from './components/layout/NotFound';
+import TestComponent from './components/layout/TestComponent';
 
 const AppRoutes = () => {
   const dispatch = useDispatch();
@@ -35,6 +36,7 @@ const AppRoutes = () => {
     <>
       <Navbar />
       <Alert />
+      <TestComponent />
       <Routes>
         <Route path="/" element={<Navigate to="/shipments" replace />} />
         <Route path="/shipments" element={<Shipments />} />

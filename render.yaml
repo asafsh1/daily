@@ -6,6 +6,7 @@ services:
     plan: free
     buildCommand: cd backend && npm install && chmod +x render-start.sh
     startCommand: cd backend && bash render-start.sh
+    nodeVersion: 18.19.1
     envVars:
       - key: NODE_ENV
         value: production
@@ -18,4 +19,22 @@ services:
       - key: CORS_ORIGINS
         value: https://veleka-shipments-daily-report.netlify.app,https://daily-shipments.netlify.app,https://daily-tracking.netlify.app,https://daily-admin.netlify.app
       - key: ALLOWED_ORIGINS
-        value: https://veleka-shipments-daily-report.netlify.app,https://daily-shipments.netlify.app,https://daily-tracking.netlify.app,https://daily-admin.netlify.app 
+        value: https://veleka-shipments-daily-report.netlify.app,https://daily-shipments.netlify.app,https://daily-tracking.netlify.app,https://daily-admin.netlify.app
+      - key: DD_API_KEY
+        sync: false
+      - key: DD_SITE
+        value: "datadoghq.com"
+      - key: DD_ENV
+        value: "production"
+      - key: DD_SERVICE
+        value: "daily-shipment-tracker"
+      - key: DD_LOGS_INJECTION
+        value: "true"
+      - key: DD_TRACE_ENABLED
+        value: "true"
+      - key: DD_PROFILING_ENABLED
+        value: "true"
+      - key: DD_APM_ENABLED
+        value: "true"
+      - key: DD_VERSION
+        value: "1.0.0" 
