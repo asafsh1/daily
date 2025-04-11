@@ -5,7 +5,7 @@ services:
     region: oregon
     plan: free
     buildCommand: cd backend && npm install && chmod +x render-start.sh
-    startCommand: cd backend && bash render-start.sh
+    startCommand: cd backend && NODE_ENV=production node server.js
     nodeVersion: 18.19.1
     envVars:
       - key: NODE_ENV
