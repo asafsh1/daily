@@ -12,4 +12,10 @@ services:
       - key: PORT
         value: 5000
       - key: MONGODB_URI
-        value: mongodb+srv://daily_admin:1ArUfF8oH5N97Ggy@ops.hm6y7nw.mongodb.net/daily?retryWrites=true&w=majority&appName=OPS 
+        value: mongodb+srv://daily_admin:1ArUfF8oH5N97Ggy@ops.hm6y7nw.mongodb.net/daily?retryWrites=true&w=majority&appName=OPS
+      - key: JWT_SECRET
+        value: mysecrettoken-production-7d6f8a9b5c4e3d2f1a0b9c8d7e6f5a4b
+      - key: CORS_ORIGINS
+        value: https://veleka-shipments-daily-report.netlify.app,https://daily-shipments.netlify.app,https://daily-tracking.netlify.app,https://daily-admin.netlify.app
+      - key: ALLOWED_ORIGINS
+        value: https://veleka-shipments-daily-report.netlify.app,https://daily-shipments.netlify.app,https://daily-tracking.netlify.app,https://daily-admin.netlify.app 

@@ -56,14 +56,17 @@ const app = express();
 const httpServer = createServer(app);
 
 // CORS configuration
-const allowedOrigins = [
-  'https://veleka-shipments-daily-report.netlify.app',
-  'https://daily-shipments.netlify.app',
-  'https://daily-tracking.netlify.app',
-  'https://daily-admin.netlify.app',
-  // Allow localhost in development
-  'http://localhost:3000'
-];
+const allowedOrigins = process.env.ALLOWED_ORIGINS 
+  ? process.env.ALLOWED_ORIGINS.split(',')
+  : [
+      'https://veleka-shipments-daily-report.netlify.app',
+      'https://daily-shipments.netlify.app',
+      'https://daily-tracking.netlify.app',
+      'https://daily-admin.netlify.app',
+      'http://localhost:3000'
+    ];
+
+console.log('Allowed Origins:', allowedOrigins);
 
 // Configure CORS
 const corsOptions = {
@@ -96,7 +99,11 @@ const corsOptions = {
 
 // Initialize socket.io with CORS settings
 const io = socketIo(httpServer, {
-  cors: corsOptions,
+  cors: {
+    origin: allowedOrigins,
+    methods: ["GET", "POST"],
+    credentials: true
+  },
   transports: ['polling', 'websocket'],
   allowEIO3: true,
   pingTimeout: 60000,
