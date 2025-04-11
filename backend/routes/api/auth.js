@@ -37,93 +37,121 @@ router.get('/user', authMiddleware, (req, res) => {
   res.json({ userId: req.user.id });
 });
 
-// @route   GET api/auth
-// @desc    Get user by token
+// @route   GET api/auth/verify
+// @desc    Verify user's authentication status
 // @access  Private
-router.get('/', authMiddleware, async (req, res) => {
+router.get('/verify', auth, async (req, res) => {
   try {
-    // First try to get user from mock auth
+    // Try mock auth first
     const mockUser = mockAuth.getUserById(req.user.id);
     if (mockUser) {
       return res.json(mockUser);
     }
 
-    // If not found in mock auth, try database
+    // If not in mock auth, try database
     const user = await User.findById(req.user.id).select('-password');
     if (!user) {
-      return res.status(404).json({ msg: 'User not found' });
+      return res.status(401).json({ msg: 'User not found' });
     }
-    
+
     res.json(user);
   } catch (err) {
-    console.error(err.message);
-    res.status(500).send('Server Error');
+    console.error('Verify error:', err.message);
+    res.status(401).json({ msg: 'Token is not valid' });
   }
 });
 
-// @route   POST api/auth
+// @route   POST api/auth/login
 // @desc    Authenticate user & get token
 // @access  Public
-router.post(
-  '/',
-  [
-    check('email', 'Please include a valid email').isEmail(),
-    check('password', 'Password is required').exists()
-  ],
-  async (req, res) => {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(400).json({ errors: errors.array() });
-    }
-
-    const { email, password } = req.body;
-
-    try {
-      // First try mock authentication
-      const mockAuthResult = await mockAuth.authenticateUser(email, password);
-      if (mockAuthResult) {
-        return res.json(mockAuthResult);
-      }
-
-      // If mock auth fails, try database
-      let user = await User.findOne({ email });
-
-      if (!user) {
-        return res
-          .status(400)
-          .json({ errors: [{ msg: 'Invalid Credentials' }] });
-      }
-
-      const isMatch = await bcrypt.compare(password, user.password);
-
-      if (!isMatch) {
-        return res
-          .status(400)
-          .json({ errors: [{ msg: 'Invalid Credentials' }] });
-      }
-
-      // Return jsonwebtoken
-      const payload = {
-        user: {
-          id: user.id,
-          role: user.role
-        }
-      };
-
-      jwt.sign(
-        payload,
-        config.get('jwtSecret'),
-        { expiresIn: '5 days' },
-        (err, token) => {
-          if (err) throw err;
-          res.json({ token });
-        }
-      );
-    } catch (err) {
-      console.error(err.message);
-      res.status(500).send('Server error');
-    }
+router.post('/login', [
+  check('email', 'Please include a valid email').isEmail(),
+  check('password', 'Password is required').exists()
+], async (req, res) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return res.status(400).json({ errors: errors.array() });
   }
-);
+
+  const { email, password } = req.body;
+
+  try {
+    // Try mock authentication first
+    const mockAuthResult = await mockAuth.authenticateUser(email, password);
+    if (mockAuthResult) {
+      const token = mockAuthResult.token;
+      
+      // Set token in cookie
+      res.cookie('token', token, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        maxAge: 5 * 24 * 60 * 60 * 1000 // 5 days
+      });
+
+      // Also send token in response for API clients
+      return res.json({ 
+        token,
+        user: mockAuthResult.user
+      });
+    }
+
+    // If mock auth fails, try database
+    let user = await User.findOne({ email });
+    if (!user) {
+      return res.status(400).json({ errors: [{ msg: 'Invalid credentials' }] });
+    }
+
+    const isMatch = await bcrypt.compare(password, user.password);
+    if (!isMatch) {
+      return res.status(400).json({ errors: [{ msg: 'Invalid credentials' }] });
+    }
+
+    const payload = {
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        role: user.role
+      }
+    };
+
+    const token = jwt.sign(
+      payload,
+      config.get('jwtSecret'),
+      { expiresIn: config.get('jwtExpiration') || '5 days' }
+    );
+    
+    // Set token in cookie
+    res.cookie('token', token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 5 * 24 * 60 * 60 * 1000 // 5 days
+    });
+
+    // Send token and user data in response
+    res.json({
+      token,
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        role: user.role
+      }
+    });
+  } catch (err) {
+    console.error('Login error:', err.message);
+    res.status(500).json({ msg: 'Server error' });
+  }
+});
+
+// @route   POST api/auth/logout
+// @desc    Logout user / Clear cookie
+// @access  Private
+router.post('/logout', auth, (req, res) => {
+  res.clearCookie('token');
+  res.json({ msg: 'Logged out successfully' });
+});
 
 module.exports = router; 

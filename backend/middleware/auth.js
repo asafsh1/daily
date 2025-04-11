@@ -15,7 +15,7 @@ const addCorsHeaders = (req, res) => {
   if (process.env.NODE_ENV !== 'production' || !origin || allowedOrigins.includes(origin) || origin.endsWith('.netlify.app')) {
     res.header('Access-Control-Allow-Origin', origin || '*');
     res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, Origin, Accept');
+    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, x-auth-token, Origin, Accept');
     res.header('Access-Control-Allow-Credentials', 'true');
     res.header('Access-Control-Max-Age', '86400');
   }
@@ -42,8 +42,10 @@ module.exports = async function (req, res, next) {
     return res.status(204).end();
   }
   
-  // Get token from cookie
-  const token = req.cookies?.token;
+  // Get token from header, cookie, or Authorization header
+  const token = req.cookies?.token || 
+                req.header('x-auth-token') || 
+                req.header('Authorization')?.replace('Bearer ', '');
   
   console.log('Session token:', token ? 'Present' : 'Not present');
   
@@ -56,9 +58,35 @@ module.exports = async function (req, res, next) {
     // Verify token
     const decoded = jwt.verify(token, config.get('jwtSecret'));
     req.user = decoded.user;
+    
+    // Refresh token if it's about to expire
+    const tokenExp = decoded.exp * 1000; // Convert to milliseconds
+    const now = Date.now();
+    const timeToExpire = tokenExp - now;
+    
+    // If token will expire in less than 1 hour, refresh it
+    if (timeToExpire < 3600000) {
+      const newToken = jwt.sign(
+        { user: decoded.user },
+        config.get('jwtSecret'),
+        { expiresIn: config.get('jwtExpiration') || '1d' }
+      );
+      
+      // Set new token in cookie
+      res.cookie('token', newToken, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        maxAge: 24 * 60 * 60 * 1000 // 1 day
+      });
+      
+      // Also send token in header for API clients
+      res.header('x-auth-token', newToken);
+    }
+    
     next();
   } catch (err) {
-    // Clear invalid cookie
+    console.error('Token verification failed:', err.message);
     res.clearCookie('token');
     res.status(401).json({ msg: 'Token is not valid' });
   }
