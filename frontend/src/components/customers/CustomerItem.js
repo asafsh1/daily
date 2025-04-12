@@ -2,12 +2,12 @@ import React from 'react';
 import PropTypes from 'prop-types';
 
 const CustomerItem = ({ customer, onDelete, onEdit }) => {
-  const { _id, name, contactPerson, email, phone } = customer;
+  const { _id, companyName, contactName, email, phone } = customer;
 
   return (
     <tr>
-      <td>{name}</td>
-      <td>{contactPerson || 'N/A'}</td>
+      <td>{companyName}</td>
+      <td>{contactName || 'N/A'}</td>
       <td>{email || 'N/A'}</td>
       <td>{phone || 'N/A'}</td>
       <td>

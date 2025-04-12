@@ -404,10 +404,10 @@ const Admin = () => {
                       <thead>
                         <tr>
                           <th>ID</th>
-                          <th>Name</th>
+                          <th>Company Name</th>
+                          <th>Contact Name</th>
                           <th>Email</th>
                           <th>Phone</th>
-                          <th>Address</th>
                           <th>Actions</th>
                         </tr>
                       </thead>
@@ -415,10 +415,10 @@ const Admin = () => {
                         {customers.map(customer => (
                           <tr key={customer._id}>
                             <td>{customer.customerId || `CUST-${customer._id?.substring(0, 8) || 'N/A'}`}</td>
-                            <td>{customer.name}</td>
+                            <td>{customer.companyName}</td>
+                            <td>{customer.contactName}</td>
                             <td>{customer.email}</td>
                             <td>{customer.phone}</td>
-                            <td>{customer.address}</td>
                             <td>
                               <button
                                 className="btn-icon btn-edit"

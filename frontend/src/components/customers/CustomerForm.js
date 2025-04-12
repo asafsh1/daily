@@ -3,12 +3,11 @@ import PropTypes from 'prop-types';
 
 const CustomerForm = ({ initialData, onSubmit, onCancel }) => {
   const [formData, setFormData] = useState({
-    name: '',
-    contactPerson: '',
+    companyName: '',
+    contactName: '',
     email: '',
     phone: '',
-    address: '',
-    notes: ''
+    awbInstructions: ''
   });
 
   const [errors, setErrors] = useState({});
@@ -17,17 +16,16 @@ const CustomerForm = ({ initialData, onSubmit, onCancel }) => {
   useEffect(() => {
     if (initialData) {
       setFormData({
-        name: initialData.name || '',
-        contactPerson: initialData.contactPerson || '',
+        companyName: initialData.companyName || '',
+        contactName: initialData.contactName || '',
         email: initialData.email || '',
         phone: initialData.phone || '',
-        address: initialData.address || '',
-        notes: initialData.notes || ''
+        awbInstructions: initialData.awbInstructions || ''
       });
     }
   }, [initialData]);
 
-  const { name, contactPerson, email, phone, address, notes } = formData;
+  const { companyName, contactName, email, phone, awbInstructions } = formData;
 
   const onChange = e => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -41,8 +39,8 @@ const CustomerForm = ({ initialData, onSubmit, onCancel }) => {
   const validateForm = () => {
     const newErrors = {};
     
-    if (!name.trim()) {
-      newErrors.name = 'Customer name is required';
+    if (!companyName.trim()) {
+      newErrors.companyName = 'Company name is required';
     }
     
     if (email && !/^\S+@\S+\.\S+$/.test(email)) {
@@ -66,30 +64,30 @@ const CustomerForm = ({ initialData, onSubmit, onCancel }) => {
       <h2>{initialData ? 'Edit Customer' : 'Add New Customer'}</h2>
       <form className="form customer-form" onSubmit={onSubmitForm}>
         <div className="form-group">
-          <label htmlFor="name">Customer Name</label>
+          <label htmlFor="companyName">Company Name *</label>
           <input
             type="text"
-            id="name"
-            name="name"
-            value={name}
+            id="companyName"
+            name="companyName"
+            value={companyName}
             onChange={onChange}
-            className={errors.name ? 'form-control is-invalid' : 'form-control'}
-            placeholder="Customer name"
+            className={errors.companyName ? 'form-control is-invalid' : 'form-control'}
+            placeholder="Company name"
             required
           />
-          {errors.name && <div className="invalid-feedback">{errors.name}</div>}
+          {errors.companyName && <div className="invalid-feedback">{errors.companyName}</div>}
         </div>
         
         <div className="form-group">
-          <label htmlFor="contactPerson">Contact Person</label>
+          <label htmlFor="contactName">Contact Name</label>
           <input
             type="text"
-            id="contactPerson"
-            name="contactPerson"
-            value={contactPerson}
+            id="contactName"
+            name="contactName"
+            value={contactName}
             onChange={onChange}
             className="form-control"
-            placeholder="Primary contact person"
+            placeholder="Primary contact name"
           />
         </div>
         
@@ -121,27 +119,14 @@ const CustomerForm = ({ initialData, onSubmit, onCancel }) => {
         </div>
         
         <div className="form-group">
-          <label htmlFor="address">Address</label>
+          <label htmlFor="awbInstructions">AWB Instructions</label>
           <textarea
-            id="address"
-            name="address"
-            value={address}
+            id="awbInstructions"
+            name="awbInstructions"
+            value={awbInstructions}
             onChange={onChange}
             className="form-control"
-            placeholder="Customer address"
-            rows="2"
-          />
-        </div>
-        
-        <div className="form-group">
-          <label htmlFor="notes">Notes</label>
-          <textarea
-            id="notes"
-            name="notes"
-            value={notes}
-            onChange={onChange}
-            className="form-control"
-            placeholder="Additional notes"
+            placeholder="AWB instructions"
             rows="3"
           />
         </div>
