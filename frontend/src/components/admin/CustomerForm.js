@@ -41,7 +41,7 @@ const CustomerForm = ({ onSubmit, onCancel, initialData }) => {
           <h3>{initialData ? 'Edit Customer' : 'Add New Customer'}</h3>
           <button type="button" className="close-button" onClick={onCancel}>×</button>
         </div>
-        <form onSubmit={handleSubmit}>
+        <form onSubmit={handleSubmit} className="form">
           <div className="form-group">
             <label htmlFor="companyName">Company Name *</label>
             <input
@@ -51,30 +51,31 @@ const CustomerForm = ({ onSubmit, onCancel, initialData }) => {
               value={formData.companyName}
               onChange={handleChange}
               required
+              className="form-control"
             />
           </div>
 
           <div className="form-group">
-            <label htmlFor="contactName">Contact Name *</label>
+            <label htmlFor="contactName">Contact Name</label>
             <input
               type="text"
               id="contactName"
               name="contactName"
               value={formData.contactName}
               onChange={handleChange}
-              required
+              className="form-control"
             />
           </div>
 
           <div className="form-group">
-            <label htmlFor="email">Email *</label>
+            <label htmlFor="email">Email</label>
             <input
               type="email"
               id="email"
               name="email"
               value={formData.email}
               onChange={handleChange}
-              required
+              className="form-control"
             />
           </div>
 
@@ -86,23 +87,25 @@ const CustomerForm = ({ onSubmit, onCancel, initialData }) => {
               name="phone"
               value={formData.phone}
               onChange={handleChange}
+              className="form-control"
             />
           </div>
 
           <div className="form-group">
-            <label htmlFor="awbInstructions">AWB Instructions (Optional)</label>
+            <label htmlFor="awbInstructions">AWB Instructions</label>
             <textarea
               id="awbInstructions"
               name="awbInstructions"
               value={formData.awbInstructions}
               onChange={handleChange}
+              className="form-control"
               rows="3"
             />
           </div>
 
           <div className="form-actions">
             <button type="submit" className="btn btn-primary">
-              {initialData ? 'Update Customer' : 'Add Customer'}
+              {initialData ? 'Update' : 'Add'} Customer
             </button>
             <button type="button" className="btn btn-secondary" onClick={onCancel}>
               Cancel

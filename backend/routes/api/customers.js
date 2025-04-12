@@ -81,7 +81,9 @@ router.get('/', authMiddleware, checkConnectionState, async (req, res) => {
 
   // Database is connected, continue with normal operation
   try {
-    const customers = await Customer.find().sort({ name: 1 });
+    console.log('Fetching customers from database...');
+    const customers = await Customer.find().sort({ createdAt: -1 });
+    console.log(`Found ${customers.length} customers in database`);
     res.json(customers);
   } catch (err) {
     console.error('Error fetching customers:', err.message);
@@ -159,15 +161,29 @@ router.post(
     }
 
     try {
+      // Get the latest customer to generate the next ID
+      const latestCustomer = await Customer.findOne().sort({ customerId: -1 });
+      let nextId = 1;
+      
+      if (latestCustomer && latestCustomer.customerId) {
+        // Extract the numeric part and increment
+        const currentId = parseInt(latestCustomer.customerId.slice(4));
+        nextId = currentId + 1;
+      }
+      
+      // Format the ID with leading zeros (e.g., CUST0001)
+      const customerId = `CUST${String(nextId).padStart(4, '0')}`;
+
       const { companyName, contactName, email, phone, awbInstructions } = req.body;
 
-      // Check if customer with the same name already exists
-      const existingCustomer = await Customer.findOne({ companyName });
-      if (existingCustomer) {
+      // Check if customer already exists
+      let customer = await Customer.findOne({ companyName });
+      if (customer) {
         return res.status(400).json({ errors: [{ msg: 'Customer already exists' }] });
       }
 
-      const customer = new Customer({
+      customer = new Customer({
+        customerId,
         companyName,
         contactName,
         email,
