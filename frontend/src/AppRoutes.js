@@ -39,6 +39,7 @@ const AppRoutes = () => {
       <TestComponent />
       <Routes>
         <Route path="/" element={<Navigate to="/shipments" replace />} />
+        <Route path="/dashboard" element={<Dashboard />} />
         <Route path="/shipments" element={<Shipments />} />
         <Route path="/shipment/:id" element={<ShipmentDetail />} />
         <Route path="/add-shipment" element={<ShipmentForm />} />
