@@ -1,12 +1,12 @@
 const mongoose = require('mongoose');
 
 const CustomerSchema = new mongoose.Schema({
-  name: {
+  companyName: {
     type: String,
     required: true,
     unique: true
   },
-  contactPerson: {
+  contactName: {
     type: String
   },
   email: {
@@ -15,10 +15,7 @@ const CustomerSchema = new mongoose.Schema({
   phone: {
     type: String
   },
-  address: {
-    type: String
-  },
-  notes: {
+  awbInstructions: {
     type: String
   },
   createdAt: {
@@ -29,6 +26,12 @@ const CustomerSchema = new mongoose.Schema({
     type: Date,
     default: Date.now
   }
+});
+
+// Add middleware to update timestamps
+CustomerSchema.pre('save', function(next) {
+  this.updatedAt = Date.now();
+  next();
 });
 
 module.exports = mongoose.model('customer', CustomerSchema); 

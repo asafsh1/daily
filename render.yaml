@@ -6,7 +6,7 @@ services:
     plan: free
     rootDir: backend
     buildCommand: npm install
-    startCommand: NODE_ENV=production node server.js
+    startCommand: node server.js
     nodeVersion: 18.19.1
     envVars:
       - key: NODE_ENV

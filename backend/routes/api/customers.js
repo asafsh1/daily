@@ -141,7 +141,7 @@ router.post(
     authMiddleware,
     checkConnectionState,
     [
-      check('name', 'Name is required').not().isEmpty()
+      check('companyName', 'Company name is required').not().isEmpty()
     ]
   ],
   async (req, res) => {
@@ -159,21 +159,20 @@ router.post(
     }
 
     try {
-      const { name, contactPerson, email, phone, address, notes } = req.body;
+      const { companyName, contactName, email, phone, awbInstructions } = req.body;
 
       // Check if customer with the same name already exists
-      const existingCustomer = await Customer.findOne({ name });
+      const existingCustomer = await Customer.findOne({ companyName });
       if (existingCustomer) {
         return res.status(400).json({ errors: [{ msg: 'Customer already exists' }] });
       }
 
       const customer = new Customer({
-        name,
-        contactPerson,
+        companyName,
+        contactName,
         email,
         phone,
-        address,
-        notes
+        awbInstructions
       });
 
       await customer.save();
