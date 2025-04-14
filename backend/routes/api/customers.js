@@ -6,6 +6,7 @@ const fs = require('fs');
 const path = require('path');
 const mongoose = require('mongoose');
 const { checkConnectionState } = require('../../mongodb-connect');
+const { ID_PREFIXES } = require('../../utils/idGenerator');
 
 // Get the appropriate auth middleware based on environment
 const authMiddleware = process.env.NODE_ENV === 'production' 
@@ -161,19 +162,6 @@ router.post(
     }
 
     try {
-      // Get the latest customer to generate the next ID
-      const latestCustomer = await Customer.findOne().sort({ customerId: -1 });
-      let nextId = 1;
-      
-      if (latestCustomer && latestCustomer.customerId) {
-        // Extract the numeric part and increment
-        const currentId = parseInt(latestCustomer.customerId.slice(4));
-        nextId = currentId + 1;
-      }
-      
-      // Format the ID with leading zeros (e.g., CUST0001)
-      const customerId = `CUST${String(nextId).padStart(4, '0')}`;
-
       const { companyName, contactName, email, phone, awbInstructions } = req.body;
 
       // Check if customer already exists
@@ -181,6 +169,21 @@ router.post(
       if (customer) {
         return res.status(400).json({ errors: [{ msg: 'Customer already exists' }] });
       }
+
+      // Get the latest customer to generate the next ID
+      const latestCustomer = await Customer.findOne().sort({ customerId: -1 });
+      let nextId = 1;
+      
+      if (latestCustomer && latestCustomer.customerId) {
+        // Extract the numeric part and increment
+        const match = latestCustomer.customerId.match(/\d+$/);
+        if (match) {
+          nextId = parseInt(match[0]) + 1;
+        }
+      }
+      
+      // Format the ID with leading zeros (e.g., CUST0001)
+      const customerId = `${ID_PREFIXES.CUSTOMER}${String(nextId).padStart(4, '0')}`;
 
       customer = new Customer({
         customerId,
