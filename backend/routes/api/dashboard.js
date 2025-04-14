@@ -97,13 +97,7 @@ const generateSampleDailyStats = () => {
 // @route   GET api/dashboard/summary
 // @desc    Get dashboard summary data
 // @access  Private
-router.get('/summary', [auth, checkConnectionState], async (req, res) => {
-  // If database is not connected, return sample data
-  if (!req.dbConnected) {
-    console.log('Database not connected, returning sample dashboard data');
-    return res.json(generateSampleDashboardData());
-  }
-  
+router.get('/summary', auth, async (req, res) => {
   try {
     // Get total shipments
     const totalShipments = await Shipment.countDocuments();
@@ -133,7 +127,6 @@ router.get('/summary', [auth, checkConnectionState], async (req, res) => {
 
     // Transform shipments to handle non-ObjectId customer values
     const transformedShipments = recentShipments.map(shipment => {
-      // Handle the case where customer is "N/A" or not an ObjectId
       let customerData;
       if (shipment.customer && typeof shipment.customer === 'object') {
         customerData = shipment.customer;
@@ -178,10 +171,6 @@ router.get('/summary', [auth, checkConnectionState], async (req, res) => {
 // @desc    Get shipment counts by customer
 // @access  Private
 router.get('/shipments-by-customer', auth, async (req, res) => {
-  if (mongoose.connection.readyState !== 1) {
-    return res.status(503).json({ msg: 'Database connection not available' });
-  }
-  
   try {
     const shipments = await Shipment.find()
       .populate('customer', 'name');
@@ -200,21 +189,21 @@ router.get('/shipments-by-customer', auth, async (req, res) => {
         };
       }
       
-      shipmentsByCustomer[customerName].count += 1;
+      shipmentsByCustomer[customerName].count++;
       shipmentsByCustomer[customerName].totalValue += shipment.receivables || 0;
     });
     
-    // Convert to array format for chart
-    const result = Object.keys(shipmentsByCustomer).map(customer => ({
-      name: customer,
-      count: shipmentsByCustomer[customer].count,
-      value: shipmentsByCustomer[customer].totalValue
+    // Convert to array format
+    const result = Object.entries(shipmentsByCustomer).map(([name, data]) => ({
+      name,
+      count: data.count,
+      value: data.totalValue
     }));
     
     res.json(result);
   } catch (err) {
     console.error('Error in /api/dashboard/shipments-by-customer:', err.message);
-    res.status(500).send('Server Error');
+    res.status(500).json({ msg: 'Server Error', error: err.message });
   }
 });
 

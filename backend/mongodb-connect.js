@@ -101,43 +101,26 @@ const connectWithRetry = async (uri, options = {}, maxRetries = 3) => {
 // Main connection function
 const connectDB = async () => {
   try {
-    console.log('Starting server with MongoDB connection...');
+    console.log('Starting MongoDB Atlas connection...');
     console.log('MongoDB URI exists in env:', !!process.env.MONGODB_URI);
-    console.log('Current working directory:', process.cwd());
     console.log('NODE_ENV:', process.env.NODE_ENV);
     
-    // Log the first few characters of the URI for debugging (without exposing credentials)
     const uri = process.env.MONGODB_URI;
-    if (uri) {
-      const sanitizedUri = uri.replace(/\/\/[^@]+@/, '//[CREDENTIALS]@');
-      console.log('MongoDB URI pattern:', sanitizedUri);
-    }
-    
     if (!uri) {
       throw new Error('MongoDB URI is not defined in environment variables');
     }
     
-    // Extract hostname for DNS test
-    const matches = uri.match(/mongodb(\+srv)?:\/\/[^:]+:[^@]+@([^/]+)/);
-    if (matches && matches[2]) {
-      const hostname = matches[2];
-      console.log(`Testing DNS resolution for ${hostname}...`);
-      try {
-        const addresses = await dns.promises.resolve(hostname);
-        console.log('DNS resolution successful:', addresses);
-      } catch (dnsErr) {
-        console.error('DNS resolution failed:', dnsErr.message);
-        console.log('DNS resolution test failed - attempting connection with IP fallback');
-      }
-    }
+    // Log sanitized URI for debugging
+    const sanitizedUri = uri.replace(/\/\/[^@]+@/, '//[CREDENTIALS]@');
+    console.log('MongoDB URI pattern:', sanitizedUri);
     
-    console.log('Connecting to MongoDB with robust connection handler...');
-    console.log('Strategy 1: Standard connection with SRV record');
-    
-    return await connectWithRetry(uri);
+    // Connect to MongoDB Atlas
+    const conn = await mongoose.connect(uri, mongooseOptions);
+    console.log(`✅ Connected to MongoDB Atlas: ${conn.connection.host}`);
+    return conn;
   } catch (error) {
     console.error('MongoDB connection error:', error.message);
-    process.exit(1);
+    throw error;
   }
 };
 

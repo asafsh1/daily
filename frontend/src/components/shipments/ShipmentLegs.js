@@ -103,7 +103,7 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
     
     try {
       // First try to fetch legs directly
-      const response = await axios.get(`/api/shipment-legs/shipment/${shipmentId}`);
+      const response = await axios.get(`/api/shipment-legs/${shipmentId}`);
       
       if (response.data && Array.isArray(response.data) && response.data.length > 0) {
         console.log('Legs fetched successfully:', response.data);
