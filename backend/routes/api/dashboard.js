@@ -98,7 +98,7 @@ const generateSampleDailyStats = () => {
 // @desc    Get dashboard summary data
 // @access  Private
 router.get('/summary', auth, async (req, res) => {
-  if (!mongoose.connection.readyState === 1) {
+  if (mongoose.connection.readyState !== 1) {
     return res.status(503).json({ msg: 'Database connection not available' });
   }
   
@@ -144,7 +144,7 @@ router.get('/summary', auth, async (req, res) => {
       totalProfit
     });
   } catch (err) {
-    console.error(err.message);
+    console.error('Error in /api/dashboard/summary:', err.message);
     res.status(500).send('Server Error');
   }
 });
@@ -153,7 +153,7 @@ router.get('/summary', auth, async (req, res) => {
 // @desc    Get shipment counts by customer
 // @access  Private
 router.get('/shipments-by-customer', auth, async (req, res) => {
-  if (!mongoose.connection.readyState === 1) {
+  if (mongoose.connection.readyState !== 1) {
     return res.status(503).json({ msg: 'Database connection not available' });
   }
   
@@ -188,7 +188,7 @@ router.get('/shipments-by-customer', auth, async (req, res) => {
     
     res.json(result);
   } catch (err) {
-    console.error('Error fetching shipments by customer:', err.message);
+    console.error('Error in /api/dashboard/shipments-by-customer:', err.message);
     res.status(500).send('Server Error');
   }
 });
@@ -256,7 +256,7 @@ router.get('/monthly-stats', checkConnectionState, async (req, res) => {
 // @desc    Get shipment counts by date
 // @access  Private
 router.get('/shipments-by-date', auth, async (req, res) => {
-  if (!mongoose.connection.readyState === 1) {
+  if (mongoose.connection.readyState !== 1) {
     return res.status(503).json({ msg: 'Database connection not available' });
   }
   
@@ -287,7 +287,7 @@ router.get('/shipments-by-date', auth, async (req, res) => {
     
     res.json(result);
   } catch (err) {
-    console.error('Error fetching shipments by date:', err.message);
+    console.error('Error in /api/dashboard/shipments-by-date:', err.message);
     res.status(500).send('Server Error');
   }
 });
@@ -319,7 +319,7 @@ router.get('/overdue-non-invoiced', async (req, res) => {
 // @desc    Get detailed shipment data for charts
 // @access  Private
 router.get('/detailed-shipments', auth, async (req, res) => {
-  if (!mongoose.connection.readyState === 1) {
+  if (mongoose.connection.readyState !== 1) {
     return res.status(503).json({ msg: 'Database connection not available' });
   }
   
@@ -340,7 +340,7 @@ router.get('/detailed-shipments', auth, async (req, res) => {
       }
     });
   } catch (err) {
-    console.error('Error fetching detailed shipments:', err.message);
+    console.error('Error in /api/dashboard/detailed-shipments:', err.message);
     res.status(500).send('Server Error');
   }
 });

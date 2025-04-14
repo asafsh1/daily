@@ -41,7 +41,7 @@ const AppRoutes = () => {
         <Route path="/" element={<Navigate to="/shipments" replace />} />
         <Route path="/dashboard" element={<Dashboard />} />
         <Route path="/shipments" element={<Shipments />} />
-        <Route path="/shipment/:id" element={<ShipmentDetail />} />
+        <Route path="/shipments/:id" element={<ShipmentDetail />} />
         <Route path="/add-shipment" element={<ShipmentForm />} />
         <Route path="/edit-shipment/:id" element={<ShipmentForm />} />
         <Route path="/admin" element={<Admin />} />
