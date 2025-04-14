@@ -12,23 +12,18 @@ const mongoOptions = {
 // Try to connect to MongoDB
 const connectDB = async () => {
   try {
-    // Try to use config
-    const mongoURI = config.get('mongoURI');
-    await mongoose.connect(mongoURI, mongoOptions);
-    console.log('MongoDB Connected using config URI');
-    return true;
-  } catch (configErr) {
-    console.log('Could not connect using config, trying localhost...');
-    
-    try {
-      // Fallback to localhost
-      await mongoose.connect('mongodb://localhost:27017/shipment-reporting', mongoOptions);
-      console.log('MongoDB Connected to localhost');
-      return true;
-    } catch (localErr) {
-      console.error('MongoDB Connection Error:', localErr.message);
-      return false;
+    const mongoURI = process.env.MONGODB_URI || config.get('mongoURI');
+    if (!mongoURI) {
+      console.error('MongoDB URI is not defined in environment variables or config');
+      process.exit(1);
     }
+    
+    await mongoose.connect(mongoURI, mongoOptions);
+    console.log('MongoDB Connected using Atlas');
+    return true;
+  } catch (err) {
+    console.error('MongoDB Connection Error:', err.message);
+    process.exit(1);
   }
 };
 

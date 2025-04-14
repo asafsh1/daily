@@ -15,8 +15,12 @@ const connectDB = async () => {
     console.log('Using MongoDB URI from config file');
   } catch (err) {
     console.error('Error loading MongoDB URI from config:', err.message);
-    mongoURI = process.env.MONGO_URI || 'mongodb://localhost:27017/daily-app';
-    console.log('Using fallback MongoDB URI:', mongoURI);
+    mongoURI = process.env.MONGODB_URI;
+    if (!mongoURI) {
+      console.error('MONGODB_URI environment variable is not set');
+      process.exit(1);
+    }
+    console.log('Using MongoDB URI from environment variable');
   }
 
   for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
@@ -30,7 +34,7 @@ const connectDB = async () => {
       await mongoose.connect(mongoURI, {
         useNewUrlParser: true,
         useUnifiedTopology: true,
-        serverSelectionTimeoutMS: 5000 // 5 seconds (shorter for quicker failures)
+        serverSelectionTimeoutMS: 5000
       });
       
       console.log(`MongoDB Connected to ${mongoose.connection.host}`);
@@ -43,21 +47,8 @@ const connectDB = async () => {
         console.log(`Retrying in ${RETRY_DELAY/1000} seconds...`);
         await new Promise(resolve => setTimeout(resolve, RETRY_DELAY));
       } else {
-        // On final failure, try local connection
-        try {
-          console.log('Attempting to connect to local MongoDB...');
-          await mongoose.connect('mongodb://localhost:27017/daily-app', {
-            useNewUrlParser: true,
-            useUnifiedTopology: true,
-            serverSelectionTimeoutMS: 5000
-          });
-          console.log('Connected to local MongoDB instance');
-          return true;
-        } catch (localErr) {
-          console.error('Failed to connect to local MongoDB:', localErr.message);
-          console.error('Database seeding failed due to connection issues.');
-          process.exit(1);
-        }
+        console.error('Database seeding failed due to connection issues.');
+        process.exit(1);
       }
     }
   }

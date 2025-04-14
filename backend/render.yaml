@@ -3,11 +3,17 @@ services:
     name: daily-shipment-tracker
     env: node
     buildCommand: npm install
-    startCommand: cd /opt/render/project/src && node server.js
+    startCommand: node server.js
+    healthCheckPath: /health
     envVars:
       - key: NODE_ENV
         value: production
       - key: MONGODB_URI
         sync: false
       - key: JWT_SECRET
-        sync: false 
+        sync: false
+    buildFilter:
+      paths:
+        - server.js
+        - package.json
+        - package-lock.json 
