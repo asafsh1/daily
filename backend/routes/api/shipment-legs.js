@@ -128,25 +128,35 @@ router.get('/shipment/:shipment_id', checkConnectionState, async (req, res) => {
       return res.status(400).json({ msg: 'Invalid shipment ID format' });
     }
     
-    // Find legs by shipment ID - check both shipment and shipmentId fields
-    const legs = await ShipmentLeg.find({ 
+    // First try to get the shipment to check for embedded legs
+    const shipment = await Shipment.findById(shipmentId);
+    if (!shipment) {
+      return res.status(404).json({ msg: 'Shipment not found' });
+    }
+    
+    // If shipment has legs embedded, return those
+    if (shipment.legs && Array.isArray(shipment.legs) && shipment.legs.length > 0) {
+      console.log(`Found ${shipment.legs.length} embedded legs in shipment`);
+      return res.json(shipment.legs);
+    }
+    
+    // If no embedded legs, look for standalone legs
+    const standaloneLegs = await ShipmentLeg.find({ 
       $or: [
         { shipment: shipmentId },
         { shipmentId: shipmentId }
       ]
     }).sort({ legOrder: 1 });
     
-    if (!legs || legs.length === 0) {
-      // Try to look up legs in the shipment document itself
-      const shipment = await Shipment.findById(shipmentId);
-      if (shipment && shipment.legs && shipment.legs.length > 0) {
-        return res.json(shipment.legs);
-      }
-      
-      return res.status(404).json({ msg: 'No legs found for this shipment' });
+    if (standaloneLegs && standaloneLegs.length > 0) {
+      console.log(`Found ${standaloneLegs.length} standalone legs for shipment`);
+      return res.json(standaloneLegs);
     }
     
-    res.json(legs);
+    // If no legs found at all, return empty array
+    console.log('No legs found for shipment');
+    return res.json([]);
+    
   } catch (err) {
     console.error('Error fetching legs by shipment:', err.message);
     

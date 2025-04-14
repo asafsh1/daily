@@ -132,13 +132,23 @@ router.get('/summary', [auth, checkConnectionState], async (req, res) => {
       .lean();
 
     // Transform shipments to handle non-ObjectId customer values
-    const transformedShipments = recentShipments.map(shipment => ({
-      ...shipment,
-      customer: shipment.customer || { 
-        _id: shipment.customer || 'N/A',
-        name: shipment.customerName || 'N/A'
+    const transformedShipments = recentShipments.map(shipment => {
+      // Handle the case where customer is "N/A" or not an ObjectId
+      let customerData;
+      if (shipment.customer && typeof shipment.customer === 'object') {
+        customerData = shipment.customer;
+      } else {
+        customerData = {
+          _id: shipment.customer || 'N/A',
+          name: shipment.customerName || 'N/A'
+        };
       }
-    }));
+
+      return {
+        ...shipment,
+        customer: customerData
+      };
+    });
 
     // Get financial metrics
     const shipments = await Shipment.find();
