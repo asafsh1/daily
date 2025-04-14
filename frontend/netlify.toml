@@ -1,0 +1,13 @@
+[build]
+  command = "npm run build"
+  publish = "build"
+
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+
+[context.production.environment]
+  REACT_APP_API_URL = "https://daily-shipment-tracker.onrender.com"
+  REACT_APP_ENV = "production"
+  REACT_APP_SOCKET_URL = "https://daily-shipment-tracker.onrender.com" 

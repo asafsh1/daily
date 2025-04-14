@@ -97,9 +97,11 @@ const generateSampleDailyStats = () => {
 // @route   GET api/dashboard/summary
 // @desc    Get dashboard summary data
 // @access  Private
-router.get('/summary', auth, async (req, res) => {
-  if (mongoose.connection.readyState !== 1) {
-    return res.status(503).json({ msg: 'Database connection not available' });
+router.get('/summary', [auth, checkConnectionState], async (req, res) => {
+  // If database is not connected, return sample data
+  if (!req.dbConnected) {
+    console.log('Database not connected, returning sample dashboard data');
+    return res.json(generateSampleDashboardData());
   }
   
   try {
@@ -145,7 +147,7 @@ router.get('/summary', auth, async (req, res) => {
     });
   } catch (err) {
     console.error('Error in /api/dashboard/summary:', err.message);
-    res.status(500).send('Server Error');
+    res.status(500).json({ msg: 'Server Error', error: err.message });
   }
 });
 

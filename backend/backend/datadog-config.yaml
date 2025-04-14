@@ -1,0 +1,7 @@
+api_key: ${DD_API_KEY}
+site: datadoghq.com
+logs_enabled: true
+apm_config:
+  enabled: true
+process_config:
+  enabled: true

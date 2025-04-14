@@ -1,0 +1,1 @@
+const tracer = require("dd-trace").init({env: process.env.DD_ENV,service: process.env.DD_SERVICE,version: process.env.DD_VERSION,logInjection: true,profiling: true,analytics: true});module.exports = tracer;

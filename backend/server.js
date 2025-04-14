@@ -191,6 +191,11 @@ app.use('/api/customers', require('./routes/api/customers'));
 app.use('/api/dashboard', require('./routes/api/dashboard'));
 app.use('/api/airlines', require('./routes/api/airlines'));
 
+// Handle 404s for API routes before static file handling
+app.use('/api/*', (req, res) => {
+  res.status(404).json({ msg: 'API endpoint not found' });
+});
+
 // Serve static assets in production
 if (process.env.NODE_ENV === 'production') {
   // Set static folder - look in current directory or one level up
@@ -213,10 +218,6 @@ if (process.env.NODE_ENV === 'production') {
 
     // Handle React routing, return all requests to React app
     app.get('*', (req, res) => {
-      // Don't serve index.html for API routes
-      if (req.url.startsWith('/api/')) {
-        return res.status(404).json({ msg: 'API endpoint not found' });
-      }
       res.sendFile(path.join(staticPath, 'index.html'));
     });
   }

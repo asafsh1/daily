@@ -1,0 +1,6 @@
+api_key: f0250a937759e94a4f50f31bac9211c0
+site: us5.datadoghq.com
+logs_enabled: true
+apm_config:
+  enabled: true
+dogstatsd_non_local_traffic: true
