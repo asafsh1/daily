@@ -13,7 +13,7 @@ const initialState = {
   error: null
 };
 
-export default function(state = initialState, action) {
+const authReducer = function(state = initialState, action) {
   const { type, payload } = action;
 
   switch (type) {
@@ -22,35 +22,38 @@ export default function(state = initialState, action) {
         ...state,
         isAuthenticated: true,
         loading: false,
-        user: payload,
-        error: null
+        user: payload
       };
     case LOGIN_SUCCESS:
+      localStorage.setItem('token', payload.token);
       return {
         ...state,
+        ...payload,
         isAuthenticated: true,
-        loading: false,
-        user: payload,
-        error: null
+        loading: false
       };
     case AUTH_ERROR:
     case LOGIN_FAIL:
+      localStorage.removeItem('token');
       return {
         ...state,
+        token: null,
         isAuthenticated: false,
         loading: false,
-        user: null,
-        error: payload
+        user: null
       };
     case LOGOUT:
+      localStorage.removeItem('token');
       return {
         ...state,
+        token: null,
         isAuthenticated: false,
         loading: false,
-        user: null,
-        error: null
+        user: null
       };
     default:
       return state;
   }
-} 
+};
+
+export default authReducer; 

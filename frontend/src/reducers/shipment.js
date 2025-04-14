@@ -39,7 +39,7 @@ const validateShipment = (shipment) => {
   };
 };
 
-export default function(state = initialState, action) {
+const shipmentReducer = function(state = initialState, action) {
   const { type, payload } = action;
 
   switch (type) {
@@ -135,4 +135,6 @@ export default function(state = initialState, action) {
     default:
       return state;
   }
-} 
+};
+
+export default shipmentReducer; 

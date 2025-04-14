@@ -16,7 +16,7 @@ const initialState = {
   error: null
 };
 
-export default function(state = initialState, action) {
+const dashboardReducer = function(state = initialState, action) {
   const { type, payload } = action;
 
   switch (type) {
@@ -62,4 +62,6 @@ export default function(state = initialState, action) {
     default:
       return state;
   }
-} 
+};
+
+export default dashboardReducer; 
