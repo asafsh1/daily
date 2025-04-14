@@ -3,7 +3,7 @@ services:
     name: daily-shipment-tracker
     env: node
     buildCommand: npm install
-    startCommand: bash start.sh
+    startCommand: cd /opt/render/project/src && node server.js
     envVars:
       - key: NODE_ENV
         value: production

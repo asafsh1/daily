@@ -190,6 +190,9 @@ app.use('/api/shipment-legs', require('./routes/api/shipmentLegs'));
 app.use('/api/customers', require('./routes/api/customers'));
 app.use('/api/dashboard', require('./routes/api/dashboard'));
 app.use('/api/airlines', require('./routes/api/airlines'));
+app.use('/api/shippers', require('./routes/api/shippers'));
+app.use('/api/consignees', require('./routes/api/consignees'));
+app.use('/api/notify-parties', require('./routes/api/notify-parties'));
 
 // Handle 404s for API routes before static file handling
 app.use('/api/*', (req, res) => {

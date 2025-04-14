@@ -124,8 +124,21 @@ router.get('/summary', [auth, checkConnectionState], async (req, res) => {
     const recentShipments = await Shipment.find()
       .sort({ createdAt: -1 })
       .limit(5)
-      .populate('customer', 'name')
+      .populate({
+        path: 'customer',
+        select: 'name',
+        match: { _id: { $type: 'objectId' } }
+      })
       .lean();
+
+    // Transform shipments to handle non-ObjectId customer values
+    const transformedShipments = recentShipments.map(shipment => ({
+      ...shipment,
+      customer: shipment.customer || { 
+        _id: shipment.customer || 'N/A',
+        name: shipment.customerName || 'N/A'
+      }
+    }));
 
     // Get financial metrics
     const shipments = await Shipment.find();
@@ -140,7 +153,7 @@ router.get('/summary', [auth, checkConnectionState], async (req, res) => {
       totalShipments,
       shipmentsByStatus,
       totalNonInvoiced,
-      recentShipments,
+      recentShipments: transformedShipments,
       totalCost,
       totalReceivables,
       totalProfit
