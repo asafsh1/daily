@@ -195,10 +195,13 @@ const Dashboard = ({
       );
     }
     if (localError || reduxError) {
+      let errorMessage = 'An error occurred while loading the dashboard.';
+      if (reduxError && reduxError.msg === 'Database connection not available') {
+        errorMessage = 'Unable to connect to the database. Please try again later.';
+      }
       return (
         <div className="alert alert-danger">
-          <i className="fas fa-exclamation-circle"></i>
-          {localError || reduxError.msg || 'Error loading dashboard data'}
+          <i className="fas fa-exclamation-circle"></i> {errorMessage}
         </div>
       );
     }

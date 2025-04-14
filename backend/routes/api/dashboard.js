@@ -96,13 +96,10 @@ const generateSampleDailyStats = () => {
 
 // @route   GET api/dashboard/summary
 // @desc    Get dashboard summary data
-// @access  Public (for testing, will be private later)
-router.get('/summary', checkConnectionState, async (req, res) => {
-  // Check if database is connected
-  if (!req.dbConnected) {
-    console.log('Database not connected, using sample dashboard data');
-    const sampleData = generateSampleDashboardData();
-    return res.json(sampleData);
+// @access  Private
+router.get('/summary', auth, async (req, res) => {
+  if (!mongoose.connection.readyState === 1) {
+    return res.status(503).json({ msg: 'Database connection not available' });
   }
   
   try {
@@ -147,22 +144,17 @@ router.get('/summary', checkConnectionState, async (req, res) => {
       totalProfit
     });
   } catch (err) {
-    console.error('Error fetching dashboard summary:', err.message);
-    
-    // Return sample data if there's an error
-    const sampleData = generateSampleDashboardData();
-    return res.json(sampleData);
+    console.error(err.message);
+    res.status(500).send('Server Error');
   }
 });
 
 // @route   GET api/dashboard/shipments-by-customer
 // @desc    Get shipment counts by customer
-// @access  Public (for testing, will be private later)
-router.get('/shipments-by-customer', checkConnectionState, async (req, res) => {
-  // Check if database is connected
-  if (!req.dbConnected) {
-    console.log('Database not connected, using sample customer data');
-    return res.json(generateSampleCustomerData());
+// @access  Private
+router.get('/shipments-by-customer', auth, async (req, res) => {
+  if (!mongoose.connection.readyState === 1) {
+    return res.status(503).json({ msg: 'Database connection not available' });
   }
   
   try {
@@ -173,7 +165,6 @@ router.get('/shipments-by-customer', checkConnectionState, async (req, res) => {
     const shipmentsByCustomer = {};
     
     shipments.forEach(shipment => {
-      // Use consigneeName if the customer populate failed
       const customerName = (shipment.customer && shipment.customer.name) ? 
         shipment.customer.name : (shipment.consigneeName || 'Unknown Customer');
       
@@ -198,7 +189,7 @@ router.get('/shipments-by-customer', checkConnectionState, async (req, res) => {
     res.json(result);
   } catch (err) {
     console.error('Error fetching shipments by customer:', err.message);
-    return res.json(generateSampleCustomerData());
+    res.status(500).send('Server Error');
   }
 });
 
@@ -262,55 +253,42 @@ router.get('/monthly-stats', checkConnectionState, async (req, res) => {
 });
 
 // @route   GET api/dashboard/shipments-by-date
-// @desc    Get shipment counts by date (last 30 days)
-// @access  Public (for testing, will be private later)
-router.get('/shipments-by-date', checkConnectionState, async (req, res) => {
-  // Check if database is connected
-  if (!req.dbConnected) {
-    console.log('Database not connected, using sample daily stats');
-    return res.json(generateSampleDailyStats());
+// @desc    Get shipment counts by date
+// @access  Private
+router.get('/shipments-by-date', auth, async (req, res) => {
+  if (!mongoose.connection.readyState === 1) {
+    return res.status(503).json({ msg: 'Database connection not available' });
   }
   
   try {
-    // Calculate date range for last 30 days
-    const endDate = moment();
-    const startDate = moment().subtract(30, 'days');
+    const shipments = await Shipment.find()
+      .select('dateAdded receivables')
+      .sort('dateAdded');
     
-    // Get all shipments created within the date range
-    const shipments = await Shipment.find({
-      dateAdded: { 
-        $gte: startDate.toDate(), 
-        $lte: endDate.toDate() 
-      }
-    });
+    const shipmentsByDate = {};
     
-    // Initialize daily data structure
-    const dailyData = {};
-    for (let i = 0; i < 30; i++) {
-      const dateKey = moment().subtract(i, 'days').format('YYYY-MM-DD');
-      dailyData[dateKey] = {
-        date: dateKey,
-        count: 0
-      };
-    }
-    
-    // Process shipments to aggregate daily data
     shipments.forEach(shipment => {
-      const dateKey = moment(shipment.dateAdded).format('YYYY-MM-DD');
-      if (dailyData[dateKey]) {
-        dailyData[dateKey].count += 1;
+      const date = moment(shipment.dateAdded).format('YYYY-MM-DD');
+      if (!shipmentsByDate[date]) {
+        shipmentsByDate[date] = {
+          count: 0,
+          value: 0
+        };
       }
+      shipmentsByDate[date].count += 1;
+      shipmentsByDate[date].value += shipment.receivables || 0;
     });
     
-    // Convert to array and sort chronologically
-    const result = Object.values(dailyData).sort((a, b) => 
-      moment(a.date) - moment(b.date)
-    );
+    const result = Object.keys(shipmentsByDate).map(date => ({
+      date,
+      count: shipmentsByDate[date].count,
+      value: shipmentsByDate[date].value
+    }));
     
     res.json(result);
   } catch (err) {
     console.error('Error fetching shipments by date:', err.message);
-    return res.json(generateSampleDailyStats());
+    res.status(500).send('Server Error');
   }
 });
 
@@ -339,8 +317,12 @@ router.get('/overdue-non-invoiced', async (req, res) => {
 
 // @route   GET api/dashboard/detailed-shipments
 // @desc    Get detailed shipment data for charts
-// @access  Public (for testing, will be private later)
-router.get('/detailed-shipments', async (req, res) => {
+// @access  Private
+router.get('/detailed-shipments', auth, async (req, res) => {
+  if (!mongoose.connection.readyState === 1) {
+    return res.status(503).json({ msg: 'Database connection not available' });
+  }
+  
   try {
     const shipments = await Shipment.find()
       .sort({ dateAdded: -1 })
