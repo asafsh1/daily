@@ -11,4 +11,5 @@ pkill -f node || true
 echo "Starting server..."
 
 # Start the server
-npm run dev 
+cd /opt/render/project/src
+node server.js 
