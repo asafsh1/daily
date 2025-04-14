@@ -103,9 +103,16 @@ const connectDB = async () => {
   try {
     console.log('Starting server with MongoDB connection...');
     console.log('MongoDB URI exists in env:', !!process.env.MONGODB_URI);
-    console.log('Using Node.js version:', process.version);
+    console.log('Current working directory:', process.cwd());
+    console.log('NODE_ENV:', process.env.NODE_ENV);
     
+    // Log the first few characters of the URI for debugging (without exposing credentials)
     const uri = process.env.MONGODB_URI;
+    if (uri) {
+      const sanitizedUri = uri.replace(/\/\/[^@]+@/, '//[CREDENTIALS]@');
+      console.log('MongoDB URI pattern:', sanitizedUri);
+    }
+    
     if (!uri) {
       throw new Error('MongoDB URI is not defined in environment variables');
     }

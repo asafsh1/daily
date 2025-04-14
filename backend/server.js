@@ -182,6 +182,15 @@ app.post('/api/get-dev-token', (req, res) => {
   }
 });
 
+// Define API routes before static file handling
+app.use('/api/auth', require('./routes/api/auth'));
+app.use('/api/users', require('./routes/api/users'));
+app.use('/api/shipments', require('./routes/api/shipments'));
+app.use('/api/shipment-legs', require('./routes/api/shipmentLegs'));
+app.use('/api/customers', require('./routes/api/customers'));
+app.use('/api/dashboard', require('./routes/api/dashboard'));
+app.use('/api/airlines', require('./routes/api/airlines'));
+
 // Serve static assets in production
 if (process.env.NODE_ENV === 'production') {
   // Set static folder - look in current directory or one level up
@@ -197,38 +206,54 @@ if (process.env.NODE_ENV === 'production') {
     staticPath = frontendPath;
     console.log('Using frontend/build for static files');
   }
-  
+
   if (staticPath) {
-    console.log(`Serving static files from: ${staticPath}`);
+    // Serve static files
     app.use(express.static(staticPath));
-  } else {
-    console.warn('No static build folder found. API-only mode.');
+
+    // Handle React routing, return all requests to React app
+    app.get('*', (req, res) => {
+      // Don't serve index.html for API routes
+      if (req.url.startsWith('/api/')) {
+        return res.status(404).json({ msg: 'API endpoint not found' });
+      }
+      res.sendFile(path.join(staticPath, 'index.html'));
+    });
   }
 }
 
-// Define Routes
-app.use('/api/users', require('./routes/api/users'));
-app.use('/api/auth', require('./routes/api/auth'));
-app.use('/api/profile', require('./routes/api/profile'));
-app.use('/api/shipments', require('./routes/api/shipments'));
-app.use('/api/customers', require('./routes/api/customers'));
-app.use('/api/airlines', require('./routes/api/airlines'));
-app.use('/api/shipment-legs', require('./routes/api/shipment-legs'));
-app.use('/api/dashboard', require('./routes/api/dashboard'));
-app.use('/api/shippers', require('./routes/api/shippers'));
-app.use('/api/consignees', require('./routes/api/consignees'));
-app.use('/api/notify-parties', require('./routes/api/notify-parties'));
-
-// Add a test auth endpoint to verify token and see what user is being used
-app.get('/api/test-auth', authMiddleware, (req, res) => {
-  res.json({
-    message: 'Authentication successful',
-    user: req.user,
-    tokenInfo: {
-      provided: !!req.header('x-auth-token'),
-      isDefaultDevToken: req.header('x-auth-token') === 'default-dev-token'
-    },
-    authMode: process.env.NODE_ENV === 'production' ? 'production' : 'development'
+// Socket.io connection handling
+io.on('connection', (socket) => {
+  console.log('Client connected:', socket.id);
+  
+  socket.on('disconnect', () => {
+    console.log('Client disconnected:', socket.id);
+  });
+  
+  // Handle shipment updates
+  socket.on('shipmentUpdate', async (data) => {
+    try {
+      const { shipmentId, updates } = data;
+      
+      // Update the shipment in the database
+      const updatedShipment = await Shipment.findByIdAndUpdate(
+        shipmentId,
+        { $set: updates },
+        { new: true }
+      ).populate('customer', 'name');
+      
+      if (!updatedShipment) {
+        socket.emit('error', { message: 'Shipment not found' });
+        return;
+      }
+      
+      // Broadcast the update to all connected clients
+      io.emit('shipmentUpdated', updatedShipment);
+      
+    } catch (err) {
+      console.error('Socket error:', err);
+      socket.emit('error', { message: err.message });
+    }
   });
 });
 
@@ -323,28 +348,6 @@ app.get('/api/public-diagnostics', (req, res) => {
   }
 });
 
-// Catch-all route handler for SPA - must come after API routes
-if (process.env.NODE_ENV === 'production') {
-  app.get('*', (req, res) => {
-    // First check if this is an API request
-    if (req.path.startsWith('/api/')) {
-      return res.status(404).json({ msg: 'API endpoint not found' });
-    }
-    
-    // Otherwise serve the index.html file
-    const clientPath = path.resolve(__dirname, 'client', 'build', 'index.html');
-    const frontendPath = path.resolve(__dirname, '..', 'frontend', 'build', 'index.html');
-    
-    if (fs.existsSync(clientPath)) {
-      return res.sendFile(clientPath);
-    } else if (fs.existsSync(frontendPath)) {
-      return res.sendFile(frontendPath);
-    } else {
-      return res.status(404).send('Application not found on server');
-    }
-  });
-}
-
 // Error handling middleware
 app.use((err, req, res, next) => {
   // Log error details
@@ -413,127 +416,25 @@ app.use((req, res, next) => {
   if (!req.timedout) next();
 });
 
-// Connect to MongoDB Atlas and start server
-async function startServer() {
-  let dbConnected = false;
-  let reconnectAttempts = 0;
-  const MAX_RECONNECT_ATTEMPTS = 5;
-  
+// Start server
+const startServer = async () => {
   try {
-    // Connect to MongoDB using the dedicated module with fallback strategies
-    console.log('Connecting to MongoDB with robust connection handler...');
+    // Connect to MongoDB
+    await connectDB();
     
-    // Try to connect using the connectDB function with retries
-    while (!dbConnected && reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
-      try {
-        const connection = await connectDB();
-        if (connection) {
-          console.log(`✅ Connected to MongoDB Atlas: ${mongoose.connection.host}`);
-          dbConnected = true;
-          break;
-        }
-      } catch (dbError) {
-        reconnectAttempts++;
-        console.error(`MongoDB connection attempt ${reconnectAttempts} failed:`, dbError.message);
-        if (reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
-          console.log(`Waiting ${reconnectAttempts * 5} seconds before next attempt...`);
-          await new Promise(resolve => setTimeout(resolve, reconnectAttempts * 5000));
-        }
-      }
-    }
-
-    if (!dbConnected) {
-      console.warn('⚠️ Server starting without database connection. Fallback data will be used.');
-      
-      // Set up automatic reconnection attempt with exponential backoff
-      let backoffDelay = 5000; // Start with 5 seconds
-      const reconnectInterval = setInterval(async () => {
-        console.log(`Attempting scheduled database reconnection after ${backoffDelay/1000} seconds...`);
-        try {
-          const result = await connectDB();
-          if (result && mongoose.connection.readyState === 1) {
-            console.log('✅ Successfully reconnected to MongoDB Atlas');
-            dbConnected = true;
-            clearInterval(reconnectInterval);
-          } else {
-            backoffDelay = Math.min(backoffDelay * 2, 300000); // Max 5 minutes
-          }
-        } catch (reconnectErr) {
-          console.error('Scheduled reconnection attempt failed:', reconnectErr.message);
-          backoffDelay = Math.min(backoffDelay * 2, 300000); // Max 5 minutes
-        }
-      }, backoffDelay);
-    }
-
-    // Set up Socket.IO connection handlers
-    io.on('connection', (socket) => {
-      console.log(`Socket ${socket.id} connected`);
-      
-      // Add heartbeat to keep connection alive
-      socket.on('ping', () => {
-        socket.emit('pong');
-      });
-      
-      // Tell the client about the DB status
-      socket.emit('server-status', { 
-        dbConnected,
-        timestamp: new Date(),
-        version: '1.0.1'
-      });
-      
-      socket.on('disconnect', () => {
-        console.log(`Socket ${socket.id} disconnected`);
-      });
-    });
-
-    // Start the HTTP server
+    // Start listening
     httpServer.listen(PORT, () => {
-      console.log(`✅ Server is running on port ${PORT}`);
-      console.log(`✅ Environment: ${process.env.NODE_ENV || 'development'}`);
-      console.log(`✅ Database connected: ${dbConnected ? 'Yes' : 'No - using fallback data'}`);
-      console.log(`✅ CORS origins: ${allowedOrigins.join(', ')}`);
+      console.log(`Server started on port ${PORT}`);
+      if (process.env.NODE_ENV === 'production') {
+        console.log('Running in production mode');
+      } else {
+        console.log('Running in development mode');
+      }
     });
-
-    // Handle server shutdown
-    process.on('SIGTERM', gracefulShutdown);
-    process.on('SIGINT', gracefulShutdown);
   } catch (err) {
     console.error('Failed to start server:', err);
-    
-    // In production, still start the server even if the DB connection fails
-    if (process.env.NODE_ENV === 'production') {
-      console.warn('⚠️ Starting server in production despite database connection failure');
-      httpServer.listen(PORT, () => {
-        console.log(`✅ Server is running on port ${PORT} (without database, using fallback data)`);
-        console.log(`✅ Environment: ${process.env.NODE_ENV || 'development'}`);
-      });
-    } else {
-      process.exit(1);
-    }
-  }
-}
-
-// Graceful shutdown function
-async function gracefulShutdown() {
-  try {
-    console.log('Starting graceful shutdown...');
-    
-    // Close the HTTP server
-    await new Promise((resolve) => {
-      httpServer.close(resolve);
-    });
-    console.log('HTTP server closed');
-    
-    // Close MongoDB connection
-    await mongoose.connection.close();
-    console.log('MongoDB connection closed');
-    
-    process.exit(0);
-  } catch (err) {
-    console.error('Error during shutdown:', err);
     process.exit(1);
   }
-}
+};
 
-// Start the server
 startServer();

@@ -217,16 +217,15 @@ router.put('/:id', authMiddleware, checkConnectionState, async (req, res) => {
   }
 
   try {
-    const { name, contactPerson, email, phone, address, notes } = req.body;
+    const { companyName, contactName, email, phone, awbInstructions } = req.body;
 
     // Build customer object
     const customerFields = {};
-    if (name) customerFields.name = name;
-    if (contactPerson) customerFields.contactPerson = contactPerson;
+    if (companyName) customerFields.companyName = companyName;
+    if (contactName) customerFields.contactName = contactName;
     if (email) customerFields.email = email;
     if (phone) customerFields.phone = phone;
-    if (address) customerFields.address = address;
-    if (notes) customerFields.notes = notes;
+    if (awbInstructions) customerFields.awbInstructions = awbInstructions;
     customerFields.updatedAt = Date.now();
 
     // Update
