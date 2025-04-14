@@ -38,4 +38,14 @@ services:
       - key: DD_APM_ENABLED
         value: "true"
       - key: DD_VERSION
-        value: "1.0.0" 
+        value: "1.0.0"
+    buildFilter:
+      paths:
+        - server.js
+        - package.json
+        - package-lock.json
+        - routes/
+        - models/
+        - middleware/
+        - config/
+        - utils/ 
