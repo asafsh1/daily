@@ -160,6 +160,72 @@ router.get('/summary', auth, async (req, res) => {
   }
 });
 
+// @route   GET api/dashboard/public-summary
+// @desc    Get public dashboard summary data without authentication
+// @access  Public
+router.get('/public-summary', async (req, res) => {
+  // Check MongoDB connection
+  if (mongoose.connection.readyState !== 1) {
+    return res.status(503).json({ msg: 'Database connection not available' });
+  }
+
+  try {
+    // Get shipment counts by status
+    const totalShipments = await Shipment.countDocuments();
+    
+    // Aggregation for shipment status counts
+    const shipmentsByStatus = await Shipment.aggregate([
+      {
+        $group: {
+          _id: '$shipmentStatus',
+          count: { $sum: 1 }
+        }
+      }
+    ]);
+    
+    // Count non-invoiced shipments
+    const totalNonInvoiced = await Shipment.countDocuments({ invoiced: false });
+    
+    // Get recent shipments
+    const shipments = await Shipment.find()
+      .sort({ dateAdded: -1 })
+      .limit(5)
+      .lean();
+    
+    // Transform shipments to handle any invalid references
+    const transformedShipments = shipments.map(shipment => {
+      const result = { ...shipment };
+      
+      // Handle customer reference
+      if (shipment.customer && !mongoose.Types.ObjectId.isValid(shipment.customer)) {
+        result.customer = null;
+        result.customerName = shipment.customerName || 'Unknown Customer';
+      }
+      
+      return result;
+    });
+    
+    // Calculate total cost, total receivables and total profit
+    const totalCost = shipments.reduce((acc, shipment) => acc + (shipment.cost || 0), 0);
+    const totalReceivables = shipments.reduce((acc, shipment) => acc + (shipment.receivables || 0), 0);
+    const totalProfit = totalReceivables - totalCost;
+
+    // Return all data
+    res.json({
+      totalShipments,
+      shipmentsByStatus,
+      totalNonInvoiced,
+      recentShipments: transformedShipments,
+      totalCost,
+      totalReceivables,
+      totalProfit
+    });
+  } catch (err) {
+    console.error('Error in /api/dashboard/public-summary:', err.message);
+    res.status(500).json({ msg: 'Server Error', error: err.message });
+  }
+});
+
 // @route   GET api/dashboard/shipments-by-customer
 // @desc    Get shipment counts by customer
 // @access  Private

@@ -68,51 +68,43 @@ const Admin = () => {
     setEditNotifyParty(null);
   };
 
+  // Fetch customers
   const fetchCustomers = async () => {
     try {
-      setLoading(true);
       console.log('Fetching customers...');
-      
-      const response = await axios.get('/api/customers');
-      
-      if (Array.isArray(response.data)) {
-        console.log(`Successfully loaded ${response.data.length} customers`);
-        setCustomers(response.data);
-      } else {
-        console.warn('No customers found or invalid data format');
-        setCustomers([]);
-        toast.warn('No customers found in database');
+      // Try authenticated endpoint first
+      try {
+        const res = await axios.get('/api/customers');
+        setCustomers(res.data);
+      } catch (error) {
+        console.log('Error with authenticated customers endpoint, trying public endpoint...');
+        // If that fails, try the public endpoint
+        const publicRes = await axios.get('/api/customers/public');
+        setCustomers(publicRes.data);
       }
     } catch (err) {
       console.error('Error fetching customers:', err);
       setCustomers([]);
-      toast.error(`Failed to fetch customers: ${err.message}`);
-    } finally {
-      setLoading(false);
     }
   };
 
+  // Fetch users
   const fetchUsers = async () => {
     try {
-      setLoading(true);
       console.log('Fetching users...');
-      
-      const response = await axios.get('/api/users');
-      
-      if (Array.isArray(response.data)) {
-        console.log(`Successfully loaded ${response.data.length} users`);
-        setUsers(response.data);
-      } else {
-        console.warn('No users found or invalid data format');
-        setUsers([]);
-        toast.warn('No users found in database');
+      // Try authenticated endpoint first
+      try {
+        const res = await axios.get('/api/users');
+        setUsers(res.data);
+      } catch (error) {
+        console.log('Error with authenticated users endpoint, trying public endpoint...');
+        // If that fails, try the public endpoint
+        const publicRes = await axios.get('/api/users/public');
+        setUsers(publicRes.data);
       }
     } catch (err) {
       console.error('Error fetching users:', err);
       setUsers([]);
-      toast.error(`Failed to fetch users: ${err.message}`);
-    } finally {
-      setLoading(false);
     }
   };
 

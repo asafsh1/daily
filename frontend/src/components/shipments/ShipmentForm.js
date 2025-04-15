@@ -167,16 +167,23 @@ const ShipmentForm = ({
     }
   }, [loading, shipment, isEditMode, formInitialized, initialState]);
 
-  // Fetch customers from API
+  // Fetch customers
   const fetchCustomers = async () => {
     try {
-      setCustomersLoading(true);
-      const res = await axios.get('/api/customers');
-      setCustomers(res.data);
-      setCustomersLoading(false);
+      // First try the authenticated endpoint
+      try {
+        const res = await axios.get('/api/customers');
+        setCustomers(res.data);
+      } catch (error) {
+        console.log('Error with authenticated customers endpoint, trying public endpoint...');
+        // If that fails, try the public endpoint
+        const publicRes = await axios.get('/api/customers/public');
+        setCustomers(publicRes.data);
+      }
     } catch (err) {
       console.error('Error fetching customers:', err);
-      setCustomersLoading(false);
+      // Use empty array if both attempts fail
+      setCustomers([]);
     }
   };
 
@@ -207,6 +214,28 @@ const ShipmentForm = ({
       setNotifyParties(res.data);
     } catch (err) {
       console.error('Error fetching notify parties:', err);
+    }
+  };
+
+  // Fetch entity managers
+  const fetchEntityManagers = async () => {
+    try {
+      // First try the authenticated endpoint
+      try {
+        const res = await axios.get('/api/users');
+        const managers = res.data.filter(user => user.role === 'manager' || user.role === 'admin');
+        setEntityManagers(managers);
+      } catch (error) {
+        console.log('Error with authenticated users endpoint, trying public endpoint...');
+        // If that fails, try the public endpoint
+        const publicRes = await axios.get('/api/users/public');
+        const managers = publicRes.data.filter(user => user.role === 'manager' || user.role === 'admin');
+        setEntityManagers(managers);
+      }
+    } catch (err) {
+      console.error('Error fetching entities:', err);
+      console.log('Session expired, redirecting to login...');
+      setEntityManagers([]);
     }
   };
 

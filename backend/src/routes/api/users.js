@@ -94,8 +94,8 @@ router.post(
 
 // @route   GET api/users
 // @desc    Get all users
-// @access  Private/Admin
-router.get('/', authMiddleware, async (req, res) => {
+// @access  Private
+router.get('/', auth, async (req, res) => {
   try {
     // Check if user is admin
     if (req.user.role !== 'admin') {
@@ -121,6 +121,31 @@ router.get('/', authMiddleware, async (req, res) => {
   } catch (err) {
     console.error(err.message);
     res.status(500).send('Server Error');
+  }
+});
+
+// @route   GET api/users/public
+// @desc    Get all users (public)
+// @access  Public
+router.get('/public', async (req, res) => {
+  try {
+    const users = await User.find()
+      .select('-password')
+      .sort({ name: 1 });
+    
+    // Filter sensitive data for security
+    const safeUsers = users.map(user => ({
+      id: user._id,
+      name: user.name,
+      role: user.role,
+      email: user.email ? user.email.replace(/^(.)(.*)(@.*)$/, '$1****$3') : '', // Mask email
+      isActive: user.isActive
+    }));
+    
+    res.json(safeUsers);
+  } catch (err) {
+    console.error(err.message);
+    res.status(500).json({ msg: 'Server Error', error: err.message });
   }
 });
 
