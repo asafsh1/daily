@@ -1,10 +1,9 @@
 services:
   - type: web
     name: daily-shipment-tracker
-    env: node
-    rootDir: backend
+    runtime: node
     buildCommand: npm install
-    startCommand: bash render-start.sh
+    startCommand: node -r ./dns-resolution-debug.js src/server.js
     healthCheckPath: /health
     envVars:
       - key: NODE_ENV
@@ -15,7 +14,7 @@ services:
         sync: false
     buildFilter:
       paths:
-        - server.js
+        - src/server.js
         - package.json
         - package-lock.json
         - index.js
