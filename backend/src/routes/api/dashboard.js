@@ -118,21 +118,27 @@ router.get('/summary', auth, async (req, res) => {
     const recentShipments = await Shipment.find()
       .sort({ createdAt: -1 })
       .limit(5)
-      .populate({
-        path: 'customer',
-        select: 'name',
-        match: { _id: { $exists: true } }
-      })
       .lean();
 
-    // Transform shipments to handle non-ObjectId customer values
-    const transformedShipments = recentShipments.map(shipment => ({
-      ...shipment,
-      customer: {
-        _id: (shipment.customer && shipment.customer._id) || 'N/A',
-        name: (shipment.customer && shipment.customer.name) || shipment.customerName || 'N/A'
+    // Transform shipments to handle missing or invalid customer references
+    const transformedShipments = recentShipments.map(shipment => {
+      // Create a safe customer object that doesn't require ObjectId casting
+      const customerData = {
+        _id: 'N/A',
+        name: 'N/A'
+      };
+
+      // Only try to use customer data if it exists and is valid
+      if (shipment.customer && mongoose.Types.ObjectId.isValid(shipment.customer)) {
+        customerData._id = shipment.customer;
+        customerData.name = shipment.customerName || 'Unknown Customer';
       }
-    }));
+
+      return {
+        ...shipment,
+        customer: customerData
+      };
+    });
 
     // Get financial metrics
     const shipments = await Shipment.find();
@@ -163,15 +169,14 @@ router.get('/summary', auth, async (req, res) => {
 // @access  Private
 router.get('/shipments-by-customer', auth, async (req, res) => {
   try {
-    const shipments = await Shipment.find()
-      .populate('customer', 'name');
+    const shipments = await Shipment.find().lean();
     
     // Process shipments to extract customer data
     const shipmentsByCustomer = {};
     
     shipments.forEach(shipment => {
-      const customerName = (shipment.customer && shipment.customer.name) ? 
-        shipment.customer.name : (shipment.consigneeName || 'Unknown Customer');
+      // Use customerName if available, otherwise use consigneeName or default
+      const customerName = shipment.customerName || shipment.consigneeName || 'Unknown Customer';
       
       if (!shipmentsByCustomer[customerName]) {
         shipmentsByCustomer[customerName] = {
