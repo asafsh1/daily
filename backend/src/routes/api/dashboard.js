@@ -185,6 +185,11 @@ router.get('/shipments-by-customer', auth, async (req, res) => {
     const shipmentsByCustomer = {};
     
     shipments.forEach(shipment => {
+      // Skip shipments with invalid customer IDs
+      if (shipment.customer && !mongoose.Types.ObjectId.isValid(shipment.customer)) {
+        console.log(`Skipping shipment with invalid customer ID: ${shipment._id}`);
+      }
+      
       // Use customerName if available, otherwise use consigneeName or default
       const customerName = shipment.customerName || shipment.consigneeName || 'Unknown Customer';
       
