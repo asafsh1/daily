@@ -98,6 +98,11 @@ const generateSampleDailyStats = () => {
 // @desc    Get dashboard summary data
 // @access  Private
 router.get('/summary', auth, async (req, res) => {
+  // Check MongoDB connection
+  if (mongoose.connection.readyState !== 1) {
+    return res.status(503).json({ msg: 'Database connection not available' });
+  }
+  
   try {
     // Get total shipments
     const totalShipments = await Shipment.countDocuments();
@@ -303,7 +308,7 @@ router.get('/shipments-by-date', auth, async (req, res) => {
     res.json(result);
   } catch (err) {
     console.error('Error in /api/dashboard/shipments-by-date:', err.message);
-    res.status(500).send('Server Error');
+    res.status(500).json({ msg: 'Server Error', error: err.message });
   }
 });
 
@@ -416,12 +421,21 @@ router.get('/diagnostics', async (req, res) => {
         status: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected',
         host: mongoose.connection.host || 'unknown',
         name: mongoose.connection.name || 'unknown'
-      },
-      counts: {
-        shipments: await Shipment.countDocuments(),
-        users: await User.countDocuments()
       }
     };
+    
+    // Only attempt database operations if connected
+    if (mongoose.connection.readyState === 1) {
+      diagnostics.counts = {
+        shipments: await Shipment.countDocuments(),
+        users: await User.countDocuments()
+      };
+    } else {
+      diagnostics.counts = {
+        shipments: 'N/A - Database not connected',
+        users: 'N/A - Database not connected'
+      };
+    }
     
     res.json(diagnostics);
   } catch (err) {
