@@ -6,7 +6,7 @@ services:
     plan: free
     rootDir: backend
     buildCommand: npm install
-    startCommand: node index.js
+    startCommand: npm start
     healthCheckPath: /health
     nodeVersion: 18.x
     envVars:

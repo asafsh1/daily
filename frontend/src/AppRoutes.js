@@ -22,16 +22,26 @@ const AppRoutes = () => {
     const getInitialToken = async () => {
       if (!localStorage.getItem('token')) {
         try {
-          // First try the get-dev-token endpoint
+          // First try the get-dev-token endpoint with GET method
           try {
-            const response = await axios.post('/api/auth/get-dev-token');
+            const response = await axios.get('/api/auth/get-dev-token');
             if (response.data && response.data.token) {
-              console.log('Got token from auth/get-dev-token');
+              console.log('Got token from auth/get-dev-token (GET)');
               localStorage.setItem('token', response.data.token);
               return;
             }
           } catch (err) {
-            console.log('Failed to get token from auth/get-dev-token, trying public-diagnostics');
+            console.log('Failed to get token with GET, trying POST...');
+            try {
+              const postResponse = await axios.post('/api/auth/get-dev-token');
+              if (postResponse.data && postResponse.data.token) {
+                console.log('Got token from auth/get-dev-token (POST)');
+                localStorage.setItem('token', postResponse.data.token);
+                return;
+              }
+            } catch (postErr) {
+              console.log('Failed to get token from auth/get-dev-token, trying public-diagnostics');
+            }
           }
           
           // If that fails, try the public-diagnostics endpoint
