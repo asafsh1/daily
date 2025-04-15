@@ -124,8 +124,8 @@ router.get('/summary', auth, async (req, res) => {
     const transformedShipments = recentShipments.map(shipment => {
       // Create a safe customer object that doesn't require ObjectId casting
       const customerData = {
-        _id: 'N/A',
-        name: 'N/A'
+        _id: null,  // Using null instead of 'N/A' to avoid ObjectId casting issues
+        name: 'Unknown Customer'
       };
 
       // Only try to use customer data if it exists and is valid
@@ -168,6 +168,11 @@ router.get('/summary', auth, async (req, res) => {
 // @desc    Get shipment counts by customer
 // @access  Private
 router.get('/shipments-by-customer', auth, async (req, res) => {
+  // Check MongoDB connection
+  if (mongoose.connection.readyState !== 1) {
+    return res.status(503).json({ msg: 'Database connection not available' });
+  }
+  
   try {
     const shipments = await Shipment.find().lean();
     
@@ -306,6 +311,11 @@ router.get('/shipments-by-date', auth, async (req, res) => {
 // @desc    Get shipments that are delivered but not invoiced for over 7 days
 // @access  Public (for testing, will be private later)
 router.get('/overdue-non-invoiced', async (req, res) => {
+  // Check MongoDB connection
+  if (mongoose.connection.readyState !== 1) {
+    return res.status(503).json({ msg: 'Database connection not available' });
+  }
+  
   try {
     const sevenDaysAgo = moment().subtract(7, 'days').toDate();
     
@@ -315,13 +325,26 @@ router.get('/overdue-non-invoiced', async (req, res) => {
       dateAdded: { $lt: sevenDaysAgo }
     })
     .sort({ dateAdded: 1 })
-    .populate('customer', 'name')
     .lean();
     
-    res.json(overdueShipments);
+    // Transform shipments to handle invalid customer references
+    const transformedShipments = overdueShipments.map(shipment => {
+      // Process shipment data to ensure safe customer handling
+      const result = { ...shipment };
+      
+      // Handle customer reference if needed
+      if (shipment.customer && !mongoose.Types.ObjectId.isValid(shipment.customer)) {
+        result.customer = null;
+        result.customerName = shipment.customerName || 'Unknown Customer';
+      }
+      
+      return result;
+    });
+    
+    res.json(transformedShipments);
   } catch (err) {
     console.error('Error fetching overdue non-invoiced shipments:', err.message);
-    res.status(500).send('Server Error');
+    res.status(500).json({ msg: 'Server Error', error: err.message });
   }
 });
 
@@ -337,12 +360,32 @@ router.get('/detailed-shipments', auth, async (req, res) => {
     const shipments = await Shipment.find()
       .sort({ dateAdded: -1 })
       .limit(100)
-      .populate('customer', 'name')
-      .populate('legs')
       .lean();
     
+    // Process shipments to handle any potential invalid references
+    const processedShipments = shipments.map(shipment => {
+      const processed = { ...shipment };
+      
+      // Handle customer reference
+      if (shipment.customer) {
+        if (!mongoose.Types.ObjectId.isValid(shipment.customer)) {
+          processed.customer = null;
+          processed.customerName = shipment.customerName || 'Unknown Customer';
+        }
+      }
+      
+      // Handle legs references if needed
+      if (Array.isArray(shipment.legs)) {
+        processed.legs = shipment.legs.filter(leg => 
+          leg && mongoose.Types.ObjectId.isValid(leg)
+        );
+      }
+      
+      return processed;
+    });
+    
     res.json({
-      shipments,
+      shipments: processedShipments,
       pagination: {
         total: await Shipment.countDocuments(),
         limit: 100,
@@ -351,7 +394,7 @@ router.get('/detailed-shipments', auth, async (req, res) => {
     });
   } catch (err) {
     console.error('Error in /api/dashboard/detailed-shipments:', err.message);
-    res.status(500).send('Server Error');
+    res.status(500).json({ msg: 'Server Error', error: err.message });
   }
 });
 
