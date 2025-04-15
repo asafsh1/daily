@@ -39,9 +39,10 @@ instance.interceptors.response.use(
       // Handle specific error cases
       switch (error.response.status) {
         case 401:
-          // Unauthorized - clear token and redirect to login
+          // Unauthorized - clear token and show notification
           localStorage.removeItem('token');
-          window.location.href = '/login';
+          console.error('Authentication error: You need to be logged in');
+          toast.error('Authentication error: Please try refreshing the page');
           break;
         case 503:
           // Service Unavailable - likely database connection issue

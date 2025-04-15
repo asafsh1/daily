@@ -6,9 +6,9 @@ services:
     plan: free
     rootDir: backend
     buildCommand: npm install
-    startCommand: node src/server.js
+    startCommand: node index.js
     healthCheckPath: /health
-    nodeVersion: 18.19.1
+    nodeVersion: 18.x
     envVars:
       - key: NODE_ENV
         value: production
@@ -46,6 +46,9 @@ services:
         - src/**/*
         - package.json
         - package-lock.json
+        - index.js
+        - server.js
+        - dns-resolution-debug.js
         - routes/
         - models/
         - middleware/
