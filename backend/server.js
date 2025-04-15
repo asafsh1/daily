@@ -4,9 +4,36 @@ const cors = require('cors');
 const path = require('path');
 const mongoose = require('mongoose');
 const { connect: connectDB } = require('./mongodb-connect');
+const http = require('http');
+const socketIo = require('socket.io');
 
 // Initialize Express
 const app = express();
+const server = http.createServer(app);
+const io = socketIo(server, {
+  cors: {
+    origin: process.env.ALLOWED_ORIGINS 
+      ? process.env.ALLOWED_ORIGINS.split(',')
+      : [
+          'https://veleka-shipments-daily-report.netlify.app',
+          'https://daily-shipments.netlify.app',
+          'https://daily-tracking.netlify.app',
+          'https://daily-admin.netlify.app',
+          'http://localhost:3000'
+        ],
+    methods: ['GET', 'POST'],
+    credentials: true
+  }
+});
+
+// Socket.IO connection handling
+io.on('connection', (socket) => {
+  console.log('Client connected');
+  
+  socket.on('disconnect', () => {
+    console.log('Client disconnected');
+  });
+});
 
 // CORS configuration
 const allowedOrigins = process.env.ALLOWED_ORIGINS 
@@ -72,7 +99,7 @@ const PORT = process.env.PORT || 5001;
 const startServer = async () => {
   try {
     await connectDB();
-    app.listen(PORT, () => console.log(`Server started on port ${PORT}`));
+    server.listen(PORT, () => console.log(`Server started on port ${PORT}`));
   } catch (err) {
     console.error('Failed to start server:', err.message);
     process.exit(1);

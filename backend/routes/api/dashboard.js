@@ -121,27 +121,18 @@ router.get('/summary', auth, async (req, res) => {
       .populate({
         path: 'customer',
         select: 'name',
-        match: { _id: { $type: 'objectId' } }
+        match: { _id: { $exists: true } }
       })
       .lean();
 
     // Transform shipments to handle non-ObjectId customer values
-    const transformedShipments = recentShipments.map(shipment => {
-      let customerData;
-      if (shipment.customer && typeof shipment.customer === 'object') {
-        customerData = shipment.customer;
-      } else {
-        customerData = {
-          _id: shipment.customer || 'N/A',
-          name: shipment.customerName || 'N/A'
-        };
+    const transformedShipments = recentShipments.map(shipment => ({
+      ...shipment,
+      customer: {
+        _id: (shipment.customer && shipment.customer._id) || 'N/A',
+        name: (shipment.customer && shipment.customer.name) || shipment.customerName || 'N/A'
       }
-
-      return {
-        ...shipment,
-        customer: customerData
-      };
-    });
+    }));
 
     // Get financial metrics
     const shipments = await Shipment.find();
