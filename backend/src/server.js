@@ -87,9 +87,32 @@ app.use('/api/*', (req, res) => {
 
 // Serve static assets in production
 if (process.env.NODE_ENV === 'production') {
-  app.use(express.static('frontend/build'));
-  app.get('*', (req, res) => {
-    res.sendFile(path.resolve(__dirname, 'frontend', 'build', 'index.html'));
+  // Check if frontend/build exists
+  const frontendBuildPath = path.resolve(__dirname, '..', 'frontend', 'build');
+  if (require('fs').existsSync(frontendBuildPath)) {
+    app.use(express.static(frontendBuildPath));
+    app.get('*', (req, res) => {
+      res.sendFile(path.resolve(frontendBuildPath, 'index.html'));
+    });
+  } else {
+    console.log('Frontend build folder not found, API-only mode');
+    // Add a health check endpoint
+    app.get('/health', (req, res) => {
+      res.status(200).send('OK');
+    });
+    // Add a default route
+    app.get('/', (req, res) => {
+      res.status(200).json({ msg: 'Daily Shipment Tracker API' });
+    });
+  }
+} else {
+  // Add a health check endpoint
+  app.get('/health', (req, res) => {
+    res.status(200).send('OK');
+  });
+  // Add a default route
+  app.get('/', (req, res) => {
+    res.status(200).json({ msg: 'Daily Shipment Tracker API (Development)' });
   });
 }
 
