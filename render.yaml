@@ -6,7 +6,7 @@ services:
     plan: free
     rootDir: backend
     buildCommand: npm install
-    startCommand: npm start
+    startCommand: chmod +x render-start.sh && ./render-start.sh
     healthCheckPath: /health
     nodeVersion: 18.x
     envVars:

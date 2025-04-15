@@ -68,8 +68,8 @@ const getAirlinesWithRetry = async (maxRetries = 3) => {
 
 // @route    GET api/airlines
 // @desc     Get all airlines
-// @access   Private
-router.get('/', auth, checkConnectionState, async (req, res) => {
+// @access   Public
+router.get('/', checkConnectionState, async (req, res) => {
   // Add CORS headers explicitly for this route
   res.header('Access-Control-Allow-Origin', req.headers.origin);
   res.header('Access-Control-Allow-Methods', 'GET, OPTIONS');
