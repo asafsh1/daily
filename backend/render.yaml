@@ -3,7 +3,7 @@ services:
     name: daily-shipment-tracker
     runtime: node
     buildCommand: npm install
-    startCommand: bash render-start.sh
+    startCommand: node index.js
     healthCheckPath: /health
     envVars:
       - key: NODE_ENV
@@ -20,4 +20,5 @@ services:
         - package-lock.json
         - dns-resolution-debug.js
         - render-start.sh
-        - connection-test.js 
+        - connection-test.js
+        - index.js 
