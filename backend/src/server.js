@@ -102,7 +102,11 @@ if (process.env.NODE_ENV === 'production') {
     });
     // Add a default route
     app.get('/', (req, res) => {
-      res.status(200).json({ msg: 'Daily Shipment Tracker API' });
+      res.status(200).json({ 
+        msg: 'Daily Shipment Tracker API',
+        version: '1.0.0',
+        endpoints: ['/api/shipments', '/api/dashboard', '/api/auth', '/api/users']
+      });
     });
   }
 } else {
@@ -112,7 +116,11 @@ if (process.env.NODE_ENV === 'production') {
   });
   // Add a default route
   app.get('/', (req, res) => {
-    res.status(200).json({ msg: 'Daily Shipment Tracker API (Development)' });
+    res.status(200).json({ 
+      msg: 'Daily Shipment Tracker API (Development)',
+      version: '1.0.0',
+      endpoints: ['/api/shipments', '/api/dashboard', '/api/auth', '/api/users']
+    });
   });
 }
 

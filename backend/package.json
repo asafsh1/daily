@@ -2,16 +2,17 @@
   "name": "shipment-tracker-server",
   "version": "1.0.0",
   "description": "Backend server for shipment tracking application",
-  "main": "server.js",
+  "main": "index.js",
   "engines": {
     "node": "18.x"
   },
   "scripts": {
-    "start": "node -r ./dns-resolution-debug.js server.js",
+    "start": "node index.js",
+    "start:server": "node -r ./dns-resolution-debug.js server.js",
     "dev": "nodemon -r ./dns-resolution-debug.js server.js",
     "seed:airlines": "node scripts/seedAirlines.js",
     "build": "echo 'Backend build completed'",
-    "deploy": "NODE_ENV=production node server.js"
+    "deploy": "NODE_ENV=production node index.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
