@@ -104,49 +104,40 @@ router.get('/summary', auth, async (req, res) => {
   }
   
   try {
-    // Get total shipments
+    // Get shipment counts by status
     const totalShipments = await Shipment.countDocuments();
     
-    // Get shipments by status
-    const shipmentsByStatus = {
-      draft: await Shipment.countDocuments({ shipmentStatus: 'Pending' }),
-      confirmed: await Shipment.countDocuments({ shipmentStatus: 'Confirmed' }),
-      intransit: await Shipment.countDocuments({ shipmentStatus: 'In Transit' }),
-      delivered: await Shipment.countDocuments({ shipmentStatus: 'Arrived' }),
-      completed: await Shipment.countDocuments({ shipmentStatus: 'Completed' })
-    };
+    // Aggregation for shipment status counts
+    const shipmentsByStatus = await Shipment.aggregate([
+      {
+        $group: {
+          _id: '$shipmentStatus',
+          count: { $sum: 1 }
+        }
+      }
+    ]);
     
-    // Get total non-invoiced shipments
+    // Count non-invoiced shipments
     const totalNonInvoiced = await Shipment.countDocuments({ invoiced: false });
     
-    // Get recent shipments (last 5)
-    const recentShipments = await Shipment.find()
-      .sort({ createdAt: -1 })
+    // Get recent shipments
+    const shipments = await Shipment.find()
+      .sort({ dateAdded: -1 })
       .limit(5)
       .lean();
-
-    // Transform shipments to handle missing or invalid customer references
-    const transformedShipments = recentShipments.map(shipment => {
-      // Create a safe customer object that doesn't require ObjectId casting
-      const customerData = {
-        _id: null,  // Using null instead of 'N/A' to avoid ObjectId casting issues
-        name: 'Unknown Customer'
-      };
-
-      // Only try to use customer data if it exists and is valid
-      if (shipment.customer && mongoose.Types.ObjectId.isValid(shipment.customer)) {
-        customerData._id = shipment.customer;
-        customerData.name = shipment.customerName || 'Unknown Customer';
+    
+    // Transform shipments to handle any invalid references
+    const transformedShipments = shipments.map(shipment => {
+      const result = { ...shipment };
+      
+      // Handle customer reference
+      if (shipment.customer && !mongoose.Types.ObjectId.isValid(shipment.customer)) {
+        result.customer = null;
+        result.customerName = shipment.customerName || 'Unknown Customer';
       }
-
-      return {
-        ...shipment,
-        customer: customerData
-      };
+      
+      return result;
     });
-
-    // Get financial metrics
-    const shipments = await Shipment.find();
     
     // Calculate total cost, total receivables and total profit
     const totalCost = shipments.reduce((acc, shipment) => acc + (shipment.cost || 0), 0);
@@ -239,7 +230,7 @@ router.get('/monthly-stats', checkConnectionState, async (req, res) => {
         $gte: startDate.toDate(), 
         $lte: endDate.toDate() 
       }
-    });
+    }).lean();
     
     // Initialize monthly data structure
     const monthlyData = {};
@@ -256,6 +247,13 @@ router.get('/monthly-stats', checkConnectionState, async (req, res) => {
     
     // Process shipments to aggregate monthly data
     shipments.forEach(shipment => {
+      // Skip shipments with invalid references if needed
+      if (shipment.customer && !mongoose.Types.ObjectId.isValid(shipment.customer)) {
+        console.log(`Processing shipment with invalid customer ID: ${shipment._id}`);
+        // Continue processing but with null customer reference
+        shipment.customer = null;
+      }
+      
       const monthKey = moment(shipment.dateAdded).format('MMM YYYY');
       if (monthlyData[monthKey]) {
         monthlyData[monthKey].shipmentCount += 1;
@@ -287,12 +285,19 @@ router.get('/shipments-by-date', auth, async (req, res) => {
   
   try {
     const shipments = await Shipment.find()
-      .select('dateAdded receivables')
-      .sort('dateAdded');
+      .select('dateAdded receivables customer customerName')
+      .sort('dateAdded')
+      .lean();
     
     const shipmentsByDate = {};
     
     shipments.forEach(shipment => {
+      // Handle invalid customer ID
+      if (shipment.customer && !mongoose.Types.ObjectId.isValid(shipment.customer)) {
+        shipment.customer = null;
+        shipment.customerName = shipment.customerName || 'Unknown Customer';
+      }
+      
       const date = moment(shipment.dateAdded).format('YYYY-MM-DD');
       if (!shipmentsByDate[date]) {
         shipmentsByDate[date] = {
@@ -431,10 +436,30 @@ router.get('/diagnostics', async (req, res) => {
     
     // Only attempt database operations if connected
     if (mongoose.connection.readyState === 1) {
-      diagnostics.counts = {
-        shipments: await Shipment.countDocuments(),
-        users: await User.countDocuments()
-      };
+      try {
+        diagnostics.counts = {
+          shipments: await Shipment.countDocuments(),
+          users: await User.countDocuments()
+        };
+        
+        // Add information about invalid ObjectIds if any exist
+        const invalidCustomerIds = await Shipment.countDocuments({
+          customer: { $exists: true, $ne: null },
+          $where: "!this.customer.match(/^[0-9a-fA-F]{24}$/)"
+        });
+        
+        if (invalidCustomerIds > 0) {
+          diagnostics.warnings = {
+            invalidCustomerIds: invalidCustomerIds
+          };
+        }
+      } catch (dbErr) {
+        diagnostics.counts = {
+          error: dbErr.message,
+          shipments: 'Error counting',
+          users: 'Error counting'
+        };
+      }
     } else {
       diagnostics.counts = {
         shipments: 'N/A - Database not connected',

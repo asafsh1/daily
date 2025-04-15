@@ -51,7 +51,14 @@ console.log('Allowed Origins:', allowedOrigins);
 // Configure CORS
 const corsOptions = {
   origin: function (origin, callback) {
-    if (!origin || allowedOrigins.includes(origin) || origin.endsWith('.netlify.app') || process.env.NODE_ENV !== 'production') {
+    // Allow all origins in development mode
+    if (process.env.NODE_ENV !== 'production') {
+      callback(null, true);
+      return;
+    }
+    
+    // In production, check against allowed origins
+    if (!origin || allowedOrigins.includes(origin) || origin.endsWith('.netlify.app')) {
       callback(null, true);
     } else {
       console.warn(`CORS blocked request from origin: ${origin}`);
@@ -67,6 +74,59 @@ const corsOptions = {
 // Initialize Middleware
 app.use(express.json({ extended: false }));
 app.use(cors(corsOptions));
+
+// Public endpoints that don't require authentication
+app.get('/api/public-diagnostics', async (req, res) => {
+  try {
+    const diagnostics = {
+      server: {
+        status: 'online',
+        timestamp: new Date(),
+        version: '1.0.0',
+        environment: process.env.NODE_ENV || 'development',
+      },
+      database: {
+        readyState: mongoose.connection.readyState,
+        status: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected'
+      }
+    };
+
+    // Generate a demo token (only for non-production)
+    if (process.env.NODE_ENV !== 'production') {
+      const jwt = require('jsonwebtoken');
+      const payload = {
+        user: {
+          id: 'demo-user',
+          name: 'Demo User',
+          email: 'demo@example.com',
+          role: 'viewer'
+        }
+      };
+      
+      const token = jwt.sign(
+        payload,
+        process.env.JWT_SECRET || 'developmentsecret',
+        { expiresIn: '1 day' }
+      );
+      
+      diagnostics.auth = {
+        devToken: token,
+        note: 'This token is for development purposes only.'
+      };
+    }
+    
+    res.json(diagnostics);
+  } catch (err) {
+    console.error('Error fetching public diagnostics:', err.message);
+    res.status(500).json({
+      error: err.message,
+      server: {
+        status: 'error',
+        timestamp: new Date()
+      }
+    });
+  }
+});
 
 // Define Routes
 app.use('/api/auth', require('./routes/api/auth'));
