@@ -154,4 +154,54 @@ router.post('/logout', auth, (req, res) => {
   res.json({ msg: 'Logged out successfully' });
 });
 
+// @route   POST api/get-dev-token
+// @desc    Get a development token for non-production environments
+// @access  Public
+router.post('/get-dev-token', async (req, res) => {
+  try {
+    // Only allow in non-production environments
+    if (process.env.NODE_ENV === 'production') {
+      // In production, use a demo token with limited permissions
+      const demoPayload = {
+        user: {
+          id: 'demo-user',
+          name: 'Demo User',
+          email: 'demo@example.com',
+          role: 'viewer'
+        }
+      };
+      
+      const demoToken = jwt.sign(
+        demoPayload,
+        process.env.JWT_SECRET || 'defaultsecretfordemo',
+        { expiresIn: '1h' }
+      );
+      
+      return res.json({ token: demoToken });
+    }
+    
+    // For development, use admin credentials
+    const payload = {
+      user: {
+        id: DEFAULT_ADMIN.id,
+        name: DEFAULT_ADMIN.name,
+        email: DEFAULT_ADMIN.email,
+        role: DEFAULT_ADMIN.role
+      }
+    };
+
+    const token = jwt.sign(
+      payload,
+      process.env.JWT_SECRET || config.get('jwtSecret') || 'developmentsecret',
+      { expiresIn: '5 days' }
+    );
+
+    // Send token in response
+    res.json({ token });
+  } catch (err) {
+    console.error('Dev token generation error:', err.message);
+    res.status(500).json({ msg: 'Server error' });
+  }
+});
+
 module.exports = router; 

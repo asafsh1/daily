@@ -459,4 +459,59 @@ router.get('/diagnostics', async (req, res) => {
   }
 });
 
+// @route   GET api/public-diagnostics
+// @desc    Get public diagnostics and dev token
+// @access  Public
+router.get('/public-diagnostics', async (req, res) => {
+  try {
+    const diagnostics = {
+      server: {
+        status: 'online',
+        timestamp: new Date(),
+        version: '1.0.0',
+        environment: process.env.NODE_ENV || 'development',
+      },
+      database: {
+        readyState: mongoose.connection.readyState,
+        status: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected'
+      }
+    };
+
+    // Generate a demo token (only for non-production)
+    if (process.env.NODE_ENV !== 'production') {
+      const jwt = require('jsonwebtoken');
+      const payload = {
+        user: {
+          id: 'demo-user',
+          name: 'Demo User',
+          email: 'demo@example.com',
+          role: 'viewer'
+        }
+      };
+      
+      const token = jwt.sign(
+        payload,
+        process.env.JWT_SECRET || 'developmentsecret',
+        { expiresIn: '1 day' }
+      );
+      
+      diagnostics.auth = {
+        devToken: token,
+        note: 'This token is for development purposes only.'
+      };
+    }
+    
+    res.json(diagnostics);
+  } catch (err) {
+    console.error('Error fetching public diagnostics:', err.message);
+    res.status(500).json({
+      error: err.message,
+      server: {
+        status: 'error',
+        timestamp: new Date()
+      }
+    });
+  }
+});
+
 module.exports = router; 
