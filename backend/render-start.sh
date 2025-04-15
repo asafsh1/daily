@@ -21,15 +21,25 @@ echo "NODE_ENV: $NODE_ENV"
 echo "PORT: $PORT"
 echo "MONGODB_URI exists: $(if [ -n "$MONGODB_URI" ]; then echo "Yes"; else echo "No"; fi)"
 
+# Check if index.js or server.js exists
+if [ -f "src/index.js" ]; then
+  SERVER_FILE="src/index.js"
+elif [ -f "src/server.js" ]; then
+  SERVER_FILE="src/server.js"
+else
+  echo "Error: Neither src/index.js nor src/server.js found"
+  exit 1
+fi
+
 # Run connection test
 echo -e "\n--- Running MongoDB connection test ---"
 node connection-test.js
 
 # If test passes, start the server
 if [ $? -eq 0 ]; then
-  echo -e "\n--- Connection test successful, starting server ---"
-  node server.js
+  echo -e "\n--- Connection test successful, starting server with $SERVER_FILE ---"
+  node -r ./dns-resolution-debug.js $SERVER_FILE
 else
-  echo -e "\n--- Connection test failed, but will attempt to start server anyway ---"
-  node server.js
+  echo -e "\n--- Connection test failed, but will attempt to start server anyway with $SERVER_FILE ---"
+  node -r ./dns-resolution-debug.js $SERVER_FILE
 fi 
