@@ -90,12 +90,8 @@ const Dashboard = ({
         setDetailedShipments(shipmentsDetails || []);
       } catch (err) {
         console.error('Error fetching dashboard data:', err.message);
-        if (err.response?.status === 401) {
-          window.location.href = '/login';
-        } else {
-          toast.error('Error loading dashboard data. Please try refreshing the page.');
-          setError(err.message);
-        }
+        toast.error('Error loading dashboard data. Please try refreshing the page.');
+        setError(err.message);
       } finally {
         setLoading(false);
       }
