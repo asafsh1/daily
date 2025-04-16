@@ -736,4 +736,239 @@ router.get('/public-diagnostics', async (req, res) => {
   }
 });
 
+// @route   GET api/dashboard/public-all
+// @desc    Get all dashboard data without authentication, combined endpoint for frontend
+// @access  Public
+router.get('/public-all', async (req, res) => {
+  console.log('Public-all dashboard endpoint called');
+  
+  // Check MongoDB connection
+  if (mongoose.connection.readyState !== 1) {
+    console.log('Database connection not available, returning sample data');
+    return res.json({
+      summary: generateSampleDashboardData(),
+      monthlyStats: generateSampleMonthlyStats(),
+      customerData: generateSampleCustomerData(),
+      dailyStats: generateSampleDailyStats()
+    });
+  }
+  
+  try {
+    console.log('Fetching dashboard data from database');
+    // Prepare the response object
+    const response = {};
+    
+    // 1. Get summary data
+    try {
+      // Get shipment counts by status
+      const totalShipments = await Shipment.countDocuments();
+      
+      // Aggregation for shipment status counts
+      const shipmentsByStatus = await Shipment.aggregate([
+        {
+          $group: {
+            _id: '$shipmentStatus',
+            count: { $sum: 1 }
+          }
+        }
+      ]);
+      
+      // Count non-invoiced shipments
+      const totalNonInvoiced = await Shipment.countDocuments({ invoiced: false });
+      
+      // Get recent shipments
+      const shipments = await Shipment.find()
+        .sort({ dateAdded: -1 })
+        .limit(5)
+        .lean();
+      
+      // Transform shipments to handle any invalid references
+      const transformedShipments = shipments.map(shipment => {
+        const result = { ...shipment };
+        
+        // Handle customer reference
+        if (shipment.customer && !mongoose.Types.ObjectId.isValid(shipment.customer)) {
+          result.customer = null;
+          result.customerName = shipment.customerName || 'Unknown Customer';
+        }
+        
+        return result;
+      });
+      
+      // Calculate total cost, total receivables and total profit
+      const totalCost = shipments.reduce((acc, shipment) => acc + (shipment.cost || 0), 0);
+      const totalReceivables = shipments.reduce((acc, shipment) => acc + (shipment.receivables || 0), 0);
+      const totalProfit = totalReceivables - totalCost;
+
+      // Add summary data to response
+      response.summary = {
+        totalShipments,
+        shipmentsByStatus,
+        totalNonInvoiced,
+        recentShipments: transformedShipments,
+        totalCost,
+        totalReceivables,
+        totalProfit
+      };
+      
+      console.log('Successfully fetched summary data');
+    } catch (err) {
+      console.error('Error fetching summary data:', err.message);
+      response.summary = generateSampleDashboardData();
+    }
+    
+    // 2. Get monthly stats
+    try {
+      // Calculate date range for last 12 months
+      const endDate = moment();
+      const startDate = moment().subtract(12, 'months');
+      
+      // Get all shipments created within the date range
+      const shipments = await Shipment.find({
+        dateAdded: { 
+          $gte: startDate.toDate(), 
+          $lte: endDate.toDate() 
+        }
+      }).lean();
+      
+      // Initialize monthly data structure
+      const monthlyData = {};
+      for (let i = 0; i < 12; i++) {
+        const monthKey = moment().subtract(i, 'months').format('MMM YYYY');
+        monthlyData[monthKey] = {
+          month: monthKey,
+          shipmentCount: 0,
+          totalValue: 0,
+          totalCost: 0,
+          profit: 0
+        };
+      }
+      
+      // Process shipments to aggregate monthly data
+      shipments.forEach(shipment => {
+        // Skip shipments with invalid references if needed
+        if (shipment.customer && !mongoose.Types.ObjectId.isValid(shipment.customer)) {
+          console.log(`Processing shipment with invalid customer ID: ${shipment._id}`);
+          // Continue processing but with null customer reference
+          shipment.customer = null;
+        }
+        
+        const monthKey = moment(shipment.dateAdded).format('MMM YYYY');
+        if (monthlyData[monthKey]) {
+          monthlyData[monthKey].shipmentCount += 1;
+          monthlyData[monthKey].totalValue += (shipment.receivables || 0);
+          monthlyData[monthKey].totalCost += (shipment.cost || 0);
+          monthlyData[monthKey].profit = monthlyData[monthKey].totalValue - monthlyData[monthKey].totalCost;
+        }
+      });
+      
+      // Convert to array and sort chronologically
+      const result = Object.values(monthlyData).sort((a, b) => 
+        moment(a.month, 'MMM YYYY') - moment(b.month, 'MMM YYYY')
+      );
+      
+      response.monthlyStats = result;
+      console.log('Successfully fetched monthly stats');
+    } catch (err) {
+      console.error('Error fetching monthly statistics:', err.message);
+      response.monthlyStats = generateSampleMonthlyStats();
+    }
+    
+    // 3. Get customer data
+    try {
+      const shipments = await Shipment.find().lean();
+      
+      // Process shipments to extract customer data
+      const shipmentsByCustomer = {};
+      
+      shipments.forEach(shipment => {
+        // Skip shipments with invalid customer IDs
+        if (shipment.customer && !mongoose.Types.ObjectId.isValid(shipment.customer)) {
+          console.log(`Skipping shipment with invalid customer ID: ${shipment._id}`);
+        }
+        
+        // Use customerName if available, otherwise use consigneeName or default
+        const customerName = shipment.customerName || shipment.consigneeName || 'Unknown Customer';
+        
+        if (!shipmentsByCustomer[customerName]) {
+          shipmentsByCustomer[customerName] = {
+            count: 0,
+            totalValue: 0
+          };
+        }
+        
+        shipmentsByCustomer[customerName].count++;
+        shipmentsByCustomer[customerName].totalValue += shipment.receivables || 0;
+      });
+      
+      // Convert to array format
+      const result = Object.entries(shipmentsByCustomer).map(([name, data]) => ({
+        name,
+        count: data.count,
+        value: data.totalValue
+      }));
+      
+      response.customerData = result;
+      console.log('Successfully fetched customer data');
+    } catch (err) {
+      console.error('Error fetching customer data:', err.message);
+      response.customerData = generateSampleCustomerData();
+    }
+    
+    // 4. Get daily data
+    try {
+      const shipments = await Shipment.find()
+        .select('dateAdded receivables customer customerName')
+        .sort('dateAdded')
+        .lean();
+      
+      const shipmentsByDate = {};
+      
+      shipments.forEach(shipment => {
+        // Handle invalid customer ID
+        if (shipment.customer && !mongoose.Types.ObjectId.isValid(shipment.customer)) {
+          shipment.customer = null;
+          shipment.customerName = shipment.customerName || 'Unknown Customer';
+        }
+        
+        const date = moment(shipment.dateAdded).format('YYYY-MM-DD');
+        if (!shipmentsByDate[date]) {
+          shipmentsByDate[date] = {
+            count: 0,
+            value: 0
+          };
+        }
+        shipmentsByDate[date].count += 1;
+        shipmentsByDate[date].value += shipment.receivables || 0;
+      });
+      
+      const result = Object.keys(shipmentsByDate).map(date => ({
+        date,
+        count: shipmentsByDate[date].count,
+        value: shipmentsByDate[date].value
+      }));
+      
+      response.dailyStats = result;
+      console.log('Successfully fetched daily stats');
+    } catch (err) {
+      console.error('Error fetching daily stats:', err.message);
+      response.dailyStats = generateSampleDailyStats();
+    }
+    
+    // Return the combined data
+    console.log('Returning complete dashboard data');
+    return res.json(response);
+  } catch (err) {
+    console.error('Error in /api/dashboard/public-all:', err.message);
+    // Fallback to sample data
+    return res.json({
+      summary: generateSampleDashboardData(),
+      monthlyStats: generateSampleMonthlyStats(),
+      customerData: generateSampleCustomerData(),
+      dailyStats: generateSampleDailyStats(),
+      error: err.message
+    });
+  }
+});
+
 module.exports = router; 

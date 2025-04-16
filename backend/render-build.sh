@@ -4,43 +4,65 @@
 # Exit on error
 set -e
 
-# Print Node.js version
+# Print environment information
+echo "=========== ENVIRONMENT INFO ==========="
 echo "Node.js version: $(node --version)"
 echo "NPM version: $(npm --version)"
-
-# Print current directory
 echo "Current directory: $(pwd)"
-echo "Directory contents:"
+echo "Current user: $(whoami)"
+
+# Create a detailed directory listing
+echo "=========== DIRECTORY CONTENTS ==========="
 ls -la
 
 # Install dependencies
-echo "Installing dependencies..."
+echo "=========== INSTALLING DEPENDENCIES ==========="
 npm install
 
-# Create the destination directory
-echo "Creating destination directory..."
+# Create the expected directory structure
+echo "=========== SETTING UP PROJECT STRUCTURE ==========="
 mkdir -p /opt/render/project/src
 
-# Copy all files to the expected location
-echo "Copying all files to /opt/render/project/src/..."
-cp -r * /opt/render/project/src/
+# Be very explicit about what we're copying
+echo "=========== COPYING PROJECT FILES ==========="
+cp -v package.json /opt/render/project/src/
+cp -v package-lock.json /opt/render/project/src/
+cp -v index.js /opt/render/project/src/
+cp -v server.js /opt/render/project/src/
+cp -v dns-resolution-debug.js /opt/render/project/src/
 
-# Create symbolic links to be extra sure
-echo "Creating symbolic links for critical files..."
-ln -sf $(pwd)/index.js /opt/render/project/src/index.js
-ln -sf $(pwd)/server.js /opt/render/project/src/server.js
-ln -sf $(pwd)/package.json /opt/render/project/src/package.json
+# Create directories and copy contents
+echo "=========== COPYING DIRECTORIES ==========="
+mkdir -p /opt/render/project/src/src
+cp -rv src/* /opt/render/project/src/src/
 
-# Add debug messages
-echo "Verifying file location after copy..."
-ls -la /opt/render/project/src/
+# Also directly copy the node_modules directory
+echo "=========== COPYING NODE_MODULES ==========="
+mkdir -p /opt/render/project/src/node_modules
+cp -r node_modules/* /opt/render/project/src/node_modules/
 
-echo "Checking for index.js specifically:"
-ls -la /opt/render/project/src/index.js || echo "index.js not found!"
+# Also run npm install in the target directory to be safe
+echo "=========== INSTALLING DEPENDENCIES IN TARGET DIRECTORY ==========="
+cd /opt/render/project/src && npm install
 
-# Make sure we have the correct path
-echo "Current working directory path: $(pwd)"
-echo "Destination directory path: /opt/render/project/src"
+# Double-check if files exists in target directory
+echo "=========== VERIFYING PROJECT STRUCTURE ==========="
+cd /opt/render/project/src
+echo "Target directory contents:"
+ls -la
+
+echo "Checking for key files:"
+[ -f index.js ] && echo "✓ index.js exists" || echo "✗ index.js MISSING"
+[ -f server.js ] && echo "✓ server.js exists" || echo "✗ server.js MISSING"
+[ -f package.json ] && echo "✓ package.json exists" || echo "✗ package.json MISSING"
+[ -d src ] && echo "✓ src directory exists" || echo "✗ src directory MISSING"
+[ -d node_modules ] && echo "✓ node_modules directory exists" || echo "✗ node_modules directory MISSING"
+
+echo "Testing node path resolution:"
+node -e "console.log('Node can execute JavaScript')"
+node -e "try { require('./index.js'); console.log('✓ index.js can be required'); } catch(e) { console.error('✗ Error requiring index.js:', e.message); }"
 
 # Print success message
-echo "Backend build completed successfully" 
+echo "=========== BUILD COMPLETED ==========="
+echo "Backend build completed successfully"
+echo "Current directory: $(pwd)" 
