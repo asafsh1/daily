@@ -104,6 +104,19 @@ router.get('/', authMiddleware, checkConnectionState, async (req, res) => {
   }
 });
 
+// @route   GET api/customers/public
+// @desc    Get all customers (public)
+// @access  Public
+router.get('/public', async (req, res) => {
+  try {
+    const customers = await Customer.find().sort({ name: 1 });
+    res.json(customers);
+  } catch (err) {
+    console.error('Error fetching customers (public endpoint):', err.message);
+    res.status(500).json({ msg: 'Server Error', error: err.message });
+  }
+});
+
 // @route    GET api/customers/:id
 // @desc     Get customer by ID
 // @access   Private
@@ -282,19 +295,6 @@ router.delete('/:id', authMiddleware, checkConnectionState, async (req, res) => 
     if (err.kind === 'ObjectId') {
       return res.status(404).json({ msg: 'Customer not found' });
     }
-    res.status(500).json({ msg: 'Server Error', error: err.message });
-  }
-});
-
-// @route   GET api/customers/public
-// @desc    Get all customers (public)
-// @access  Public
-router.get('/public', async (req, res) => {
-  try {
-    const customers = await Customer.find().sort({ name: 1 });
-    res.json(customers);
-  } catch (err) {
-    console.error('Error fetching customers (public endpoint):', err.message);
     res.status(500).json({ msg: 'Server Error', error: err.message });
   }
 });
