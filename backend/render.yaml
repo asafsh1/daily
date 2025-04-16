@@ -3,7 +3,7 @@ services:
     name: daily-shipment-tracker
     runtime: node
     buildCommand: chmod +x render-build.sh && ./render-build.sh
-    startCommand: node index.js
+    startCommand: cd /opt/render/project/src && node index.js
     healthCheckPath: /health
     envVars:
       - key: NODE_ENV

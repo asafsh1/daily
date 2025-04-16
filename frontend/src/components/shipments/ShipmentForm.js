@@ -63,6 +63,7 @@ const ShipmentForm = ({
   const [shippers, setShippers] = useState([]);
   const [consignees, setConsignees] = useState([]);
   const [notifyParties, setNotifyParties] = useState([]);
+  const [entityManagers, setEntityManagers] = useState([]);
 
   const [selectedShipper, setSelectedShipper] = useState(null);
   const [selectedConsignee, setSelectedConsignee] = useState(null);
@@ -224,18 +225,18 @@ const ShipmentForm = ({
       try {
         const res = await axios.get('/api/users');
         const managers = res.data.filter(user => user.role === 'manager' || user.role === 'admin');
-        setEntityManagers(managers);
+        // setEntityManagers(managers);
       } catch (error) {
         console.log('Error with authenticated users endpoint, trying public endpoint...');
         // If that fails, try the public endpoint
         const publicRes = await axios.get('/api/users/public');
         const managers = publicRes.data.filter(user => user.role === 'manager' || user.role === 'admin');
-        setEntityManagers(managers);
+        // setEntityManagers(managers);
       }
     } catch (err) {
       console.error('Error fetching entities:', err);
       console.log('Session expired, redirecting to login...');
-      setEntityManagers([]);
+      // setEntityManagers([]);
     }
   };
 
@@ -258,6 +259,10 @@ const ShipmentForm = ({
         // Fetch users
         const usersRes = await axios.get('/api/users');
         setUsers(usersRes.data);
+        
+        // Set entity managers too
+        const managers = usersRes.data.filter(user => user.role === 'manager' || user.role === 'admin');
+        setEntityManagers(managers);
       } catch (error) {
         console.error('Error fetching entities:', error);
         if (error.response?.status === 401) {
