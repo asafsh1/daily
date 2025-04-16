@@ -5,7 +5,7 @@ services:
     plan: starter
     rootDir: backend
     buildCommand: npm install
-    startCommand: node index.js
+    startCommand: node server.js
     healthCheckPath: /health
     envVars:
       - key: NODE_ENV
@@ -14,6 +14,8 @@ services:
         sync: false
       - key: JWT_SECRET
         sync: false
+      - key: ALLOWED_ORIGINS
+        value: https://veleka-shipments-daily-report.netlify.app,https://daily-shipments.netlify.app,https://daily-tracking.netlify.app,https://daily-admin.netlify.app
     buildFilter:
       paths:
         - src/server.js

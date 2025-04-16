@@ -51,6 +51,12 @@ console.log('Allowed Origins:', allowedOrigins);
 // Configure CORS
 const corsOptions = {
   origin: function (origin, callback) {
+    // Allow requests with no origin (like mobile apps, curl, etc)
+    if (!origin) {
+      callback(null, true);
+      return;
+    }
+    
     // Allow all origins in development mode
     if (process.env.NODE_ENV !== 'production') {
       callback(null, true);
@@ -58,7 +64,7 @@ const corsOptions = {
     }
     
     // In production, check against allowed origins
-    if (!origin || allowedOrigins.includes(origin) || origin.endsWith('.netlify.app')) {
+    if (allowedOrigins.includes(origin) || origin.endsWith('.netlify.app')) {
       callback(null, true);
     } else {
       console.warn(`CORS blocked request from origin: ${origin}`);
@@ -70,6 +76,9 @@ const corsOptions = {
   credentials: true,
   maxAge: 86400
 };
+
+// Handle preflight OPTIONS requests explicitly
+app.options('*', cors(corsOptions));
 
 // Initialize Middleware
 app.use(express.json({ extended: false }));
