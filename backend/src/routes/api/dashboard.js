@@ -562,50 +562,35 @@ router.get('/overdue-non-invoiced', async (req, res) => {
 
 // @route   GET api/dashboard/detailed-shipments
 // @desc    Get detailed shipment data for charts
-// @access  Private
-router.get('/detailed-shipments', auth, async (req, res) => {
-  if (mongoose.connection.readyState !== 1) {
-    return res.status(503).json({ msg: 'Database connection not available' });
-  }
-  
+// @access  Private/Admin/Manager
+router.get('/detailed-shipments', [auth, checkAdmin], async (req, res) => {
   try {
     const shipments = await Shipment.find()
-      .sort({ dateAdded: -1 })
-      .limit(100)
+      .sort({ createdAt: -1 })
+      .populate('customer', 'name')
       .lean();
-    
-    // Process shipments to handle any potential invalid references
-    const processedShipments = shipments.map(shipment => {
-      const processed = { ...shipment };
-      
-      // Handle customer reference
-      if (shipment.customer) {
-        if (!mongoose.Types.ObjectId.isValid(shipment.customer)) {
-          processed.customer = null;
-          processed.customerName = shipment.customerName || 'Unknown Customer';
-        }
+
+    // Process shipments for charts
+    const processedData = shipments.map(shipment => {
+      // Log and handle invalid customer references
+      if (shipment.customer === null && shipment.customerId) {
+        console.warn(`Invalid customer reference detected in shipment ${shipment._id} - customerId: ${shipment.customerId}`);
       }
       
-      // Handle legs references if needed
-      if (Array.isArray(shipment.legs)) {
-        processed.legs = shipment.legs.filter(leg => 
-          leg && mongoose.Types.ObjectId.isValid(leg)
-        );
-      }
-      
-      return processed;
+      return {
+        id: shipment._id,
+        customer: shipment.customer ? shipment.customer.name : 'Unknown Customer',
+        amount: shipment.totalCost || 0,
+        status: shipment.status,
+        date: shipment.createdAt,
+        invoiced: shipment.invoiced,
+        paid: shipment.paid
+      };
     });
-    
-    res.json({
-      shipments: processedShipments,
-      pagination: {
-        total: await Shipment.countDocuments(),
-        limit: 100,
-        page: 1
-      }
-    });
+
+    res.json(processedData);
   } catch (err) {
-    console.error('Error in /api/dashboard/detailed-shipments:', err.message);
+    console.error('Error in detailed-shipments route:', err);
     res.status(500).json({ msg: 'Server Error', error: err.message });
   }
 });
