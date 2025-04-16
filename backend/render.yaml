@@ -3,7 +3,7 @@ services:
     name: daily-shipment-tracker
     runtime: node
     buildCommand: chmod +x render-build.sh && ./render-build.sh
-    startCommand: cd /opt/render/project/src && node index.js
+    startCommand: chmod +x render-start-debug.sh && ./render-start-debug.sh
     healthCheckPath: /health
     envVars:
       - key: NODE_ENV
@@ -22,4 +22,5 @@ services:
         - dns-resolution-debug.js
         - server.js
         - index.js
-        - render-build.sh 
+        - render-build.sh
+        - render-start-debug.sh 
