@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const auth = require('../../middleware/auth');
+const { checkAdmin } = require('../../middleware/auth');
 const { check, validationResult } = require('express-validator');
 const mongoose = require('mongoose');
 const moment = require('moment');
@@ -562,12 +563,21 @@ router.get('/overdue-non-invoiced', async (req, res) => {
 
 // @route   GET api/dashboard/detailed-shipments
 // @desc    Get detailed shipment data for charts
-// @access  Private/Admin/Manager
-router.get('/detailed-shipments', [auth, checkAdmin], async (req, res) => {
+// @access  Private
+router.get('/detailed-shipments', auth, async (req, res) => {
+  if (mongoose.connection.readyState !== 1) {
+    return res.status(503).json({ msg: 'Database connection not available' });
+  }
+  
   try {
+    // Check if user has sufficient privileges (admin or manager)
+    if (req.user.role !== 'admin' && req.user.role !== 'manager') {
+      return res.status(403).json({ msg: 'Access denied: Admin or Manager role required' });
+    }
+    
     const shipments = await Shipment.find()
-      .sort({ createdAt: -1 })
-      .populate('customer', 'name')
+      .sort({ dateAdded: -1 })
+      .limit(100)
       .lean();
 
     // Process shipments for charts
@@ -577,14 +587,24 @@ router.get('/detailed-shipments', [auth, checkAdmin], async (req, res) => {
         console.warn(`Invalid customer reference detected in shipment ${shipment._id} - customerId: ${shipment.customerId}`);
       }
       
+      // Handle invalid customer ID
+      let customerName = 'Unknown Customer';
+      if (shipment.customer) {
+        if (!mongoose.Types.ObjectId.isValid(shipment.customer)) {
+          shipment.customer = null;
+        } else {
+          customerName = shipment.customerName || 'Unknown Customer';
+        }
+      }
+      
       return {
         id: shipment._id,
-        customer: shipment.customer ? shipment.customer.name : 'Unknown Customer',
-        amount: shipment.totalCost || 0,
-        status: shipment.status,
-        date: shipment.createdAt,
-        invoiced: shipment.invoiced,
-        paid: shipment.paid
+        customer: customerName,
+        amount: shipment.totalCost || shipment.cost || 0,
+        status: shipment.status || shipment.shipmentStatus,
+        date: shipment.createdAt || shipment.dateAdded,
+        invoiced: shipment.invoiced || false,
+        paid: shipment.paid || false
       };
     });
 

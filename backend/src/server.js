@@ -48,28 +48,36 @@ const allowedOrigins = process.env.ALLOWED_ORIGINS
 
 console.log('Allowed Origins:', allowedOrigins);
 
-// Configure CORS
+// Configure CORS - Using a more permissive approach for troubleshooting
 const corsOptions = {
   origin: function (origin, callback) {
-    // Allow requests with no origin (like mobile apps, curl, etc)
+    // In all environments, allow requests without origin (like mobile apps or curl)
     if (!origin) {
       callback(null, true);
       return;
     }
     
-    // Allow all origins in development mode
+    // Allow all .netlify.app domains
+    if (origin.endsWith('.netlify.app')) {
+      callback(null, true);
+      return;
+    }
+    
+    // Check specific allowed origins
+    if (allowedOrigins.includes(origin)) {
+      callback(null, true);
+      return;
+    }
+    
+    // In development, allow all origins
     if (process.env.NODE_ENV !== 'production') {
       callback(null, true);
       return;
     }
     
-    // In production, check against allowed origins
-    if (allowedOrigins.includes(origin) || origin.endsWith('.netlify.app')) {
-      callback(null, true);
-    } else {
-      console.warn(`CORS blocked request from origin: ${origin}`);
-      callback(new Error('Not allowed by CORS'));
-    }
+    // If none of the above apply and in production, block the request
+    console.warn(`CORS blocked request from origin: ${origin}`);
+    callback(new Error('Not allowed by CORS'));
   },
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'x-auth-token', 'Origin', 'Accept'],
@@ -77,12 +85,12 @@ const corsOptions = {
   maxAge: 86400
 };
 
-// Handle preflight OPTIONS requests explicitly
-app.options('*', cors(corsOptions));
-
 // Initialize Middleware
 app.use(express.json({ extended: false }));
 app.use(cors(corsOptions));
+
+// Add a pre-flight route handler for OPTIONS requests
+app.options('*', cors(corsOptions));
 
 // Public endpoints that don't require authentication
 app.get('/api/public-diagnostics', async (req, res) => {

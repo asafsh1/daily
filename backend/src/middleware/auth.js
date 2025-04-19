@@ -14,13 +14,17 @@ const addCorsHeaders = (req, res) => {
         'http://localhost:3000'
       ];
 
-  if (process.env.NODE_ENV !== 'production' || !origin || allowedOrigins.includes(origin) || origin.endsWith('.netlify.app')) {
+  // Always add CORS headers for all environments
+  if (!origin) {
+    res.header('Access-Control-Allow-Origin', '*');
+  } else if (origin.endsWith('.netlify.app') || allowedOrigins.includes(origin) || process.env.NODE_ENV !== 'production') {
     res.header('Access-Control-Allow-Origin', origin);
-    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, x-auth-token, Origin, Accept');
-    res.header('Access-Control-Allow-Credentials', 'true');
-    res.header('Access-Control-Max-Age', '86400');
   }
+  
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, x-auth-token, Origin, Accept');
+  res.header('Access-Control-Allow-Credentials', 'true');
+  res.header('Access-Control-Max-Age', '86400');
 };
 
 // Helper function to verify token
@@ -94,4 +98,28 @@ module.exports = async function (req, res, next) {
     res.clearCookie('token');
     res.status(401).json({ msg: 'Token is not valid' });
   }
+}; 
+
+// Check if user is admin or manager middleware
+module.exports.checkAdmin = function(req, res, next) {
+  // Add CORS headers
+  addCorsHeaders(req, res);
+  
+  if (req.method === 'OPTIONS') {
+    return res.status(204).end();
+  }
+  
+  // User must already be authenticated
+  if (!req.user) {
+    return res.status(401).json({ msg: 'Authentication required' });
+  }
+  
+  // Check if user has admin or manager role
+  if (req.user.role === 'admin' || req.user.role === 'manager') {
+    return next();
+  }
+  
+  // If we get here, user doesn't have required role
+  console.log(`Access denied: user ${req.user.id} with role ${req.user.role} attempted to access admin resource`);
+  return res.status(403).json({ msg: 'Access denied: Admin or Manager role required' });
 }; 
