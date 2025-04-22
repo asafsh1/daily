@@ -210,6 +210,49 @@ router.put(
   }
 );
 
+// @route   PUT api/shipmentLegs/:id/status
+// @desc    Update status of a shipment leg
+// @access  Public
+router.put('/:id/status', async (req, res) => {
+  try {
+    const { status } = req.body;
+    
+    if (!status) {
+      return res.status(400).json({ msg: 'Status is required' });
+    }
+    
+    // Find leg
+    let shipmentLeg = await ShipmentLeg.findById(req.params.id);
+    
+    if (!shipmentLeg) {
+      return res.status(404).json({ msg: 'Shipment leg not found' });
+    }
+    
+    // Update status
+    shipmentLeg.status = status;
+    
+    // Add to status history
+    if (!shipmentLeg.statusHistory) {
+      shipmentLeg.statusHistory = [];
+    }
+    
+    shipmentLeg.statusHistory.push({
+      status: status,
+      timestamp: new Date()
+    });
+    
+    await shipmentLeg.save();
+    
+    // Update the shipment status based on legs
+    await updateShipmentStatusFromLegs(shipmentLeg.shipmentId);
+    
+    res.json(shipmentLeg);
+  } catch (err) {
+    console.error('Error updating leg status:', err.message);
+    res.status(500).json({ msg: 'Server Error', error: err.message });
+  }
+});
+
 // @route    DELETE api/shipment-legs/:shipmentId/:legId
 // @desc     Delete a shipment leg
 // @access   Public
