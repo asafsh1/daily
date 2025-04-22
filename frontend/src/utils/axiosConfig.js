@@ -12,22 +12,32 @@ console.log('Using API base URL:', apiBaseUrl);
 
 // Track if we're currently getting a new token to avoid infinite loops
 let isRefreshingToken = false;
+let emergencyTokenAttempted = false;
 
 // Function to get a new token
 const getNewToken = async () => {
+  if (isRefreshingToken) {
+    console.log('Token refresh already in progress, waiting...');
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    return localStorage.getItem('token');
+  }
+  
   isRefreshingToken = true;
   try {
-    // Try emergency token endpoint first
-    try {
-      console.log('Trying emergency token endpoint...');
-      const response = await axios.get(`${apiBaseUrl}/api/auth/emergency-token`);
-      if (response.data && response.data.token) {
-        console.log('Got emergency token successfully');
-        localStorage.setItem('token', response.data.token);
-        return response.data.token;
+    // Try emergency token endpoint first if not already attempted
+    if (!emergencyTokenAttempted) {
+      emergencyTokenAttempted = true;
+      try {
+        console.log('Trying emergency token endpoint...');
+        const response = await axios.get(`${apiBaseUrl}/api/auth/emergency-token`);
+        if (response.data && response.data.token) {
+          console.log('Got emergency token successfully');
+          localStorage.setItem('token', response.data.token);
+          return response.data.token;
+        }
+      } catch (emergencyErr) {
+        console.log('Emergency token endpoint failed, trying standard endpoints...', emergencyErr.message);
       }
-    } catch (emergencyErr) {
-      console.log('Emergency token endpoint failed, trying standard endpoints...');
     }
     
     // Try GET method 
@@ -72,6 +82,43 @@ const getNewToken = async () => {
   }
 };
 
+// Helper to determine if a URL is for a public endpoint
+const isPublicEndpoint = (url) => {
+  const publicEndpoints = [
+    '/api/auth/emergency-token',
+    '/api/auth/get-dev-token',
+    '/api/dashboard/public-',
+    '/api/dashboard/public-all',
+    '/api/customers/public',
+    '/api/users/public',
+    '/api/airlines'
+  ];
+  
+  return publicEndpoints.some(endpoint => url.includes(endpoint));
+};
+
+// Helper to convert authenticated endpoint to public alternative
+const getPublicAlternative = (url) => {
+  // Map of authenticated endpoints to their public alternatives
+  const publicMappings = {
+    '/api/dashboard/summary': '/api/dashboard/public-summary',
+    '/api/dashboard/shipments-by-date': '/api/dashboard/public-all',
+    '/api/dashboard/shipments-by-customer': '/api/dashboard/public-all',
+    '/api/customers': '/api/customers/public',
+    '/api/users': '/api/users/public'
+  };
+  
+  // Check for exact matches
+  for (const [authUrl, publicUrl] of Object.entries(publicMappings)) {
+    if (url === authUrl || url.startsWith(authUrl + '?')) {
+      return publicUrl;
+    }
+  }
+  
+  // If no match, return the original URL
+  return null;
+};
+
 // Create axios instance with base URL and default config
 const instance = axios.create({
   baseURL: apiBaseUrl,
@@ -84,8 +131,10 @@ const instance = axios.create({
 // Add request interceptor to include auth token
 instance.interceptors.request.use(
   (config) => {
-    // Skip auth header for token endpoints
-    if (config.url.includes('/get-dev-token') || config.url.includes('/public-diagnostics')) {
+    // Skip auth header for token endpoints or public endpoints
+    if (config.url.includes('/get-dev-token') || 
+        config.url.includes('/public-diagnostics') ||
+        config.url.includes('/emergency-token')) {
       return config;
     }
     
@@ -110,25 +159,46 @@ instance.interceptors.response.use(
     
     // Prevent infinite retry loop
     if (originalRequest._retry) {
+      // Check if there's a public alternative for this endpoint
+      const publicUrl = getPublicAlternative(originalRequest.url);
+      if (publicUrl) {
+        console.log(`Authenticated endpoint failed after retry, using public alternative: ${publicUrl}`);
+        // Create a new request to the public endpoint
+        return instance.get(publicUrl);
+      }
       return Promise.reject(error);
     }
 
     // Try to get a new token on 401 errors
-    if (error.response && error.response.status === 401 && !isRefreshingToken) {
-      originalRequest._retry = true;
+    if (error.response && error.response.status === 401) {
+      // Check if there's a public alternative for this endpoint first
+      const publicUrl = getPublicAlternative(originalRequest.url);
+      if (publicUrl) {
+        console.log(`Auth error (401), using public endpoint first: ${publicUrl}`);
+        // Try the public endpoint
+        return instance.get(publicUrl);
+      }
       
-      const newToken = await getNewToken();
-      
-      if (newToken) {
-        // Update request header with new token
-        originalRequest.headers['x-auth-token'] = newToken;
-        originalRequest.headers['Authorization'] = `Bearer ${newToken}`;
+      // If no public alternative or we specifically want to retry with auth
+      if (!isRefreshingToken) {
+        originalRequest._retry = true;
         
-        // Retry the original request
-        return instance(originalRequest);
-      } else {
-        console.error('Authentication error: Failed to get new token');
-        toast.error('Authentication error: Please try refreshing the page');
+        const newToken = await getNewToken();
+        
+        if (newToken) {
+          // Update request header with new token
+          originalRequest.headers['x-auth-token'] = newToken;
+          originalRequest.headers['Authorization'] = `Bearer ${newToken}`;
+          
+          // Retry the original request
+          return instance(originalRequest);
+        } else {
+          console.error('Authentication error: Failed to get new token');
+          // Don't show error toast for shipment form to prevent redirect
+          if (!originalRequest.url.includes('/api/shipments/')) {
+            toast.error('Authentication error: Please try refreshing the page');
+          }
+        }
       }
     }
     

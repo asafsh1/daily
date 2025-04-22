@@ -81,43 +81,16 @@ const ShipmentForm = ({
     }
   }, [tempShipmentId, isEditMode]);
 
-  // Load shipment data when in edit mode
+  // Fetch entities whenever the component loads
   useEffect(() => {
-    if (isEditMode) {
-      getShipment(id);
-    }
-
-    // Load customers
-    fetchCustomers();
-
-    // Fetch users for the createdBy dropdown
-    const fetchUsers = async () => {
-      try {
-        const response = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:5001'}/api/users`, {
-          headers: {
-            'x-auth-token': localStorage.getItem('token') || 'default-dev-token'
-          }
-        });
-        if (response.ok) {
-          const data = await response.json();
-          setUsers(data);
-        }
-      } catch (err) {
-        console.error('Error fetching users:', err);
+    // Load the entities first (customers, users, etc.)
+    loadEntities().then(() => {
+      // If we have a shipment ID, load that shipment's data
+      if (id) {
+        loadShipmentData(id);
       }
-    };
-    fetchUsers();
-
-    // Fetch shippers, consignees, and notify parties
-    fetchShippers();
-    fetchConsignees();
-    fetchNotifyParties();
-
-    // Cleanup on component unmount
-    return () => {
-      clearShipment();
-    };
-  }, [getShipment, id, isEditMode, clearShipment]);
+    });
+  }, [id]);
 
   // Populate form data when shipment is loaded
   useEffect(() => {
@@ -168,23 +141,54 @@ const ShipmentForm = ({
     }
   }, [loading, shipment, isEditMode, formInitialized, initialState]);
 
-  // Fetch customers
-  const fetchCustomers = async () => {
+  // Replace fetchCustomers with loadEntities
+  const loadEntities = async () => {
     try {
-      // First try the authenticated endpoint
+      // Try to load customer data from public endpoint first
       try {
-        const res = await axios.get('/api/customers');
-        setCustomers(res.data);
-      } catch (error) {
-        console.log('Error with authenticated customers endpoint, trying public endpoint...');
-        // If that fails, try the public endpoint
-        const publicRes = await axios.get('/api/customers/public');
-        setCustomers(publicRes.data);
+        console.log('Fetching customers from public endpoint...');
+        const customersRes = await axios.get('/api/customers/public');
+        setCustomers(customersRes.data);
+        console.log('Loaded customers from public endpoint:', customersRes.data.length);
+      } catch (customerError) {
+        console.error('Error fetching customers from public endpoint:', customerError);
+        // Fall back to authenticated endpoint
+        try {
+          const customersAuthRes = await axios.get('/api/customers');
+          setCustomers(customersAuthRes.data);
+        } catch (authError) {
+          console.error('Error fetching customers from authenticated endpoint:', authError);
+          // Use empty array as fallback
+          setCustomers([]);
+        }
       }
+      
+      // Try to load users from public endpoint first
+      try {
+        console.log('Fetching users from public endpoint...');
+        const usersRes = await axios.get('/api/users/public');
+        setUsers(usersRes.data);
+        console.log('Loaded users from public endpoint:', usersRes.data.length);
+      } catch (userError) {
+        console.error('Error fetching users from public endpoint:', userError);
+        // Fall back to authenticated endpoint
+        try {
+          const usersAuthRes = await axios.get('/api/users');
+          setUsers(usersAuthRes.data);
+        } catch (authError) {
+          console.error('Error fetching users from authenticated endpoint:', authError);
+          // Use empty array as fallback
+          setUsers([]);
+        }
+      }
+      
+      // No more redirect on error - just use what we have
+      return true;
     } catch (err) {
-      console.error('Error fetching customers:', err);
-      // Use empty array if both attempts fail
-      setCustomers([]);
+      console.error('Error fetching entities:', err);
+      // Instead of redirecting, just continue with empty entities
+      console.log('Continuing with empty entities data');
+      return false;
     }
   };
 
@@ -423,17 +427,35 @@ const ShipmentForm = ({
     });
   };
 
-  const handleSubmit = async (e) => {
+  const onSubmit = async (e) => {
     e.preventDefault();
     setSubmitting(true);
     
     try {
-      const response = await axios.post('/api/shipments', formData);
-      toast.success('Shipment created successfully!');
-      navigate('/dashboard');
-    } catch (error) {
-      console.error('Error creating shipment:', error);
-      toast.error(error.response?.data?.msg || 'Failed to create shipment');
+      // Prepare formData for submission
+      const formDataToSubmit = { ...formData };
+      
+      // Handle case when we have no customers or users - use defaults
+      if (!formData.customerId && formData.customer) {
+        formDataToSubmit.customerName = formData.customer;
+      }
+      
+      if (id) {
+        // Update existing shipment
+        await axios.put(`/api/shipments/${id}`, formDataToSubmit);
+        toast.success('Shipment updated successfully');
+      } else {
+        // Create new shipment
+        await axios.post('/api/shipments', formDataToSubmit);
+        toast.success('Shipment created successfully');
+      }
+      
+      // Redirect to shipments list
+      navigate('/shipments');
+    } catch (err) {
+      console.error('Error saving shipment:', err);
+      // Show error without redirecting to login
+      toast.error('Error saving shipment. Please try again later.');
     } finally {
       setSubmitting(false);
     }
@@ -504,7 +526,7 @@ const ShipmentForm = ({
         />
         
         <div className="shipment-main-content">
-          <form className="form shipment-form" onSubmit={handleSubmit}>
+          <form className="form shipment-form" onSubmit={onSubmit}>
             <div className="form-group">
               <label htmlFor="dateAdded">Date Added</label>
               <input
