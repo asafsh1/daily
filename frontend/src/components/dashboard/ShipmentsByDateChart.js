@@ -43,6 +43,42 @@ const formatFullDate = (dateString) => {
 
 // Group data by day
 const processDataByDay = (data) => {
+  console.log("Processing data:", data);
+  
+  // Handle case when data is null or undefined
+  if (!data) {
+    console.log("No data provided, using empty array");
+    data = [];
+  }
+  
+  // Handle case when data comes from public-all endpoint (object structure)
+  if (data && typeof data === 'object' && !Array.isArray(data)) {
+    console.log("Data is an object, not an array - extracting daily stats");
+    // If data is from the public-all endpoint with dailyStats property
+    if (data.dailyStats && Array.isArray(data.dailyStats)) {
+      data = data.dailyStats;
+      console.log("Using dailyStats array:", data);
+    } else {
+      // Convert object to array if needed
+      console.log("Converting object to array format");
+      data = Object.entries(data).map(([key, value]) => {
+        if (key === 'summary' || key === 'customerData' || key === 'monthlyStats') {
+          return null; // Skip these keys
+        }
+        return {
+          date: key,
+          count: value.count || 0
+        };
+      }).filter(Boolean); // Remove null values
+    }
+  }
+  
+  // Ensure data is an array
+  if (!Array.isArray(data)) {
+    console.log("Data is not an array after processing, using empty array");
+    data = [];
+  }
+
   // If data is already in daily format, just ensure it's sorted
   if (data.length > 0 && data[0].date) {
     return [...data].sort((a, b) => new Date(a.date) - new Date(b.date));
@@ -61,7 +97,8 @@ const processDataByDay = (data) => {
     const dateStr = date.toISOString().split('T')[0];
     
     // Try to find actual data for this date
-    const matchingData = data.find(item => {
+    const matchingData = Array.isArray(data) ? data.find(item => {
+      if (!item) return false;
       if (item.date) {
         const itemDate = new Date(item.date);
         return itemDate.toISOString().split('T')[0] === dateStr;
@@ -74,14 +111,14 @@ const processDataByDay = (data) => {
       }
       
       return false;
-    });
+    }) : null;
 
     let count = 0;
     if (matchingData) {
       count = matchingData.count || 0;
-    } else if (data.length > 0 && data[0].month) {
+    } else if (Array.isArray(data) && data.length > 0 && data[0].month) {
       // If we have monthly data, distribute it evenly across days
-      const monthData = data.find(item => item.month === (date.getMonth() + 1));
+      const monthData = data.find(item => item && item.month === (date.getMonth() + 1));
       if (monthData) {
         const daysInMonth = new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate();
         count = Math.max(Math.round(monthData.count / daysInMonth), 0);

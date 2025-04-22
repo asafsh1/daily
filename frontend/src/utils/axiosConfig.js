@@ -105,7 +105,8 @@ const getPublicAlternative = (url) => {
     '/api/dashboard/shipments-by-date': '/api/dashboard/public-all',
     '/api/dashboard/shipments-by-customer': '/api/dashboard/public-all',
     '/api/customers': '/api/customers/public',
-    '/api/users': '/api/users/public'
+    '/api/users': '/api/users/public',
+    '/api/shipments': '/api/shipments/public'
   };
   
   // Check for exact matches
@@ -113,6 +114,13 @@ const getPublicAlternative = (url) => {
     if (url === authUrl || url.startsWith(authUrl + '?')) {
       return publicUrl;
     }
+  }
+  
+  // Special handling for shipment details with ID
+  if (url.match(/\/api\/shipments\/[a-zA-Z0-9]+/)) {
+    // Extract the ID from the URL
+    const id = url.split('/').pop();
+    return `/api/shipments/public/${id}`;
   }
   
   // If no match, return the original URL

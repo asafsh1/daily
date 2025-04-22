@@ -402,4 +402,38 @@ router.post('/', [
   }
 });
 
+// @route   GET api/shipments/public/:id
+// @desc    Get shipment by ID without authentication
+// @access  Public
+router.get('/public/:id', async (req, res) => {
+  try {
+    // Validate if id is a valid ObjectId
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      return res.status(400).json({ msg: 'Invalid shipment ID format' });
+    }
+    
+    // Get shipment by ID
+    const shipment = await Shipment.findById(req.params.id)
+      .populate('customer', ['name', 'company', 'email'])
+      .lean();
+    
+    if (!shipment) {
+      return res.status(404).json({ msg: 'Shipment not found' });
+    }
+    
+    // Get legs associated with this shipment
+    const legs = await ShipmentLeg.find({ shipment: req.params.id })
+      .sort({ legOrder: 1 })
+      .lean();
+    
+    // Add legs to shipment object
+    shipment.legs = legs;
+    
+    res.json(shipment);
+  } catch (err) {
+    console.error(`Error fetching shipment with ID ${req.params.id}:`, err.message);
+    res.status(500).json({ msg: 'Server error' });
+  }
+});
+
 module.exports = router; 
