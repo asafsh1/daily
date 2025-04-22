@@ -27,8 +27,28 @@ ChartJS.register(
 const ShipmentsByCustomerChart = ({ data }) => {
   const [chartType, setChartType] = useState('bar');
   
+  // Handle case when data is not an array
+  const processedData = React.useMemo(() => {
+    // If data is null or undefined, return empty array
+    if (!data) return [];
+    
+    // If data is not an array but has a customerData property, use that
+    if (!Array.isArray(data) && data.customerData && Array.isArray(data.customerData)) {
+      console.log('Using customerData property from data object');
+      return data.customerData;
+    }
+    
+    // If data is not an array, convert to empty array
+    if (!Array.isArray(data)) {
+      console.error('ShipmentsByCustomerChart: Expected array but received:', typeof data);
+      return [];
+    }
+    
+    return data;
+  }, [data]);
+  
   // Sort data by count (highest first)
-  const sortedData = [...data].sort((a, b) => b.count - a.count);
+  const sortedData = [...processedData].sort((a, b) => b.count - a.count);
   
   // Calculate total shipments for percentages
   const totalShipments = sortedData.reduce((sum, item) => sum + (item.count || 0), 0);

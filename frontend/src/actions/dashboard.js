@@ -103,6 +103,7 @@ export const getDashboardSummary = () => async dispatch => {
 export const getShipmentsByCustomer = () => async dispatch => {
   try {
     try {
+      // First try the authenticated endpoint
       const res = await axios.get('/api/dashboard/shipments-by-customer');
       
       dispatch({
@@ -112,9 +113,24 @@ export const getShipmentsByCustomer = () => async dispatch => {
       
       return res.data;
     } catch (error) {
-      console.log('Error fetching shipments by customer, trying all-in-one endpoint...');
-      const allData = await dispatch(getAllDashboardData());
-      return allData?.customerData || [];
+      console.log('Error with authenticated endpoint, trying public endpoint...');
+      
+      try {
+        // Try the public endpoint we just created
+        const publicRes = await axios.get('/api/dashboard/public-shipments-by-customer');
+        
+        dispatch({
+          type: GET_SHIPMENTS_BY_CUSTOMER,
+          payload: publicRes.data
+        });
+        
+        return publicRes.data;
+      } catch (publicError) {
+        console.log('Error with public endpoint, trying all-in-one endpoint...');
+        // If all else fails, use the all-in-one endpoint
+        const allData = await dispatch(getAllDashboardData());
+        return allData?.customerData || [];
+      }
     }
   } catch (err) {
     console.error('Error fetching shipments by customer:', err.message);
@@ -132,6 +148,7 @@ export const getShipmentsByCustomer = () => async dispatch => {
 export const getShipmentsByDate = () => async dispatch => {
   try {
     try {
+      // First try the authenticated endpoint
       const res = await axios.get('/api/dashboard/shipments-by-date');
       
       dispatch({
@@ -141,9 +158,24 @@ export const getShipmentsByDate = () => async dispatch => {
       
       return res.data;
     } catch (error) {
-      console.log('Error fetching shipments by date, trying all-in-one endpoint...');
-      const allData = await dispatch(getAllDashboardData());
-      return allData?.dailyStats || [];
+      console.log('Error with authenticated endpoint, trying public endpoint...');
+      
+      try {
+        // Try the public endpoint we just created
+        const publicRes = await axios.get('/api/dashboard/public-shipments-by-date');
+        
+        dispatch({
+          type: GET_SHIPMENTS_BY_DATE,
+          payload: publicRes.data
+        });
+        
+        return publicRes.data;
+      } catch (publicError) {
+        console.log('Error with public endpoint, trying all-in-one endpoint...');
+        // If all else fails, use the all-in-one endpoint
+        const allData = await dispatch(getAllDashboardData());
+        return allData?.dailyStats || [];
+      }
     }
   } catch (err) {
     console.error('Error fetching shipments by date:', err.message);

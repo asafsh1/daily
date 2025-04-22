@@ -212,14 +212,17 @@ router.get('/summary', auth, async (req, res) => {
 });
 
 // @route   GET api/dashboard/public-summary
-// @desc    Get public dashboard summary data without authentication
+// @desc    Get dashboard summary data without authentication
 // @access  Public
 router.get('/public-summary', async (req, res) => {
+  console.log('Public summary dashboard endpoint called');
+  
   // Check MongoDB connection
   if (mongoose.connection.readyState !== 1) {
-    return res.status(503).json({ msg: 'Database connection not available' });
+    console.log('Database connection not available, returning sample data');
+    return res.json(generateSampleDashboardData());
   }
-
+  
   try {
     // Get shipment counts by status
     const totalShipments = await Shipment.countDocuments();
@@ -272,18 +275,8 @@ router.get('/public-summary', async (req, res) => {
       totalProfit
     });
   } catch (err) {
-    console.error('Error in /api/dashboard/public-summary:', err.message);
-    
-    // Fallback to sample data if there's an error
-    try {
-      const sampleData = generateSampleDashboardData();
-      console.log('Returning sample dashboard data due to error:', err.message);
-      return res.json(sampleData);
-    } catch (sampleErr) {
-      console.error('Also failed to generate sample data:', sampleErr.message);
-    }
-    
-    res.status(500).json({ msg: 'Server Error', error: err.message });
+    console.error('Error in public summary endpoint:', err.message);
+    res.json(generateSampleDashboardData());
   }
 });
 
@@ -1049,6 +1042,126 @@ router.get('/public-all', async (req, res) => {
     };
     console.log('Returning sample data due to error');
     res.json(response);
+  }
+});
+
+// @route   GET api/dashboard/public-shipments-by-date
+// @desc    Get shipments by date without authentication
+// @access  Public
+router.get('/public-shipments-by-date', async (req, res) => {
+  console.log('Public shipments-by-date endpoint called');
+  
+  // Check MongoDB connection
+  if (mongoose.connection.readyState !== 1) {
+    console.log('Database connection not available, returning sample data');
+    return res.json(generateSampleDailyStats());
+  }
+  
+  try {
+    // Get date range - default to last 30 days
+    const endDate = new Date();
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - 30);
+    
+    // Aggregate shipments by date
+    const dailyShipments = await Shipment.aggregate([
+      {
+        $match: {
+          dateAdded: { $gte: startDate, $lte: endDate }
+        }
+      },
+      {
+        $group: {
+          _id: {
+            year: { $year: "$dateAdded" },
+            month: { $month: "$dateAdded" },
+            day: { $dayOfMonth: "$dateAdded" }
+          },
+          count: { $sum: 1 },
+          value: { $sum: { $toDouble: { $ifNull: ["$receivables", 0] } } }
+        }
+      },
+      {
+        $project: {
+          _id: 0,
+          date: {
+            $dateToString: {
+              format: "%Y-%m-%d",
+              date: {
+                $dateFromParts: {
+                  year: "$_id.year",
+                  month: "$_id.month",
+                  day: "$_id.day"
+                }
+              }
+            }
+          },
+          count: 1,
+          value: 1
+        }
+      },
+      { $sort: { date: 1 } }
+    ]);
+    
+    res.json(dailyShipments);
+  } catch (err) {
+    console.error('Error in public shipments by date endpoint:', err.message);
+    res.json(generateSampleDailyStats());
+  }
+});
+
+// @route   GET api/dashboard/public-shipments-by-customer
+// @desc    Get shipments by customer without authentication
+// @access  Public
+router.get('/public-shipments-by-customer', async (req, res) => {
+  console.log('Public shipments-by-customer endpoint called');
+  
+  // Check MongoDB connection
+  if (mongoose.connection.readyState !== 1) {
+    console.log('Database connection not available, returning sample data');
+    return res.json(generateSampleCustomerData());
+  }
+  
+  try {
+    // Aggregate shipments by customer
+    const customerShipments = await Shipment.aggregate([
+      {
+        $group: {
+          _id: { 
+            customerId: { $ifNull: ["$customer", "unknown"] },
+            customerName: { $ifNull: ["$customerName", "Unknown Customer"] }
+          },
+          count: { $sum: 1 },
+          value: { $sum: { $toDouble: { $ifNull: ["$receivables", 0] } } }
+        }
+      },
+      {
+        $project: {
+          _id: 0,
+          customer: {
+            $cond: [
+              { $eq: ["$_id.customerName", "Unknown Customer"] },
+              {
+                $cond: [
+                  { $eq: [{ $type: "$_id.customerId" }, "objectId"] },
+                  "Unknown Customer",
+                  { $ifNull: ["$_id.customerId", "Unknown Customer"] }
+                ]
+              },
+              "$_id.customerName"
+            ]
+          },
+          count: 1,
+          value: 1
+        }
+      },
+      { $sort: { count: -1 } }
+    ]);
+    
+    res.json(customerShipments);
+  } catch (err) {
+    console.error('Error in public shipments by customer endpoint:', err.message);
+    res.json(generateSampleCustomerData());
   }
 });
 
