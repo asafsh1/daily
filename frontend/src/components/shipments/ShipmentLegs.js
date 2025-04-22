@@ -103,7 +103,7 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
     
     try {
       // First try to fetch legs directly
-      const response = await axios.get(`/api/shipment-legs/${shipmentId}`);
+      const response = await axios.get(`/api/shipmentLegs/${shipmentId}`);
       
       if (response.data && Array.isArray(response.data) && response.data.length > 0) {
         console.log('Legs fetched successfully:', response.data);
@@ -188,8 +188,8 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
     try {
       const method = legId ? 'PUT' : 'POST';
       const url = legId 
-        ? `/api/shipment-legs/${legId}`
-        : `/api/shipment-legs/add-to-shipment/${shipmentId}`;
+        ? `/api/shipmentLegs/${legId}`
+        : `/api/shipmentLegs/add-to-shipment/${shipmentId}`;
 
       const response = await axios.post(url, {
         ...formData,
@@ -223,42 +223,36 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
 
   // Handle leg deletion
   const handleDeleteLeg = async (legId, e) => {
-    if (e) e.stopPropagation();
+    e.preventDefault();
     
     if (!window.confirm('Are you sure you want to delete this leg?')) {
       return;
     }
     
     try {
-      if (!legId.startsWith('synthetic-') && !legId.startsWith('new-')) {
-        await axios.delete(`/api/shipment-legs/${legId}`);
-      }
-      setLegs(legs.filter(leg => leg._id !== legId));
-      toast.success('Leg deleted successfully');
+      setLoading(true);
+      await axios.delete(`/api/shipmentLegs/${legId}`);
+      fetchLegs(); // Re-fetch legs after deletion
+      setSuccess('Leg deleted successfully');
     } catch (err) {
       console.error('Error deleting leg:', err);
       toast.error('Failed to delete leg');
+    } finally {
+      setLoading(false);
     }
   };
 
   // Handle leg status change
   const handleLegStatusChange = async (legId, newStatus, e) => {
-    if (e) e.stopPropagation();
+    e.preventDefault();
+
+    if (!window.confirm(`Are you sure you want to change the status to ${newStatus}?`)) {
+      return;
+    }
     
     try {
-      if (!legId) {
-        console.error('Cannot update status: No leg ID provided');
-        return;
-      }
-      
-      if (legId.startsWith('synthetic-') || legId.startsWith('new-')) {
-        setLegs(legs.map(leg => 
-          leg._id === legId ? { ...leg, status: newStatus } : leg
-        ));
-        return;
-      }
-      
-      await axios.put(`/api/shipment-legs/${legId}/status`, { status: newStatus });
+      setLoading(true);
+      await axios.put(`/api/shipmentLegs/${legId}/status`, { status: newStatus });
       setLegs(legs.map(leg => 
         leg._id === legId ? { ...leg, status: newStatus } : leg
       ));
@@ -266,6 +260,8 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
     } catch (err) {
       console.error('Error updating leg status:', err);
       setError('Failed to update leg status');
+    } finally {
+      setLoading(false);
     }
   };
 
