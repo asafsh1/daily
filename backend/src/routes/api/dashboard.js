@@ -11,6 +11,7 @@ const { checkConnectionState } = require('../../mongodb-connect');
 
 const Shipment = require('../../models/Shipment');
 const User = require('../../models/User');
+const Customer = require('../../models/Customer');
 
 // Function to load sample data if database is not available
 const getSampleShipments = () => {
