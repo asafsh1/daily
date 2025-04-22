@@ -155,51 +155,90 @@ const ShipmentForm = ({
   // Replace fetchCustomers with loadEntities
   const loadEntities = async () => {
     try {
-      // Try to load customer data from public endpoint first
+      // Fetch shippers
+      try {
+        const shippersRes = await axios.get('/api/shippers');
+        setShippers(shippersRes.data);
+      } catch (error) {
+        console.error('Error fetching shippers:', error);
+        setShippers([]);
+      }
+      
+      // Fetch consignees
+      try {
+        const consigneesRes = await axios.get('/api/consignees');
+        setConsignees(consigneesRes.data);
+      } catch (error) {
+        console.error('Error fetching consignees:', error);
+        setConsignees([]);
+      }
+      
+      // Fetch notify parties
+      try {
+        const notifyPartiesRes = await axios.get('/api/notify-parties');
+        setNotifyParties(notifyPartiesRes.data);
+      } catch (error) {
+        console.error('Error fetching notify parties:', error);
+        setNotifyParties([]);
+      }
+      
+      // Fetch customers from public endpoint if available
       try {
         console.log('Fetching customers from public endpoint...');
         const customersRes = await axios.get('/api/customers/public');
         setCustomers(customersRes.data);
-        console.log('Loaded customers from public endpoint:', customersRes.data.length);
-      } catch (customerError) {
-        console.error('Error fetching customers from public endpoint:', customerError);
-        // Fall back to authenticated endpoint
+        console.log(`Loaded customers from public endpoint: ${customersRes.data.length}`);
+      } catch (error) {
+        console.error('Error fetching customers from public endpoint:', error);
+        // If public endpoint fails, try the authenticated one
         try {
-          const customersAuthRes = await axios.get('/api/customers');
-          setCustomers(customersAuthRes.data);
-        } catch (authError) {
-          console.error('Error fetching customers from authenticated endpoint:', authError);
-          // Use empty array as fallback
+          const customersRes = await axios.get('/api/customers');
+          setCustomers(customersRes.data);
+        } catch (secondError) {
+          console.error('Both customer endpoints failed:', secondError);
           setCustomers([]);
         }
       }
       
-      // Try to load users from public endpoint first
+      // Fetch users from public endpoint if available
       try {
         console.log('Fetching users from public endpoint...');
         const usersRes = await axios.get('/api/users/public');
         setUsers(usersRes.data);
-        console.log('Loaded users from public endpoint:', usersRes.data.length);
-      } catch (userError) {
-        console.error('Error fetching users from public endpoint:', userError);
-        // Fall back to authenticated endpoint
+        console.log(`Loaded users from public endpoint: ${usersRes.data.length}`);
+        
+        // Set entity managers too
+        const managers = usersRes.data.filter(user => user.role === 'manager' || user.role === 'admin');
+        setEntityManagers(managers);
+      } catch (publicError) {
+        console.error('Error fetching users from public endpoint:', publicError);
+        // If public endpoint fails, try the authenticated one
         try {
-          const usersAuthRes = await axios.get('/api/users');
-          setUsers(usersAuthRes.data);
+          const usersRes = await axios.get('/api/users');
+          setUsers(usersRes.data);
+          
+          // Set entity managers too
+          const managers = usersRes.data.filter(user => user.role === 'manager' || user.role === 'admin');
+          setEntityManagers(managers);
         } catch (authError) {
-          console.error('Error fetching users from authenticated endpoint:', authError);
-          // Use empty array as fallback
-          setUsers([]);
+          console.error('Both user endpoints failed, using default users:', authError);
+          // Set default users if both endpoints fail
+          const defaultUsers = [
+            { id: 'system-default', name: 'System Default', role: 'system' },
+            { id: 'admin', name: 'Admin User', role: 'admin' }
+          ];
+          setUsers(defaultUsers);
+          setEntityManagers(defaultUsers.filter(user => user.role === 'admin'));
         }
       }
-      
-      // No more redirect on error - just use what we have
-      return true;
-    } catch (err) {
-      console.error('Error fetching entities:', err);
-      // Instead of redirecting, just continue with empty entities
-      console.log('Continuing with empty entities data');
-      return false;
+    } catch (error) {
+      console.error('Error in fetchEntities:', error);
+      if (error.response?.status === 401) {
+        console.log('Session expired, but we can continue with public data...');
+        toast.warning('Using limited data. Some features may be restricted.');
+      } else {
+        toast.error('Failed to load complete entities data');
+      }
     }
   };
 

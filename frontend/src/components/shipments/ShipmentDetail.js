@@ -14,7 +14,8 @@ const ShipmentDetail = ({
   getShipment,
   clearShipment,
   shipment: { shipment, loading: shipmentLoading },
-  auth: { user }
+  auth: { user },
+  dispatch
 }) => {
   const { id } = useParams();
   const [activeSection, setActiveSection] = useState('basic');
@@ -27,20 +28,83 @@ const ShipmentDetail = ({
     const fetchShipmentData = async () => {
       try {
         // Call the Redux action to get the shipment
-        getShipment(id);
+        const shipmentData = await getShipment(id);
         
-        // Also make a direct API call to log the raw data for debugging
+        if (shipmentData) {
+          setLoading(false);
+        }
+        
+        // No need for direct API calls for debugging if the Redux action succeeded
+        if (shipmentData && shipmentData._id) {
+          console.log('Shipment successfully loaded via Redux action');
+          return;
+        }
+        
+        // If we get here, the Redux action may have failed, try direct API call
         console.log('Making direct API call to check raw shipment data');
-        const rawResponse = await axios.get(`/api/shipments/${id}`);
-        
-        // Log the raw data to help with debugging
-        console.log('Raw shipment data:', rawResponse.data);
-        console.log('Legs in raw data:', 
-          rawResponse.data.legs ? 
-          `Found ${rawResponse.data.legs.length} legs` : 
-          'No legs found in raw data');
+        try {
+          // First try the public endpoint which doesn't require authentication
+          const rawResponse = await axios.get(`/api/shipments/public/${id}`);
+          
+          // Check if the response is valid JSON
+          if (typeof rawResponse.data === 'object') {
+            // Log the raw data to help with debugging
+            console.log('Raw shipment data from public endpoint:', rawResponse.data);
+            console.log('Legs in raw data:', 
+              rawResponse.data.legs ? 
+              `Found ${rawResponse.data.legs.length} legs` : 
+              'No legs found in raw data');
+              
+            // If Redux action failed but direct call succeeded, manually update Redux store
+            if (!shipmentData || !shipmentData._id) {
+              dispatch({
+                type: 'GET_SHIPMENT',
+                payload: rawResponse.data
+              });
+              setLoading(false);
+            }
+          } else if (typeof rawResponse.data === 'string' && rawResponse.data.includes('<!doctype html>')) {
+            // Detected HTML response instead of JSON
+            console.error('Received HTML instead of JSON from public endpoint - this indicates a routing issue');
+            
+            // Try a different endpoint format as fallback
+            try {
+              console.log('Trying alternative API endpoint format...');
+              const alternativeResponse = await axios.get(`${process.env.REACT_APP_API_URL || 'https://daily-shipment-tracker.onrender.com'}/api/shipments/public/${id}`);
+              
+              if (typeof alternativeResponse.data === 'object') {
+                console.log('Alternative endpoint worked!', alternativeResponse.data);
+                
+                // Update Redux store
+                dispatch({
+                  type: 'GET_SHIPMENT',
+                  payload: alternativeResponse.data
+                });
+                setLoading(false);
+              }
+            } catch (altErr) {
+              console.error('Alternative endpoint also failed:', altErr);
+            }
+          } else {
+            console.error('Received non-JSON/non-HTML response from public endpoint');
+            // Try the authenticated endpoint as fallback
+            const authResponse = await axios.get(`/api/shipments/${id}`);
+            console.log('Raw shipment data from authenticated endpoint:', authResponse.data);
+          }
+        } catch (directErr) {
+          console.error('Error in direct API call:', directErr);
+          // If both endpoints fail, create a placeholder for UI rendering
+          if (!shipment && shipmentLoading) {
+            console.log('Creating placeholder shipment data for UI rendering');
+            // This won't be saved to Redux, just displayed while loading
+            setLoading(false);
+            setError('Could not load shipment data. Please try again later.');
+          }
+        }
       } catch (err) {
-        console.error('Error in direct API call:', err);
+        console.error('Error fetching shipment data:', err);
+        setLoading(false);
+        setError('Failed to load shipment data');
       }
     };
     
@@ -49,7 +113,7 @@ const ShipmentDetail = ({
     return () => {
       clearShipment();
     };
-  }, [getShipment, clearShipment, id]);
+  }, [getShipment, clearShipment, id, shipment, shipmentLoading, dispatch]);
 
   const handleSectionChange = (section) => {
     setActiveSection(section);
@@ -371,7 +435,8 @@ ShipmentDetail.propTypes = {
   getShipment: PropTypes.func.isRequired,
   clearShipment: PropTypes.func.isRequired,
   shipment: PropTypes.object.isRequired,
-  auth: PropTypes.object.isRequired
+  auth: PropTypes.object.isRequired,
+  dispatch: PropTypes.func.isRequired
 };
 
 const mapStateToProps = state => ({
