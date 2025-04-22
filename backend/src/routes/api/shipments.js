@@ -186,6 +186,131 @@ router.get('/repair-legs/:id', checkConnectionState, async (req, res) => {
   }
 });
 
+// @route   GET api/shipments/public/:id
+// @desc    Get shipment by ID without authentication
+// @access  Public
+router.get('/public/:id', async (req, res) => {
+  try {
+    console.log(`Accessing public shipment endpoint for ID: ${req.params.id}`);
+    
+    // Validate if id is a valid ObjectId
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      console.log(`Invalid shipment ID format: ${req.params.id}`);
+      return res.status(400).json({ msg: 'Invalid shipment ID format' });
+    }
+    
+    try {
+      // Get shipment by ID
+      const shipment = await Shipment.findById(req.params.id).lean();
+      
+      if (!shipment) {
+        console.log(`Shipment not found with ID: ${req.params.id}`);
+        return res.status(404).json({ msg: 'Shipment not found' });
+      }
+      
+      // Handle customer reference as it could be invalid
+      if (shipment.customer && typeof shipment.customer === 'object') {
+        // It's already populated
+        console.log('Customer is already populated');
+      } else if (shipment.customer && mongoose.Types.ObjectId.isValid(shipment.customer)) {
+        // Try to populate customer
+        try {
+          const customer = await Customer.findById(shipment.customer).lean();
+          if (customer) {
+            shipment.customer = customer;
+          } else {
+            console.log(`Customer not found for ID: ${shipment.customer}`);
+            shipment.customer = { name: shipment.customerName || 'Unknown Customer' };
+          }
+        } catch (customerErr) {
+          console.error(`Error fetching customer: ${customerErr.message}`);
+          shipment.customer = { name: shipment.customerName || 'Unknown Customer' };
+        }
+      } else {
+        // Invalid or missing customer ID
+        console.log(`Invalid or missing customer ID: ${shipment.customer}`);
+        shipment.customer = { name: shipment.customerName || 'Unknown Customer' };
+      }
+      
+      // Get legs associated with this shipment
+      try {
+        const legs = await ShipmentLeg.find({ shipment: req.params.id })
+          .sort({ legOrder: 1 })
+          .lean();
+        
+        console.log(`Found ${legs.length} legs for shipment ${req.params.id}`);
+        
+        // Add legs to shipment object
+        shipment.legs = legs;
+      } catch (legsErr) {
+        console.error(`Error fetching legs: ${legsErr.message}`);
+        shipment.legs = [];
+      }
+      
+      console.log(`Successfully retrieved shipment with ID: ${req.params.id}`);
+      res.json(shipment);
+    } catch (shipmentErr) {
+      console.error(`Error fetching shipment: ${shipmentErr.message}`);
+      res.status(500).json({ 
+        msg: 'Error fetching shipment data',
+        error: shipmentErr.message
+      });
+    }
+  } catch (err) {
+    console.error(`Error in public shipment endpoint for ID ${req.params.id}:`, err.message);
+    res.status(500).json({ 
+      msg: 'Server error',
+      error: err.message
+    });
+  }
+});
+
+// @route   GET api/shipments/public
+// @desc    Get all shipments without authentication
+// @access  Public
+router.get('/public', async (req, res) => {
+  try {
+    console.log('Accessing public shipments list endpoint');
+    
+    // Limit to 100 shipments for performance reasons
+    const shipments = await Shipment.find()
+      .sort({ dateAdded: -1 })
+      .limit(100)
+      .lean();
+    
+    console.log(`Found ${shipments.length} shipments`);
+    
+    // Process shipments to normalize data
+    const processedShipments = shipments.map(shipment => {
+      // Handle invalid customer references
+      if (shipment.customer && !mongoose.Types.ObjectId.isValid(shipment.customer)) {
+        shipment.customer = null;
+        shipment.customerName = shipment.customerName || 'Unknown Customer';
+      }
+      
+      return shipment;
+    });
+    
+    res.json(processedShipments);
+  } catch (err) {
+    console.error('Error fetching public shipments list:', err.message);
+    
+    // Try to return sample data as fallback
+    try {
+      const sampleData = getSampleShipments();
+      console.log(`Returning ${sampleData.length} sample shipments due to error`);
+      return res.json(sampleData);
+    } catch (sampleErr) {
+      console.error('Also failed to get sample data:', sampleErr.message);
+    }
+    
+    res.status(500).json({ 
+      msg: 'Server error',
+      error: err.message
+    });
+  }
+});
+
 // @route   GET api/shipments/:id
 // @desc    Get shipment by ID
 // @access  Public
@@ -399,131 +524,6 @@ router.post('/', [
   } catch (err) {
     console.error('Error creating shipment:', err.message);
     res.status(500).send('Server Error');
-  }
-});
-
-// @route   GET api/shipments/public/:id
-// @desc    Get shipment by ID without authentication
-// @access  Public
-router.get('/public/:id', async (req, res) => {
-  try {
-    console.log(`Accessing public shipment endpoint for ID: ${req.params.id}`);
-    
-    // Validate if id is a valid ObjectId
-    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
-      console.log(`Invalid shipment ID format: ${req.params.id}`);
-      return res.status(400).json({ msg: 'Invalid shipment ID format' });
-    }
-    
-    try {
-      // Get shipment by ID
-      const shipment = await Shipment.findById(req.params.id).lean();
-      
-      if (!shipment) {
-        console.log(`Shipment not found with ID: ${req.params.id}`);
-        return res.status(404).json({ msg: 'Shipment not found' });
-      }
-      
-      // Handle customer reference as it could be invalid
-      if (shipment.customer && typeof shipment.customer === 'object') {
-        // It's already populated
-        console.log('Customer is already populated');
-      } else if (shipment.customer && mongoose.Types.ObjectId.isValid(shipment.customer)) {
-        // Try to populate customer
-        try {
-          const customer = await Customer.findById(shipment.customer).lean();
-          if (customer) {
-            shipment.customer = customer;
-          } else {
-            console.log(`Customer not found for ID: ${shipment.customer}`);
-            shipment.customer = { name: shipment.customerName || 'Unknown Customer' };
-          }
-        } catch (customerErr) {
-          console.error(`Error fetching customer: ${customerErr.message}`);
-          shipment.customer = { name: shipment.customerName || 'Unknown Customer' };
-        }
-      } else {
-        // Invalid or missing customer ID
-        console.log(`Invalid or missing customer ID: ${shipment.customer}`);
-        shipment.customer = { name: shipment.customerName || 'Unknown Customer' };
-      }
-      
-      // Get legs associated with this shipment
-      try {
-        const legs = await ShipmentLeg.find({ shipment: req.params.id })
-          .sort({ legOrder: 1 })
-          .lean();
-        
-        console.log(`Found ${legs.length} legs for shipment ${req.params.id}`);
-        
-        // Add legs to shipment object
-        shipment.legs = legs;
-      } catch (legsErr) {
-        console.error(`Error fetching legs: ${legsErr.message}`);
-        shipment.legs = [];
-      }
-      
-      console.log(`Successfully retrieved shipment with ID: ${req.params.id}`);
-      res.json(shipment);
-    } catch (shipmentErr) {
-      console.error(`Error fetching shipment: ${shipmentErr.message}`);
-      res.status(500).json({ 
-        msg: 'Error fetching shipment data',
-        error: shipmentErr.message
-      });
-    }
-  } catch (err) {
-    console.error(`Error in public shipment endpoint for ID ${req.params.id}:`, err.message);
-    res.status(500).json({ 
-      msg: 'Server error',
-      error: err.message
-    });
-  }
-});
-
-// @route   GET api/shipments/public
-// @desc    Get all shipments without authentication
-// @access  Public
-router.get('/public', async (req, res) => {
-  try {
-    console.log('Accessing public shipments list endpoint');
-    
-    // Limit to 100 shipments for performance reasons
-    const shipments = await Shipment.find()
-      .sort({ dateAdded: -1 })
-      .limit(100)
-      .lean();
-    
-    console.log(`Found ${shipments.length} shipments`);
-    
-    // Process shipments to normalize data
-    const processedShipments = shipments.map(shipment => {
-      // Handle invalid customer references
-      if (shipment.customer && !mongoose.Types.ObjectId.isValid(shipment.customer)) {
-        shipment.customer = null;
-        shipment.customerName = shipment.customerName || 'Unknown Customer';
-      }
-      
-      return shipment;
-    });
-    
-    res.json(processedShipments);
-  } catch (err) {
-    console.error('Error fetching public shipments list:', err.message);
-    
-    // Try to return sample data as fallback
-    try {
-      const sampleData = getSampleShipments();
-      console.log(`Returning ${sampleData.length} sample shipments due to error`);
-      return res.json(sampleData);
-    } catch (sampleErr) {
-      console.error('Also failed to get sample data:', sampleErr.message);
-    }
-    
-    res.status(500).json({ 
-      msg: 'Server error',
-      error: err.message
-    });
   }
 });
 

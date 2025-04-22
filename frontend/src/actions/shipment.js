@@ -78,41 +78,112 @@ export const getShipments = () => async (dispatch) => {
   }
 };
 
-// Get single shipment by ID
-export const getShipment = (id) => async (dispatch) => {
+// Get shipment by ID
+export const getShipment = id => async dispatch => {
   try {
-    dispatch(setShipmentsLoading());
+    console.log(`Fetching shipment details for ID: ${id}`);
     
-    if (!id) {
-      throw new Error('Shipment ID is required');
+    // Try multiple endpoints to get the shipment data
+    let shipmentData = null;
+    let errors = [];
+    
+    // 1. First try the public shipment endpoint
+    try {
+      console.log('Trying public shipment endpoint first');
+      const res = await axios.get(`/api/shipments/public/${id}`);
+      if (res.data) {
+        console.log('Fetched shipment details from public endpoint:', res.data);
+        shipmentData = res.data;
+      }
+    } catch (publicErr) {
+      console.error('Public endpoint failed:', publicErr.message);
+      errors.push({ endpoint: 'public', error: publicErr.message });
     }
     
-    const res = await axios.get(`/api/shipments/${id}`);
-    
-    // Log the shipment for debugging
-    console.log('Fetched shipment details:', res.data);
-    
-    // Make sure legs array exists
-    const shipment = res.data;
-    if (!shipment.legs) {
-      shipment.legs = [];
+    // 2. If public endpoint failed, try the authenticated endpoint
+    if (!shipmentData) {
+      try {
+        console.log('Trying authenticated endpoint');
+        const res = await axios.get(`/api/shipments/${id}`);
+        if (res.data) {
+          console.log('Fetched shipment details from authenticated endpoint:', res.data);
+          shipmentData = res.data;
+        }
+      } catch (authErr) {
+        console.error('Authenticated endpoint failed:', authErr.message);
+        errors.push({ endpoint: 'authenticated', error: authErr.message });
+      }
     }
     
-    dispatch({
-      type: GET_SHIPMENT,
-      payload: shipment
-    });
+    // 3. If both failed, try the main shipments endpoint with ID as query param
+    if (!shipmentData) {
+      try {
+        console.log('Trying main endpoint with query param');
+        const res = await axios.get(`/api/shipments?id=${id}`);
+        if (res.data && Array.isArray(res.data)) {
+          const found = res.data.find(item => item._id === id);
+          if (found) {
+            console.log('Found shipment in list:', found);
+            shipmentData = found;
+          }
+        }
+      } catch (listErr) {
+        console.error('List endpoint failed:', listErr.message);
+        errors.push({ endpoint: 'list', error: listErr.message });
+      }
+    }
     
-    return shipment;
-  } catch (err) {
-    console.error('Error fetching shipment:', err);
+    // If we have shipment data from any source, dispatch it
+    if (shipmentData) {
+      dispatch({
+        type: GET_SHIPMENT,
+        payload: shipmentData
+      });
+      return shipmentData;
+    }
+    
+    // If we get here, all endpoints failed
+    console.error('All endpoints failed to fetch shipment:', errors);
     
     dispatch({
       type: SHIPMENT_ERROR,
-      payload: { msg: err.response?.data?.msg || 'Failed to fetch shipment', status: err.response?.status }
+      payload: { 
+        msg: 'Failed to fetch shipment from any endpoint', 
+        status: 404,
+        errors 
+      }
     });
     
-    throw err;
+    // Return a default shipment object to prevent UI errors
+    return {
+      _id: id,
+      shipmentStatus: 'Error',
+      orderStatus: 'Error',
+      dateAdded: new Date().toISOString(),
+      customer: 'Error loading data',
+      shipperName: 'Error loading data',
+      consigneeName: 'Error loading data',
+      legs: []
+    };
+  } catch (err) {
+    console.error('Error fetching shipment details:', err);
+    
+    dispatch({
+      type: SHIPMENT_ERROR,
+      payload: { msg: err.response?.statusText, status: err.response?.status }
+    });
+    
+    // Return a default shipment object to prevent UI errors
+    return {
+      _id: id,
+      shipmentStatus: 'Error',
+      orderStatus: 'Error',
+      dateAdded: new Date().toISOString(),
+      customer: 'Error loading data',
+      shipperName: 'Error loading data',
+      consigneeName: 'Error loading data',
+      legs: []
+    };
   }
 };
 
