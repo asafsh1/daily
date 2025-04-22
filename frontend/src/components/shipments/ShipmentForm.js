@@ -87,10 +87,10 @@ const ShipmentForm = ({
     loadEntities().then(() => {
       // If we have a shipment ID, load that shipment's data
       if (id) {
-        loadShipmentData(id);
+        getShipment(id);
       }
     });
-  }, [id]);
+  }, [id, getShipment]);
 
   // Populate form data when shipment is loaded
   useEffect(() => {
@@ -138,6 +138,17 @@ const ShipmentForm = ({
       console.log('Setting form data to:', shipmentData);
       setFormData(shipmentData);
       setFormInitialized(true);
+    } else if (isEditMode && loading && !formInitialized) {
+      // While loading edit data, still show form with defaults
+      console.log('Loading shipment data - displaying empty form with defaults');
+      setFormData({
+        ...initialState,
+        dateAdded: new Date().toISOString().split('T')[0],
+        customer: 'Loading...',
+        shipmentStatus: 'Loading...',
+        shipperName: 'Loading...',
+        consigneeName: 'Loading...',
+      });
     }
   }, [loading, shipment, isEditMode, formInitialized, initialState]);
 
@@ -440,18 +451,20 @@ const ShipmentForm = ({
         formDataToSubmit.customerName = formData.customer;
       }
       
+      // Assign a default value for createdBy if none is set
+      if (!formDataToSubmit.createdBy) {
+        formDataToSubmit.createdBy = 'system-default';
+      }
+      
       if (id) {
         // Update existing shipment
-        await axios.put(`/api/shipments/${id}`, formDataToSubmit);
+        await updateShipment(id, formDataToSubmit, navigate);
         toast.success('Shipment updated successfully');
       } else {
         // Create new shipment
-        await axios.post('/api/shipments', formDataToSubmit);
+        await addShipment(formDataToSubmit, navigate);
         toast.success('Shipment created successfully');
       }
-      
-      // Redirect to shipments list
-      navigate('/shipments');
     } catch (err) {
       console.error('Error saving shipment:', err);
       // Show error without redirecting to login
@@ -497,6 +510,11 @@ const ShipmentForm = ({
       legs: updatedLegs,
       shipmentStatus: newShipmentStatus // Update shipment status automatically
     });
+  };
+
+  // Load shipment data for editing
+  const loadShipmentData = (shipmentId) => {
+    getShipment(shipmentId);
   };
 
   // Show loading indicator while fetching shipment data
@@ -909,36 +927,47 @@ const ShipmentForm = ({
             {/* SECTION 8: Created By and Comments */}
             <div id="additional" className="form-section">
               <h3 className="section-title">Additional Information</h3>
-              <div className="form-group">
-                <label htmlFor="createdBy">Created By*</label>
-                <select
-                  id="createdBy"
-                  name="createdBy"
-                  value={createdBy}
-                  onChange={(e) => setFormData({ ...formData, createdBy: e.target.value })}
-                  className={errors.createdBy ? 'form-control is-invalid' : 'form-control'}
-                  required
-                >
-                  <option value="">Select User</option>
-                  {users.map(user => (
-                    <option key={user._id} value={user._id}>
-                      {user.name} ({user.email})
-                    </option>
-                  ))}
-                </select>
-                {errors.createdBy && <div className="invalid-feedback">{errors.createdBy}</div>}
-              </div>
+              <div className="card">
+                <div className="card-body">
+                  <div className="form-group mb-3">
+                    <label htmlFor="createdBy">Created By*</label>
+                    <select
+                      className={`form-control ${errors.createdBy ? "is-invalid" : ""}`}
+                      id="createdBy"
+                      name="createdBy"
+                      value={formData.createdBy || ''}
+                      onChange={onChange}
+                      required
+                    >
+                      <option value="">Select User</option>
+                      {users && users.length > 0 ? (
+                        users.map((user) => (
+                          <option key={user._id} value={user._id}>
+                            {user.name} ({user.email})
+                          </option>
+                        ))
+                      ) : (
+                        <option value="system-default">System Default</option>
+                      )}
+                    </select>
+                    {errors.createdBy && (
+                      <div className="invalid-feedback">{errors.createdBy}</div>
+                    )}
+                  </div>
 
-              <div className="form-group">
-                <label>Comments</label>
-                <textarea
-                  name="comments"
-                  value={comments}
-                  onChange={onChange}
-                  className="form-control"
-                  rows="4"
-                  placeholder="Add any additional comments about this shipment"
-                />
+                  <div className="form-group">
+                    <label htmlFor="comments">Comments</label>
+                    <textarea
+                      className="form-control"
+                      id="comments"
+                      name="comments"
+                      rows="4"
+                      value={formData.comments || ''}
+                      onChange={onChange}
+                      placeholder="Add any additional comments about this shipment"
+                    ></textarea>
+                  </div>
+                </div>
               </div>
             </div>
 
