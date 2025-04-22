@@ -125,27 +125,45 @@ router.get('/', auth, async (req, res) => {
 });
 
 // @route   GET api/users/public
-// @desc    Get all users (public)
+// @desc    Get all users (limited info, public access)
 // @access  Public
 router.get('/public', async (req, res) => {
   try {
-    const users = await User.find()
-      .select('-password')
-      .sort({ name: 1 });
+    console.log('Public users endpoint called');
     
-    // Filter sensitive data for security
-    const safeUsers = users.map(user => ({
-      id: user._id,
+    // Get mock users with limited info
+    const mockUsers = mockAuth.getAllUsers().map(user => ({
+      id: user.id,
       name: user.name,
-      role: user.role,
-      email: user.email ? user.email.replace(/^(.)(.*)(@.*)$/, '$1****$3') : '', // Mask email
-      isActive: user.isActive
+      role: user.role
     }));
     
-    res.json(safeUsers);
+    try {
+      // Try to get database users with limited info
+      const dbUsers = await User.find()
+        .select('name role email')
+        .lean();
+      
+      // Combine mock and database users
+      const allUsers = [
+        ...mockUsers,
+        ...dbUsers.map(user => ({
+          id: user._id,
+          name: user.name,
+          role: user.role
+        }))
+      ];
+      
+      console.log(`Returning ${allUsers.length} users from public endpoint`);
+      res.json(allUsers);
+    } catch (err) {
+      // If database fails, just return mock users
+      console.error('Database error, returning only mock users:', err.message);
+      res.json(mockUsers);
+    }
   } catch (err) {
-    console.error(err.message);
-    res.status(500).json({ msg: 'Server Error', error: err.message });
+    console.error('Error in public users endpoint:', err.message);
+    res.status(500).send('Server Error');
   }
 });
 

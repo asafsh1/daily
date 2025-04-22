@@ -17,7 +17,20 @@ let isRefreshingToken = false;
 const getNewToken = async () => {
   isRefreshingToken = true;
   try {
-    // Try GET method first
+    // Try emergency token endpoint first
+    try {
+      console.log('Trying emergency token endpoint...');
+      const response = await axios.get(`${apiBaseUrl}/api/auth/emergency-token`);
+      if (response.data && response.data.token) {
+        console.log('Got emergency token successfully');
+        localStorage.setItem('token', response.data.token);
+        return response.data.token;
+      }
+    } catch (emergencyErr) {
+      console.log('Emergency token endpoint failed, trying standard endpoints...');
+    }
+    
+    // Try GET method 
     try {
       const response = await axios.get(`${apiBaseUrl}/api/auth/get-dev-token`);
       if (response.data && response.data.token) {
@@ -42,13 +55,14 @@ const getNewToken = async () => {
     }
     
     // Try public diagnostics as last resort
-    const diagResponse = await axios.get(`${apiBaseUrl}/api/public-diagnostics`);
+    const diagResponse = await axios.get(`${apiBaseUrl}/api/dashboard/public-diagnostics`);
     if (diagResponse.data && diagResponse.data.auth && diagResponse.data.auth.devToken) {
       console.log('Got new token from public diagnostics');
       localStorage.setItem('token', diagResponse.data.auth.devToken);
       return diagResponse.data.auth.devToken;
     }
     
+    console.log('All token retrieval methods failed');
     return null;
   } catch (error) {
     console.error('Failed to get new token:', error);

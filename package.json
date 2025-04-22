@@ -1,24 +1,33 @@
 {
-  "name": "shipment-tracker",
+  "name": "shipment-tracker-server",
   "version": "1.0.0",
-  "description": "Real-time shipment tracking system for team collaboration",
-  "main": "index.js",
-  "scripts": {
-    "start": "node backend/server.js",
-    "server": "nodemon backend/server.js",
-    "frontend": "npm start --prefix frontend",
-    "dev": "concurrently \"npm run server\" \"npm run frontend\"",
-    "install-frontend": "cd frontend && npm install",
-    "install-backend": "cd backend && npm install",
-    "install-all": "npm install && npm run install-backend && npm run install-frontend",
-    "build": "cd frontend && npm run build",
-    "heroku-postbuild": "NPM_CONFIG_PRODUCTION=false npm run install-frontend && npm run build"
+  "description": "Backend server for shipment tracking application",
+  "main": "src/server.js",
+  "engines": {
+    "node": "18.x"
   },
-  "devDependencies": {
-    "concurrently": "^8.2.1",
-    "nodemon": "^3.0.1"
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "nodemon src/server.js",
+    "seed:airlines": "node scripts/seedAirlines.js",
+    "build": "echo 'Backend build completed'",
+    "deploy": "NODE_ENV=production node src/server.js"
   },
   "dependencies": {
-    "chartjs-plugin-datalabels": "^2.2.0"
+    "bcryptjs": "^2.4.3",
+    "config": "^3.3.12",
+    "connect-timeout": "^1.9.0",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "express-validator": "^7.0.1",
+    "jsonwebtoken": "^9.0.0",
+    "moment": "^2.30.1",
+    "mongoose": "^7.8.6",
+    "socket.io": "^4.7.2",
+    "uuid": "^11.1.0"
+  },
+  "devDependencies": {
+    "nodemon": "^2.0.22"
   }
 }

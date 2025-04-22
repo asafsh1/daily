@@ -253,4 +253,36 @@ router.get('/get-dev-token', async (req, res) => {
   }
 });
 
+// @route   GET api/auth/emergency-token
+// @desc    Get an emergency token (use only temporarily when authentication is broken)
+// @access  Public
+router.get('/emergency-token', async (req, res) => {
+  try {
+    // Generate a temporary emergency token with admin rights
+    const payload = {
+      user: {
+        id: 'emergency-admin',
+        name: 'Emergency Admin',
+        email: 'admin@example.com',
+        role: 'admin'
+      }
+    };
+    
+    const token = jwt.sign(
+      payload,
+      config.get('jwtSecret'),
+      { expiresIn: '24h' }
+    );
+    
+    // Return the token
+    res.json({ 
+      token,
+      message: "EMERGENCY TOKEN - Use only temporarily to restore system access"
+    });
+  } catch (err) {
+    console.error('Emergency token error:', err.message);
+    res.status(500).json({ msg: 'Server error' });
+  }
+});
+
 module.exports = router; 

@@ -805,7 +805,7 @@ router.get('/public-all', async (req, res) => {
       const totalReceivables = shipments.reduce((acc, shipment) => acc + (shipment.receivables || 0), 0);
       const totalProfit = totalReceivables - totalCost;
 
-      // Add summary data to response
+      // Set the summary data
       response.summary = {
         totalShipments,
         shipmentsByStatus,
@@ -815,163 +815,148 @@ router.get('/public-all', async (req, res) => {
         totalReceivables,
         totalProfit
       };
-      
-      console.log('Successfully fetched summary data');
-    } catch (err) {
-      console.error('Error fetching summary data:', err.message);
+    } catch (summaryErr) {
+      console.error('Error fetching summary data:', summaryErr.message);
+      // Use sample data as fallback
       response.summary = generateSampleDashboardData();
     }
     
-    // 2. Get monthly stats
+    // 2. Get shipments by customer
     try {
-      // Calculate date range for last 12 months
-      const endDate = moment();
-      const startDate = moment().subtract(12, 'months');
+      const customerData = await Shipment.aggregate([
+        {
+          $group: {
+            _id: '$customerName',
+            count: { $sum: 1 },
+            totalCost: { $sum: { $ifNull: ['$cost', 0] } },
+            totalReceivables: { $sum: { $ifNull: ['$receivables', 0] } }
+          }
+        },
+        {
+          $project: {
+            _id: 0,
+            customerName: '$_id',
+            count: 1,
+            totalCost: 1,
+            totalReceivables: 1,
+            profit: { $subtract: ['$totalReceivables', '$totalCost'] }
+          }
+        },
+        { $sort: { count: -1 } },
+        { $limit: 10 }
+      ]);
       
-      // Get all shipments created within the date range
-      const shipments = await Shipment.find({
-        dateAdded: { 
-          $gte: startDate.toDate(), 
-          $lte: endDate.toDate() 
-        }
-      }).lean();
-      
-      // Initialize monthly data structure
-      const monthlyData = {};
-      for (let i = 0; i < 12; i++) {
-        const monthKey = moment().subtract(i, 'months').format('MMM YYYY');
-        monthlyData[monthKey] = {
-          month: monthKey,
-          shipmentCount: 0,
-          totalValue: 0,
-          totalCost: 0,
-          profit: 0
-        };
-      }
-      
-      // Process shipments to aggregate monthly data
-      shipments.forEach(shipment => {
-        // Skip shipments with invalid references if needed
-        if (shipment.customer && !mongoose.Types.ObjectId.isValid(shipment.customer)) {
-          console.log(`Processing shipment with invalid customer ID: ${shipment._id}`);
-          // Continue processing but with null customer reference
-          shipment.customer = null;
-        }
-        
-        const monthKey = moment(shipment.dateAdded).format('MMM YYYY');
-        if (monthlyData[monthKey]) {
-          monthlyData[monthKey].shipmentCount += 1;
-          monthlyData[monthKey].totalValue += (shipment.receivables || 0);
-          monthlyData[monthKey].totalCost += (shipment.cost || 0);
-          monthlyData[monthKey].profit = monthlyData[monthKey].totalValue - monthlyData[monthKey].totalCost;
-        }
-      });
-      
-      // Convert to array and sort chronologically
-      const result = Object.values(monthlyData).sort((a, b) => 
-        moment(a.month, 'MMM YYYY') - moment(b.month, 'MMM YYYY')
-      );
-      
-      response.monthlyStats = result;
-      console.log('Successfully fetched monthly stats');
-    } catch (err) {
-      console.error('Error fetching monthly statistics:', err.message);
-      response.monthlyStats = generateSampleMonthlyStats();
-    }
-    
-    // 3. Get customer data
-    try {
-      const shipments = await Shipment.find().lean();
-      
-      // Process shipments to extract customer data
-      const shipmentsByCustomer = {};
-      
-      shipments.forEach(shipment => {
-        // Skip shipments with invalid customer IDs
-        if (shipment.customer && !mongoose.Types.ObjectId.isValid(shipment.customer)) {
-          console.log(`Skipping shipment with invalid customer ID: ${shipment._id}`);
-        }
-        
-        // Use customerName if available, otherwise use consigneeName or default
-        const customerName = shipment.customerName || shipment.consigneeName || 'Unknown Customer';
-        
-        if (!shipmentsByCustomer[customerName]) {
-          shipmentsByCustomer[customerName] = {
-            count: 0,
-            totalValue: 0
-          };
-        }
-        
-        shipmentsByCustomer[customerName].count++;
-        shipmentsByCustomer[customerName].totalValue += shipment.receivables || 0;
-      });
-      
-      // Convert to array format
-      const result = Object.entries(shipmentsByCustomer).map(([name, data]) => ({
-        name,
-        count: data.count,
-        value: data.totalValue
-      }));
-      
-      response.customerData = result;
-      console.log('Successfully fetched customer data');
-    } catch (err) {
-      console.error('Error fetching customer data:', err.message);
+      response.customerData = customerData;
+    } catch (customerErr) {
+      console.error('Error fetching customer data:', customerErr.message);
+      // Use sample data as fallback
       response.customerData = generateSampleCustomerData();
     }
     
-    // 4. Get daily data
+    // 3. Get shipments by date (daily stats)
     try {
-      const shipments = await Shipment.find()
-        .select('dateAdded receivables customer customerName')
-        .sort('dateAdded')
-        .lean();
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
       
-      const shipmentsByDate = {};
+      const dailyStats = await Shipment.aggregate([
+        {
+          $match: {
+            dateAdded: { $gte: thirtyDaysAgo }
+          }
+        },
+        {
+          $group: {
+            _id: { $dateToString: { format: '%Y-%m-%d', date: '$dateAdded' } },
+            count: { $sum: 1 },
+            cost: { $sum: { $ifNull: ['$cost', 0] } },
+            revenue: { $sum: { $ifNull: ['$receivables', 0] } }
+          }
+        },
+        {
+          $project: {
+            _id: 0,
+            date: '$_id',
+            count: 1,
+            cost: 1,
+            revenue: 1,
+            profit: { $subtract: ['$revenue', '$cost'] }
+          }
+        },
+        { $sort: { date: 1 } }
+      ]);
       
-      shipments.forEach(shipment => {
-        // Handle invalid customer ID
-        if (shipment.customer && !mongoose.Types.ObjectId.isValid(shipment.customer)) {
-          shipment.customer = null;
-          shipment.customerName = shipment.customerName || 'Unknown Customer';
-        }
-        
-        const date = moment(shipment.dateAdded).format('YYYY-MM-DD');
-        if (!shipmentsByDate[date]) {
-          shipmentsByDate[date] = {
-            count: 0,
-            value: 0
-          };
-        }
-        shipmentsByDate[date].count += 1;
-        shipmentsByDate[date].value += shipment.receivables || 0;
-      });
-      
-      const result = Object.keys(shipmentsByDate).map(date => ({
-        date,
-        count: shipmentsByDate[date].count,
-        value: shipmentsByDate[date].value
-      }));
-      
-      response.dailyStats = result;
-      console.log('Successfully fetched daily stats');
-    } catch (err) {
-      console.error('Error fetching daily stats:', err.message);
+      response.dailyStats = dailyStats;
+    } catch (dailyErr) {
+      console.error('Error fetching daily stats:', dailyErr.message);
+      // Use sample data as fallback
       response.dailyStats = generateSampleDailyStats();
     }
     
-    // Return the combined data
-    console.log('Returning complete dashboard data');
-    return res.json(response);
+    // 4. Get monthly stats
+    try {
+      const oneYearAgo = new Date();
+      oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
+      
+      const monthlyStats = await Shipment.aggregate([
+        {
+          $match: {
+            dateAdded: { $gte: oneYearAgo }
+          }
+        },
+        {
+          $group: {
+            _id: { 
+              year: { $year: '$dateAdded' },
+              month: { $month: '$dateAdded' }
+            },
+            count: { $sum: 1 },
+            cost: { $sum: { $ifNull: ['$cost', 0] } },
+            revenue: { $sum: { $ifNull: ['$receivables', 0] } }
+          }
+        },
+        {
+          $project: {
+            _id: 0,
+            year: '$_id.year',
+            month: '$_id.month',
+            period: { 
+              $concat: [
+                { $toString: '$_id.year' },
+                '-',
+                { $cond: { 
+                  if: { $lt: ['$_id.month', 10] }, 
+                  then: { $concat: ['0', { $toString: '$_id.month' }] },
+                  else: { $toString: '$_id.month' }
+                }}
+              ]
+            },
+            count: 1,
+            cost: 1,
+            revenue: 1,
+            profit: { $subtract: ['$revenue', '$cost'] }
+          }
+        },
+        { $sort: { year: 1, month: 1 } }
+      ]);
+      
+      response.monthlyStats = monthlyStats;
+    } catch (monthlyErr) {
+      console.error('Error fetching monthly stats:', monthlyErr.message);
+      // Use sample data as fallback
+      response.monthlyStats = generateSampleMonthlyStats();
+    }
+    
+    console.log('Successfully fetched all public dashboard data');
+    res.json(response);
   } catch (err) {
-    console.error('Error in /api/dashboard/public-all:', err.message);
-    // Fallback to sample data
-    return res.json({
+    console.error('Error in public-all dashboard endpoint:', err.message);
+    
+    // Return sample data for all metrics if there's an error
+    res.json({
       summary: generateSampleDashboardData(),
       monthlyStats: generateSampleMonthlyStats(),
       customerData: generateSampleCustomerData(),
-      dailyStats: generateSampleDailyStats(),
-      error: err.message
+      dailyStats: generateSampleDailyStats()
     });
   }
 });

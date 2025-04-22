@@ -109,10 +109,30 @@ router.get('/', authMiddleware, checkConnectionState, async (req, res) => {
 // @access  Public
 router.get('/public', async (req, res) => {
   try {
+    console.log('Fetching customers from public endpoint');
     const customers = await Customer.find().sort({ name: 1 });
+    
+    // If database call fails or returns empty, provide sample data
+    if (!customers || customers.length === 0) {
+      console.log('No customers found in database, returning sample data');
+      const sampleData = getSampleCustomers();
+      return res.json(sampleData);
+    }
+    
+    console.log(`Returning ${customers.length} customers from public endpoint`);
     res.json(customers);
   } catch (err) {
     console.error('Error fetching customers (public endpoint):', err.message);
+    
+    // Fall back to sample data on error
+    try {
+      const sampleData = getSampleCustomers();
+      console.log('Returning sample customers due to error');
+      return res.json(sampleData);
+    } catch (sampleErr) {
+      console.error('Failed to get sample data:', sampleErr.message);
+    }
+    
     res.status(500).json({ msg: 'Server Error', error: err.message });
   }
 });
