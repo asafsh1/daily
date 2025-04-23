@@ -8,11 +8,13 @@
   },
   "scripts": {
     "start": "node backend/src/server.js",
+    "server": "nodemon backend/src/server.js",
     "dev": "nodemon backend/src/server.js",
     "seed:airlines": "node backend/scripts/seedAirlines.js",
     "build": "echo 'Backend build completed'",
     "deploy": "NODE_ENV=production node backend/src/server.js",
-    "frontend": "cd frontend && npm start"
+    "frontend": "cd frontend && npm start",
+    "heroku-postbuild": "cd frontend && npm install && npm run build"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",

@@ -153,6 +153,7 @@ app.use('/api/profile', require('./routes/api/profile'));
 app.use('/api/customers', require('./routes/api/customers'));
 app.use('/api/shipments', require('./routes/api/shipments'));
 app.use('/api/shipmentLegs', require('./routes/api/shipmentLegs'));
+app.use('/api/shipment-legs', require('./routes/api/shipmentLegs'));
 // app.use('/api/events', require('./routes/api/events')); // Commented out missing events route
 app.use('/api/dashboard', require('./routes/api/dashboard'));
 app.use('/api/airlines', require('./routes/api/airlines'));
@@ -168,10 +169,19 @@ app.use('/api/*', (req, res) => {
 // Serve static assets in production
 if (process.env.NODE_ENV === 'production') {
   // Check if frontend/build exists
-  const frontendBuildPath = path.resolve(__dirname, '..', 'frontend', 'build');
+  const frontendBuildPath = path.resolve(__dirname, '..', '..', 'frontend', 'build');
   if (require('fs').existsSync(frontendBuildPath)) {
+    console.log('Frontend build folder found at:', frontendBuildPath);
+    // Serve static files from the frontend build directory
     app.use(express.static(frontendBuildPath));
+    
+    // For any other route, serve index.html for React Router to handle client-side routing
     app.get('*', (req, res) => {
+      // Skip API routes and existing files
+      if (req.url.startsWith('/api/')) {
+        return res.status(404).json({ msg: 'API endpoint not found' });
+      }
+      console.log('Serving index.html for client route:', req.url);
       res.sendFile(path.resolve(frontendBuildPath, 'index.html'));
     });
   } else {
