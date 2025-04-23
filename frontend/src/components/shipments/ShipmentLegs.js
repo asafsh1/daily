@@ -102,11 +102,11 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
     setError(null);
     
     try {
-      // First try to fetch legs directly
-      const response = await axios.get(`/api/shipmentLegs/${shipmentId}`);
+      // First try to fetch legs from public endpoint
+      const response = await axios.get(`/api/shipmentLegs/public/${shipmentId}`);
       
       if (response.data && Array.isArray(response.data) && response.data.length > 0) {
-        console.log('Legs fetched successfully:', response.data);
+        console.log('Legs fetched successfully from public endpoint:', response.data);
         setLegs(response.data);
         setLoading(false);
         return;
@@ -114,7 +114,7 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
       
       // If no legs found, try to create a default leg
       try {
-        const shipmentResponse = await axios.get(`/api/shipments/${shipmentId}`);
+        const shipmentResponse = await axios.get(`/api/shipments/public/${shipmentId}`);
         
         if (shipmentResponse.data && 
             shipmentResponse.data.origin && 
@@ -245,11 +245,11 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
   // Handle leg status change
   const handleLegStatusChange = async (legId, newStatus, e) => {
     e.preventDefault();
-
-    if (!window.confirm(`Are you sure you want to change the status to ${newStatus}?`)) {
-      return;
-    }
     
+    if (!window.confirm(`Are you sure you want to change the status to ${newStatus}?`)) {
+        return;
+      }
+      
     try {
       setLoading(true);
       await axios.put(`/api/shipmentLegs/${legId}/status`, { status: newStatus });
