@@ -473,34 +473,38 @@ router.post('/:id/legs', [
 // @access  Public (temporarily for testing)
 router.post('/', [
   checkConnectionState,
-  check('reference', 'Reference is required').not().isEmpty(),
-  check('origin', 'Origin is required').not().isEmpty(),
-  check('destination', 'Destination is required').not().isEmpty(),
-  check('carrier', 'Carrier is required').not().isEmpty(),
-  check('shipperName', 'Shipper name is required').not().isEmpty(),
-  check('consigneeName', 'Consignee name is required').not().isEmpty(),
-  check('departureDate', 'Departure date is required').not().isEmpty(),
-  check('arrivalDate', 'Arrival date is required').not().isEmpty()
+  // Making validation less strict to allow easier shipment creation
+  check('reference', 'Reference is required').optional(),
+  check('origin', 'Origin is required').optional(),
+  check('destination', 'Destination is required').optional(),
+  check('carrier', 'Carrier is required').optional(),
+  check('shipperName', 'Shipper name is required').optional(),
+  check('consigneeName', 'Consignee name is required').optional(),
+  check('departureDate', 'Departure date is required').optional(),
+  check('arrivalDate', 'Arrival date is required').optional()
 ], async (req, res) => {
-  const errors = validationResult(req);
-  if (!errors.isEmpty()) {
-    return res.status(400).json({ errors: errors.array() });
-  }
-
   try {
+    console.log('Creating new shipment with data:', JSON.stringify(req.body));
+    
+    // Validation errors are now just warnings
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      console.warn('Validation warnings for shipment creation:', errors.array());
+    }
+
     // Create a new shipment object with required fields
     const shipmentFields = {
-      reference: req.body.reference,
-      origin: req.body.origin,
-      destination: req.body.destination,
-      carrier: req.body.carrier,
-      shipperName: req.body.shipperName,
-      consigneeName: req.body.consigneeName,
+      // Use supplied values or defaults for all fields
+      reference: req.body.reference || `REF-${Date.now()}`,
+      origin: req.body.origin || 'Not Specified',
+      destination: req.body.destination || 'Not Specified',
+      carrier: req.body.carrier || 'Not Specified',
+      shipperName: req.body.shipperName || 'Not Specified',
+      consigneeName: req.body.consigneeName || 'Not Specified',
       notifyParty: req.body.notifyParty || '',
-      departureDate: req.body.departureDate,
-      arrivalDate: req.body.arrivalDate,
+      departureDate: req.body.departureDate || new Date(),
+      arrivalDate: req.body.arrivalDate || new Date(Date.now() + 7*24*60*60*1000), // Default 7 days later
       status: req.body.status || 'Planned',
-      // Include any other fields from the request
       orderStatus: req.body.orderStatus || 'planned',
       shipmentStatus: req.body.shipmentStatus || 'Pending',
       invoiced: req.body.invoiced || false,
@@ -508,22 +512,33 @@ router.post('/', [
       cost: req.body.cost || 0,
       receivables: req.body.receivables || 0,
       invoiceStatus: req.body.invoiceStatus || 'Pending',
-      customer: req.body.customer || 'N/A' // Default customer value
+      customer: req.body.customer || null, // Default customer value
+      // Add any other fields that are included in the request
+      ...req.body
     };
-
-    // Add customer if provided
-    if (req.body.customer) {
-      shipmentFields.customer = req.body.customer;
-    }
 
     // Create and save the new shipment
     const newShipment = new Shipment(shipmentFields);
-    const shipment = await newShipment.save();
-
-    res.json(shipment);
+    
+    try {
+      const shipment = await newShipment.save();
+      console.log('Successfully created shipment:', shipment._id);
+      res.json(shipment);
+    } catch (saveErr) {
+      console.error('Error saving shipment:', saveErr.message);
+      res.status(500).json({ 
+        error: 'Failed to save shipment', 
+        details: saveErr.message,
+        shipmentData: shipmentFields 
+      });
+    }
   } catch (err) {
-    console.error('Error creating shipment:', err.message);
-    res.status(500).send('Server Error');
+    console.error('Error in shipment creation endpoint:', err.message);
+    res.status(500).json({ 
+      error: 'Server Error', 
+      message: err.message,
+      stack: process.env.NODE_ENV === 'production' ? null : err.stack
+    });
   }
 });
 

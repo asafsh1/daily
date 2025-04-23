@@ -65,11 +65,15 @@ const getNewToken = async () => {
     }
     
     // Try public diagnostics as last resort
-    const diagResponse = await axios.get(`${apiBaseUrl}/api/dashboard/public-diagnostics`);
-    if (diagResponse.data && diagResponse.data.auth && diagResponse.data.auth.devToken) {
-      console.log('Got new token from public diagnostics');
-      localStorage.setItem('token', diagResponse.data.auth.devToken);
-      return diagResponse.data.auth.devToken;
+    try {
+      const diagResponse = await axios.get(`${apiBaseUrl}/api/dashboard/public-diagnostics`);
+      if (diagResponse.data && diagResponse.data.auth && diagResponse.data.auth.devToken) {
+        console.log('Got new token from public diagnostics');
+        localStorage.setItem('token', diagResponse.data.auth.devToken);
+        return diagResponse.data.auth.devToken;
+      }
+    } catch (diagErr) {
+      console.log('Public diagnostics failed:', diagErr.message);
     }
     
     console.log('All token retrieval methods failed');
@@ -133,7 +137,8 @@ const instance = axios.create({
   timeout: 30000, // 30 seconds
   headers: {
     'Content-Type': 'application/json'
-  }
+  },
+  withCredentials: true // Enable sending cookies with requests
 });
 
 // Add request interceptor to include auth token
@@ -152,18 +157,36 @@ instance.interceptors.request.use(
       // Also use Authorization header as fallback
       config.headers['Authorization'] = `Bearer ${token}`;
     }
+    
+    // Log outgoing requests in development
+    console.log(`🚀 API Request: ${config.method.toUpperCase()} ${config.url}`);
+    
     return config;
   },
   (error) => {
+    console.error('Request error:', error);
     return Promise.reject(error);
   }
 );
 
 // Add response interceptor to handle common errors
 instance.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    // Log successful responses in development
+    console.log(`✅ API Response: ${response.config.method.toUpperCase()} ${response.config.url}`, response.status);
+    return response;
+  },
   async (error) => {
     const originalRequest = error.config;
+    
+    // Add detailed error logging to help with debugging
+    console.error('API error details:', {
+      url: originalRequest ? originalRequest.url : 'No URL',
+      method: originalRequest ? originalRequest.method : 'No method',
+      status: error.response ? error.response.status : 'No status',
+      data: error.response ? error.response.data : 'No data',
+      message: error.message || 'No message'
+    });
     
     // Prevent infinite retry loop
     if (originalRequest._retry) {
@@ -217,6 +240,15 @@ instance.interceptors.response.use(
           // Already handled above
           console.error('Authentication error: You need to be logged in');
           break;
+        case 404:
+          // Not found error - might be an API path issue
+          console.error('Resource not found:', error.response.data);
+          break;
+        case 403:
+          // Forbidden error
+          console.error('Access forbidden:', error.response.data);
+          toast.error('You do not have permission to perform this action');
+          break;
         case 503:
           // Service Unavailable - likely database connection issue
           console.error('Database connection error:', error.response.data.msg);
@@ -228,6 +260,7 @@ instance.interceptors.response.use(
     } else if (error.request) {
       // Request was made but no response received
       console.error('No response received:', error.request);
+      toast.error('Server not responding. Please try again later.');
     } else {
       // Error in request configuration
       console.error('Request configuration error:', error.message);
