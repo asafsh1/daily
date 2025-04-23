@@ -4,6 +4,7 @@ import axios from '../../utils/axiosConfig';
 const TestComponent = () => {
   const [apiStatus, setApiStatus] = useState('Testing...');
   const [error, setError] = useState(null);
+  const [createResponse, setCreateResponse] = useState(null);
   
   useEffect(() => {
     const testApiConnection = async () => {
@@ -20,6 +21,48 @@ const TestComponent = () => {
     
     testApiConnection();
   }, []);
+
+  const testCreateShipment = async () => {
+    try {
+      setApiStatus('Testing shipment creation...');
+      
+      // Create a test shipment with minimal data
+      const testShipment = {
+        reference: `Test-${new Date().getTime()}`,
+        origin: 'Test Origin',
+        destination: 'Test Destination',
+        carrier: 'Test Carrier',
+        shipperName: 'Test Shipper',
+        consigneeName: 'Test Consignee',
+        status: 'Testing',
+        orderStatus: 'planned',
+        shipmentStatus: 'Pending'
+      };
+      
+      // Call the API to create the shipment
+      const response = await axios.post('/api/shipments', testShipment);
+      console.log('Shipment creation test result:', response.data);
+      
+      setCreateResponse({
+        success: true, 
+        message: 'Shipment created successfully!',
+        id: response.data._id,
+        data: response.data
+      });
+      
+      setApiStatus('Shipment created successfully');
+    } catch (err) {
+      console.error('Shipment creation test failed:', err);
+      setError(err.message || 'Unknown error');
+      setApiStatus('Failed to create shipment');
+      
+      setCreateResponse({
+        success: false,
+        message: `Error: ${err.message || 'Unknown error'}`,
+        error: err.response?.data || err.message
+      });
+    }
+  };
 
   return (
     <div style={{ 
@@ -41,6 +84,43 @@ const TestComponent = () => {
           </div>
         )}
       </div>
+      
+      <div style={{ marginTop: '20px' }}>
+        <button 
+          onClick={testCreateShipment} 
+          style={{ 
+            padding: '10px 15px', 
+            backgroundColor: '#007bff', 
+            color: 'white', 
+            border: 'none', 
+            borderRadius: '4px',
+            cursor: 'pointer'
+          }}
+        >
+          Test Create Shipment
+        </button>
+        
+        {createResponse && (
+          <div style={{ 
+            marginTop: '10px', 
+            padding: '10px', 
+            backgroundColor: createResponse.success ? '#d4edda' : '#f8d7da',
+            border: `1px solid ${createResponse.success ? '#c3e6cb' : '#f5c6cb'}`,
+            borderRadius: '4px'
+          }}>
+            <p><strong>{createResponse.message}</strong></p>
+            {createResponse.success && (
+              <div>
+                <p>Shipment ID: {createResponse.id}</p>
+                <pre style={{ maxHeight: '150px', overflow: 'auto' }}>
+                  {JSON.stringify(createResponse.data, null, 2)}
+                </pre>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+      
       <div>
         <h3>Browser Info:</h3>
         <p>UserAgent: {navigator.userAgent}</p>
