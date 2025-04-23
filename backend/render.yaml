@@ -16,6 +16,8 @@ services:
         sync: false
       - key: ALLOWED_ORIGINS
         value: https://veleka-shipments-daily-report.netlify.app,https://daily-shipments.netlify.app,https://daily-tracking.netlify.app,https://daily-admin.netlify.app,http://localhost:3000
+      - key: FRONTEND_URL
+        value: https://veleka-shipments-daily-report.netlify.app
     buildFilter:
       paths:
         - src/server.js
@@ -27,4 +29,5 @@ services:
         - server.js
         - index.js
         - render-build.sh
-        - render-start-debug.sh 
+        - render-start-debug.sh
+        - render.yaml 

@@ -192,12 +192,45 @@ if (process.env.NODE_ENV === 'production') {
     
     // For render.com deployment, we need to serve the React app for all non-API routes
     // Even though we don't have the files locally, we can redirect to the frontend URL
-    const frontendURL = process.env.FRONTEND_URL || 'https://daily-shipment-tracker.onrender.com';
+    const frontendURL = process.env.FRONTEND_URL || 'https://veleka-shipments-daily-report.netlify.app';
+    console.log('Frontend URL:', frontendURL);
     
     // Add a catch-all route for client-side routing
     app.use((req, res, next) => {
       if (req.path.startsWith('/api/')) {
         return next();
+      }
+      
+      // Check if we're already at the frontend URL to prevent redirect loops
+      const host = req.get('host');
+      const currentURL = `${req.protocol}://${host}`;
+      
+      console.log(`Request host: ${host}, current URL: ${currentURL}, frontend URL: ${frontendURL}`);
+      
+      // Check if we're on the same host as the frontend URL or if we're on the render.com platform
+      if (currentURL === frontendURL || host.includes('onrender.com')) {
+        console.log('Detected potential redirect loop, serving static page instead');
+        // We're already at the frontend URL, so serve a basic HTML page instead of redirecting
+        return res.send(`
+          <!DOCTYPE html>
+          <html>
+            <head>
+              <title>Daily Shipment Tracker</title>
+              <style>
+                body { font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }
+                h1 { color: #333; }
+                .message { background: #f8f9fa; padding: 15px; border-radius: 5px; }
+              </style>
+            </head>
+            <body>
+              <h1>Daily Shipment Tracker API Server</h1>
+              <div class="message">
+                <p>This is the backend API server for the Daily Shipment Tracker application.</p>
+                <p>The frontend application should be accessed at: <a href="${frontendURL}">${frontendURL}</a></p>
+              </div>
+            </body>
+          </html>
+        `);
       }
       
       // For all other routes, redirect to the frontend
