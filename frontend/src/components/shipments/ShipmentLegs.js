@@ -103,7 +103,10 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
     
     try {
       // First try to fetch legs from public endpoint
-      const response = await axios.get(`/api/shipmentLegs/public/${shipmentId}`);
+      console.log(`Attempting to fetch legs for shipment ${shipmentId}`);
+      const response = await axios.get(`/api/shipmentLegs/public/${shipmentId}`, {
+        timeout: 60000 // Explicitly set a longer timeout for this critical request
+      });
       
       if (response.data && Array.isArray(response.data) && response.data.length > 0) {
         console.log('Legs fetched successfully from public endpoint:', response.data);
@@ -114,7 +117,10 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
       
       // If no legs found, try to create a default leg
       try {
-        const shipmentResponse = await axios.get(`/api/shipments/public/${shipmentId}`);
+        console.log('No legs found, fetching shipment data to create synthetic leg');
+        const shipmentResponse = await axios.get(`/api/shipments/public/${shipmentId}`, {
+          timeout: 60000 // Longer timeout for shipment data too
+        });
         
         if (shipmentResponse.data && 
             shipmentResponse.data.origin && 
@@ -147,7 +153,24 @@ const ShipmentLegs = ({ shipmentId, readOnly = false }) => {
       setLegs([]);
     } catch (error) {
       console.error('Error fetching legs:', error);
-      setError('Failed to load shipment legs');
+      
+      let errorMessage = 'Failed to load shipment legs';
+      
+      // Provide more specific error messages based on the error type
+      if (error.code === 'ECONNABORTED') {
+        errorMessage = 'Connection timed out. The server is responding slowly, please try again later.';
+      } else if (!navigator.onLine) {
+        errorMessage = 'You appear to be offline. Please check your internet connection.';
+      } else if (error.response) {
+        // Server responded with an error status
+        if (error.response.status === 404) {
+          errorMessage = 'The shipment legs could not be found.';
+        } else if (error.response.status >= 500) {
+          errorMessage = 'The server encountered an error. Please try again later.';
+        }
+      }
+      
+      setError(errorMessage);
     } finally {
       setLoading(false);
     }

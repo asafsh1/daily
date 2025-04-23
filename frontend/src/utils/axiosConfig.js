@@ -134,7 +134,7 @@ const getPublicAlternative = (url) => {
 // Create axios instance with base URL and default config
 const instance = axios.create({
   baseURL: apiBaseUrl,
-  timeout: 30000, // 30 seconds
+  timeout: 60000, // 60 seconds (increased from 30 seconds)
   headers: {
     'Content-Type': 'application/json'
   },
@@ -187,6 +187,28 @@ instance.interceptors.response.use(
       data: error.response ? error.response.data : 'No data',
       message: error.message || 'No message'
     });
+    
+    // Handle timeout errors specifically
+    if (error.code === 'ECONNABORTED' && error.message && error.message.includes('timeout')) {
+      console.log(`Request timeout for ${originalRequest.url}, attempting retry...`);
+      
+      // Prevent multiple retries
+      if (!originalRequest._timeoutRetry) {
+        originalRequest._timeoutRetry = true;
+        
+        // Check if there's a public alternative for this endpoint
+        const publicUrl = getPublicAlternative(originalRequest.url);
+        if (publicUrl && !originalRequest.url.includes('/public/')) {
+          console.log(`Timeout occurred, trying public endpoint: ${publicUrl}`);
+          return instance.get(publicUrl);
+        }
+        
+        // Retry the original request with increased timeout
+        console.log(`Retrying original request with increased timeout`);
+        originalRequest.timeout = 90000; // 90 seconds for retry
+        return instance(originalRequest);
+      }
+    }
     
     // Prevent infinite retry loop
     if (originalRequest._retry) {
