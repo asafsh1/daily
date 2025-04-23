@@ -2,16 +2,17 @@
   "name": "shipment-tracker-server",
   "version": "1.0.0",
   "description": "Backend server for shipment tracking application",
-  "main": "src/server.js",
+  "main": "backend/src/server.js",
   "engines": {
     "node": "18.x"
   },
   "scripts": {
-    "start": "node src/server.js",
-    "dev": "nodemon src/server.js",
-    "seed:airlines": "node scripts/seedAirlines.js",
+    "start": "node backend/src/server.js",
+    "dev": "nodemon backend/src/server.js",
+    "seed:airlines": "node backend/scripts/seedAirlines.js",
     "build": "echo 'Backend build completed'",
-    "deploy": "NODE_ENV=production node src/server.js"
+    "deploy": "NODE_ENV=production node backend/src/server.js",
+    "frontend": "cd frontend && npm start"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",

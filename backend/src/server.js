@@ -148,9 +148,12 @@ app.get('/api/public-diagnostics', async (req, res) => {
 // Define Routes
 app.use('/api/auth', require('./routes/api/auth'));
 app.use('/api/users', require('./routes/api/users'));
-app.use('/api/shipments', require('./routes/api/shipments'));
-app.use('/api/shipment-legs', require('./routes/api/shipmentLegs'));
+app.use('/api/profile', require('./routes/api/profile'));
+// app.use('/api/posts', require('./routes/api/posts'));
 app.use('/api/customers', require('./routes/api/customers'));
+app.use('/api/shipments', require('./routes/api/shipments'));
+app.use('/api/shipmentLegs', require('./routes/api/shipmentLegs'));
+// app.use('/api/events', require('./routes/api/events')); // Commented out missing events route
 app.use('/api/dashboard', require('./routes/api/dashboard'));
 app.use('/api/airlines', require('./routes/api/airlines'));
 app.use('/api/shippers', require('./routes/api/shippers'));
