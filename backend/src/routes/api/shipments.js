@@ -542,4 +542,75 @@ router.post('/', [
   }
 });
 
+// @route   PUT api/shipments/:id
+// @desc    Update a shipment
+// @access  Public
+router.put('/:id', checkConnectionState, async (req, res) => {
+  try {
+    console.log('Update request for shipment:', req.params.id);
+    console.log('Update data:', req.body);
+    
+    // Validate the ID format
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      return res.status(400).json({ 
+        msg: 'Invalid shipment ID format'
+      });
+    }
+    
+    // Get the current shipment data
+    const currentShipment = await Shipment.findById(req.params.id).lean();
+    if (!currentShipment) {
+      return res.status(404).json({ msg: 'Shipment not found' });
+    }
+    
+    // Prepare update data
+    const updateData = { ...req.body };
+    
+    // Special handling for customer field
+    if (updateData.customer) {
+      // If the customer is unchanged (same ID), preserve the original customer object
+      if (typeof currentShipment.customer === 'object' && 
+          currentShipment.customer && 
+          currentShipment.customer._id && 
+          updateData.customer === currentShipment.customer._id.toString()) {
+        console.log('Customer unchanged, preserving original customer data');
+        updateData.customer = currentShipment.customer;
+      }
+      // Otherwise, if it's a new customer ID, try to look up the customer
+      else if (mongoose.Types.ObjectId.isValid(updateData.customer)) {
+        try {
+          const customerDoc = await Customer.findById(updateData.customer);
+          if (customerDoc) {
+            console.log('Found customer:', customerDoc.name);
+            updateData.customer = customerDoc;
+          }
+        } catch (err) {
+          console.error('Error looking up customer:', err.message);
+          // Keep the customer ID as is if lookup fails
+        }
+      }
+    }
+    
+    // Update the shipment
+    const shipment = await Shipment.findByIdAndUpdate(
+      req.params.id,
+      { $set: updateData },
+      { new: true, runValidators: true }
+    );
+    
+    if (!shipment) {
+      return res.status(404).json({ msg: 'Shipment not found after update' });
+    }
+    
+    res.json(shipment);
+  } catch (err) {
+    console.error('Error updating shipment:', err.message);
+    res.status(500).json({ 
+      msg: 'Server error',
+      error: err.message,
+      stack: process.env.NODE_ENV === 'production' ? null : err.stack
+    });
+  }
+});
+
 module.exports = router; 

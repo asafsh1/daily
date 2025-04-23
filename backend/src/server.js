@@ -6,6 +6,7 @@ const mongoose = require('mongoose');
 const { connect: connectDB } = require('./mongodb-connect');
 const http = require('http');
 const socketIo = require('socket.io');
+const config = require('./config');  // Add config import
 
 // Initialize Express
 const app = express();
@@ -122,7 +123,7 @@ app.get('/api/public-diagnostics', async (req, res) => {
       
       const token = jwt.sign(
         payload,
-        process.env.JWT_SECRET || 'developmentsecret',
+        process.env.JWT_SECRET || config.jwtSecret || 'developmentsecret',
         { expiresIn: '1 day' }
       );
       

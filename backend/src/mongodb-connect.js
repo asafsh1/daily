@@ -14,6 +14,7 @@ const { MongoClient } = require('mongodb');
 const https = require('https');
 const fs = require('fs');
 const path = require('path');
+const config = require('./config');
 
 // Hardcoded database credentials as a last resort fallback
 const FALLBACK_USERNAME = "asafasaf5347";
@@ -148,19 +149,84 @@ const connectDB = async () => {
     console.log('MongoDB URI exists in env:', !!process.env.MONGODB_URI);
     console.log('NODE_ENV:', process.env.NODE_ENV);
     
-    const uri = process.env.MONGODB_URI;
+    // First try to get the URI from environment variables, then fall back to config
+    let uri = process.env.MONGODB_URI || config.mongoURI;
     if (!uri) {
-      throw new Error('MongoDB URI is not defined in environment variables');
+      throw new Error('MongoDB URI is not defined in environment variables or config');
     }
     
     // Log sanitized URI for debugging
     const sanitizedUri = uri.replace(/\/\/[^@]+@/, '//[CREDENTIALS]@');
     console.log('MongoDB URI pattern:', sanitizedUri);
     
-    // Connect to MongoDB Atlas
-    const conn = await mongoose.connect(uri, mongooseOptions);
-    console.log(`✅ Connected to MongoDB Atlas: ${conn.connection.host}`);
-    return conn;
+    // Try connecting with the provided URI
+    try {
+      console.log('Attempting MongoDB connection with primary URI...');
+      const conn = await mongoose.connect(uri, mongooseOptions);
+      console.log(`✅ Connected to MongoDB Atlas: ${conn.connection.host}`);
+      return conn;
+    } catch (primaryError) {
+      console.error('Primary connection method failed:', primaryError.message);
+      
+      // If SRV lookup fails, try direct connection method
+      if (primaryError.message.includes('ENOTFOUND') && uri.includes('+srv')) {
+        console.log('SRV lookup failed, trying direct connection...');
+        
+        // Convert SRV URI to direct connection format
+        uri = uri.replace('mongodb+srv://', 'mongodb://');
+        
+        // Add default port if not present
+        if (!uri.includes(':27017')) {
+          uri = uri.replace(/@([^\/]+)\//, '@$1:27017/');
+        }
+        
+        // Add connection options if not present
+        if (!uri.includes('retryWrites=true')) {
+          uri += uri.includes('?') ? '&retryWrites=true&w=majority' : '?retryWrites=true&w=majority';
+        }
+        
+        console.log('Using direct connection format:', uri.replace(/\/\/[^@]+@/, '//[CREDENTIALS]@'));
+        
+        // Try connecting with the modified URI
+        const conn = await mongoose.connect(uri, mongooseOptions);
+        console.log(`✅ Connected to MongoDB Atlas using direct connection: ${conn.connection.host}`);
+        return conn;
+      }
+      
+      // If still failing, try each KNOWN_MONGODB_IPS
+      if (primaryError.message.includes('ENOTFOUND')) {
+        console.log('Trying connection with known MongoDB Atlas IPs...');
+        
+        // Extract credentials and database
+        const uriParts = uri.match(/mongodb(?:\+srv)?:\/\/([^@]+)@([^\/]+)\/([^?]+)/);
+        if (uriParts) {
+          const [, credentials, host, database] = uriParts;
+          
+          // Try each known IP
+          for (const ip of KNOWN_MONGODB_IPS) {
+            try {
+              const directIpUri = `mongodb://${credentials}@${ip}:27017/${database}?retryWrites=true&w=majority&authSource=admin`;
+              console.log(`Trying direct IP connection to ${ip}...`);
+              
+              const conn = await mongoose.connect(directIpUri, {
+                ...mongooseOptions,
+                // Add additional options for direct IP connection
+                authSource: 'admin',
+                directConnection: true
+              });
+              
+              console.log(`✅ Connected to MongoDB Atlas via IP ${ip}`);
+              return conn;
+            } catch (ipError) {
+              console.error(`IP connection to ${ip} failed:`, ipError.message);
+            }
+          }
+        }
+      }
+      
+      // If all attempts fail, rethrow the original error
+      throw primaryError;
+    }
   } catch (error) {
     console.error('MongoDB connection error:', error.message);
     throw error;

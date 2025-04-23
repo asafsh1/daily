@@ -134,7 +134,7 @@ const getPublicAlternative = (url) => {
 // Create axios instance with base URL and default config
 const instance = axios.create({
   baseURL: apiBaseUrl,
-  timeout: 60000, // 60 seconds (increased from 30 seconds)
+  timeout: 90000, // 90 seconds (increased from 60 seconds)
   headers: {
     'Content-Type': 'application/json'
   },
@@ -158,8 +158,16 @@ instance.interceptors.request.use(
       config.headers['Authorization'] = `Bearer ${token}`;
     }
     
-    // Log outgoing requests in development
-    console.log(`🚀 API Request: ${config.method.toUpperCase()} ${config.url}`);
+    // Add additional debugging for shipment endpoints
+    if (config.url.includes('/shipments')) {
+      console.log(`📦 Shipment API Request: ${config.method.toUpperCase()} ${config.url}`, config.data ? 'With data' : 'No data');
+      if (config.data) {
+        console.log('Shipment request payload:', JSON.stringify(config.data).substring(0, 500) + '...');
+      }
+    } else {
+      // Log other outgoing requests
+      console.log(`🚀 API Request: ${config.method.toUpperCase()} ${config.url}`);
+    }
     
     return config;
   },
