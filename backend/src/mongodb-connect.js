@@ -7,7 +7,9 @@
 
 require('dotenv').config();
 const mongoose = require('mongoose');
-const dns = require('dns').promises;
+const dns = require('dns');
+const { Resolver } = dns.promises;
+const resolver = new Resolver();
 const { MongoClient } = require('mongodb');
 const https = require('https');
 const fs = require('fs');
@@ -35,13 +37,41 @@ const KNOWN_MONGODB_IPS = [
   '13.236.215.64'
 ];
 
-// Set DNS servers for better MongoDB Atlas connectivity
-dns.setServers([
-  '8.8.8.8',  // Google DNS
-  '8.8.4.4',  // Google DNS backup
-  '1.1.1.1',  // Cloudflare
-  '1.0.0.1'   // Cloudflare backup
-]);
+// Set default DNS servers to improve reliability
+resolver.setServers(['8.8.8.8', '8.8.4.4', '1.1.1.1', '1.0.0.1']);
+console.log('DNS Servers:', resolver.getServers());
+
+// Add some DNS resolution debugging
+const resolveDns = async (hostname) => {
+  console.log(`Testing DNS resolution for ${hostname}...`);
+  try {
+    const addresses = await resolver.resolve4(hostname);
+    console.log(`DNS Resolution for ${hostname}: ${addresses.join(', ')}`);
+    return addresses;
+  } catch (err) {
+    console.log(`DNS Resolution failed: ${err.code} ${hostname}`);
+    return null;
+  }
+};
+
+// Load DNS resolution debugging
+if (process.env.NODE_ENV === 'production') {
+  const mongoUri = process.env.MONGODB_URI || '';
+  if (mongoUri) {
+    try {
+      // Extract hostname from MongoDB URI for DNS testing
+      const hostnameMatch = mongoUri.match(/@([^:/]+)/);
+      if (hostnameMatch && hostnameMatch[1]) {
+        const hostname = hostnameMatch[1];
+        console.log(`Testing DNS resolution for MongoDB host: ${hostname}`);
+        resolveDns(hostname);
+      }
+    } catch (err) {
+      console.error('Error parsing MongoDB URI for DNS check:', err.message);
+    }
+  }
+}
+console.log('Loaded DNS resolution debugging');
 
 let connectionDetails = {
   host: null,
@@ -65,12 +95,25 @@ const mongooseOptions = {
 
 // Connection state check middleware
 const checkConnectionState = (req, res, next) => {
-  req.dbConnected = mongoose.connection.readyState === 1;
-  req.dbConnectionState = {
-    state: mongoose.connection.readyState,
-    host: mongoose.connection.host,
-    name: mongoose.connection.name
+  const state = mongoose.connection.readyState;
+  
+  // Get readable state
+  const states = {
+    0: 'disconnected',
+    1: 'connected',
+    2: 'connecting',
+    3: 'disconnecting'
   };
+  
+  // Add to the request object
+  req.dbConnectionState = {
+    state: states[state] || 'unknown',
+    readyState: state
+  };
+  
+  // Set dbConnected flag
+  req.dbConnected = state === 1;
+  
   next();
 };
 

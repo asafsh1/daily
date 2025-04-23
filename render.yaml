@@ -3,24 +3,23 @@ services:
     name: daily-shipment-tracker
     env: node
     region: oregon
-    buildCommand: cd frontend && npm install && npm run build && cd ../backend && npm install
-    startCommand: cd backend && node src/server.js
+    buildCommand: npm install && cd frontend && npm install && npm run build && cd ..
+    startCommand: node backend/src/server.js
     plan: free
     autoDeploy: true
     envVars:
       - key: NODE_ENV
         value: production
       - key: MONGODB_URI
-        value: mongodb+srv://daily_admin:1ArUfF8oH5N97Ggy@ops.hm6y7nw.mongodb.net/daily?retryWrites=true&w=majority&appName=OPS
         sync: false
       - key: JWT_SECRET
-        generateValue: true
-      - key: JWT_EXPIRATION
-        value: 7d
-      - key: ALLOWED_ORIGINS
-        value: https://daily-shipment-tracker.onrender.com,https://veleka-shipments-daily-report.netlify.app,https://daily-shipments.netlify.app,https://daily-tracking.netlify.app,https://daily-admin.netlify.app
+        sync: false
       - key: PORT
         value: 10000
+      - key: FRONTEND_URL
+        value: https://daily-shipment-tracker.onrender.com
+      - key: ALLOWED_ORIGINS
+        value: https://daily-shipment-tracker.onrender.com,https://veleka-shipments-daily-report.netlify.app,https://daily-shipments.netlify.app,https://daily-tracking.netlify.app,https://daily-admin.netlify.app
       - key: CORS_ORIGINS
         value: https://veleka-shipments-daily-report.netlify.app,https://daily-shipments.netlify.app,https://daily-tracking.netlify.app,https://daily-admin.netlify.app
       - key: DD_API_KEY
@@ -53,4 +52,5 @@ services:
         - models/
         - middleware/
         - config/
-        - utils/ 
+        - utils/
+    healthCheckPath: /health 

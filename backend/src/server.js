@@ -172,24 +172,44 @@ if (process.env.NODE_ENV === 'production') {
   const frontendBuildPath = path.resolve(__dirname, '..', '..', 'frontend', 'build');
   if (require('fs').existsSync(frontendBuildPath)) {
     console.log('Frontend build folder found at:', frontendBuildPath);
+    
     // Serve static files from the frontend build directory
     app.use(express.static(frontendBuildPath));
     
-    // For any other route, serve index.html for React Router to handle client-side routing
+    // Always return the index.html for any non-API route
     app.get('*', (req, res) => {
-      // Skip API routes and existing files
+      // Skip API routes - they're handled above
       if (req.url.startsWith('/api/')) {
         return res.status(404).json({ msg: 'API endpoint not found' });
       }
-      console.log('Serving index.html for client route:', req.url);
+      
+      console.log('Serving React app for client route:', req.url);
       res.sendFile(path.resolve(frontendBuildPath, 'index.html'));
     });
   } else {
+    // For render.com deployment where frontend is built separately
     console.log('Frontend build folder not found, API-only mode');
+    
+    // For render.com deployment, we need to serve the React app for all non-API routes
+    // Even though we don't have the files locally, we can redirect to the frontend URL
+    const frontendURL = process.env.FRONTEND_URL || 'https://daily-shipment-tracker.onrender.com';
+    
+    // Add a catch-all route for client-side routing
+    app.use((req, res, next) => {
+      if (req.path.startsWith('/api/')) {
+        return next();
+      }
+      
+      // For all other routes, redirect to the frontend
+      console.log(`Redirecting to frontend for route: ${req.path}`);
+      res.redirect(frontendURL);
+    });
+    
     // Add a health check endpoint
     app.get('/health', (req, res) => {
       res.status(200).send('OK');
     });
+    
     // Add a default route
     app.get('/', (req, res) => {
       res.status(200).json({ 
@@ -204,11 +224,18 @@ if (process.env.NODE_ENV === 'production') {
   app.get('/health', (req, res) => {
     res.status(200).send('OK');
   });
-  // Add a default route
-  app.get('/', (req, res) => {
+  
+  // In development, all non-API routes should return a message
+  // since the frontend is served separately
+  app.get('*', (req, res, next) => {
+    if (req.path.startsWith('/api/')) {
+      return next();
+    }
+    
     res.status(200).json({ 
       msg: 'Daily Shipment Tracker API (Development)',
       version: '1.0.0',
+      frontend: 'Please use npm run frontend to start the React app',
       endpoints: ['/api/shipments', '/api/dashboard', '/api/auth', '/api/users']
     });
   });
